@@ -96,6 +96,9 @@ GLenum GL_ProcessErrors(const char* message)
 		else if (error == GL_INVALID_VALUE) {
 			R_TraceLogAPICall("  ERROR: %s (GL_INVALID_VALUE)\n", message);
 		}
+		else if (error == GL_INVALID_OPERATION) {
+			R_TraceLogAPICall("  ERROR: %s (GL_INVALID_OPERATION)\n", message);
+		}
 		else if (error == GL_STACK_OVERFLOW) {
 			R_TraceLogAPICall("  ERROR: %s (GL_STACK_OVERFLOW)\n", message);
 		}
@@ -113,6 +116,15 @@ GLenum GL_ProcessErrors(const char* message)
 	return firstError;
 }
 #endif // WITH_RENDERING_TRACE
+
+void GL_ConsumeErrors(void)
+{
+	GLenum error = glGetError();
+
+	while (error != GL_NO_ERROR) {
+		error = glGetError();
+	}
+}
 
 static void GL_PrintInfoLine(const char* label, int labelsize, const char* fmt, ...)
 {

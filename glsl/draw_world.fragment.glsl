@@ -85,6 +85,11 @@ vec4 applyColorTinting(vec4 frag_colour)
 #define applyColorTinting(x) (x)
 #endif
 
+#if defined(DRAW_TEXTURELESS) && defined(DRAW_ALPHATEST_ENABLED)
+// We pass the original coordinates in TextureCoord & use them for alpha-test, but this is where color should come from
+out vec3 TextureLessCoord;
+#endif
+
 void main()
 {
 	vec4 texColor;
@@ -125,6 +130,9 @@ void main()
 	texColor = texture(materialTex[SamplerNumber], tex);
 
 #ifdef DRAW_ALPHATEST_ENABLED
+	#ifdef DRAW_TEXTURELESS
+		texColor = vec4(texture(materialTex[SamplerNumber], TextureLessCoord).rgb, texColor.a);
+	#endif
 	if ((Flags & EZQ_SURFACE_ALPHATEST) == EZQ_SURFACE_ALPHATEST && texColor.a < 0.333) {
 		discard;
 	}
@@ -158,8 +166,8 @@ void main()
 			// Flatten it out
 			vec3 dir = normalize(vec3(Direction.x, Direction.y, 3 * Direction.z));
 
-			vec4 skyColor = texture2D(skyDomeTex, vec2(skySpeedscale + dir.x * len, skySpeedscale + dir.y * len));
-			vec4 cloudColor = texture2D(skyDomeCloudTex, vec2(skySpeedscale2 + dir.x * len, skySpeedscale2 + dir.y * len));
+			vec4 skyColor = texture(skyDomeTex, vec2(skySpeedscale + dir.x * len, skySpeedscale + dir.y * len));
+			vec4 cloudColor = texture(skyDomeCloudTex, vec2(skySpeedscale2 + dir.x * len, skySpeedscale2 + dir.y * len));
 
 			frag_colour = mix(skyColor, cloudColor, cloudColor.a);
 #else

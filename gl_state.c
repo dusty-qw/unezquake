@@ -38,6 +38,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "r_program.h"
 #include "glc_state.h"
 
+static void GLC_ToggleAlphaTesting(const rendering_state_t* state, rendering_state_t* current);
 static rendering_state_t states[r_state_count];
 
 // Texture functions
@@ -450,6 +451,26 @@ void GL_BindTextureToTarget(GLenum textureUnit, GLenum targetType, GLuint name)
 	GL_BindTexture(targetType, name, true);
 }
 
+qbool GL_IsTextureBound(GLuint unit, texture_ref reference)
+{
+	int unit_num = unit - GL_TEXTURE0;
+	GLuint texture = GL_TextureNameFromReference(reference);
+	GLenum targetType = GL_TextureTargetFromReference(reference);
+
+	if (unit_num >= 0 && unit_num < sizeof(bound_arrays) / sizeof(bound_arrays[0])) {
+		if (targetType == GL_TEXTURE_2D_ARRAY) {
+			return (bound_arrays[unit_num] == texture);
+		}
+		else if (targetType == GL_TEXTURE_2D) {
+			return (bound_textures[unit_num] == texture);
+		}
+		else if (targetType == GL_TEXTURE_CUBE_MAP) {
+			return (bound_cubemaps[unit_num] == texture);
+		}
+	}
+	return false;
+}
+
 static qbool GL_BindTextureUnitImpl(GLuint unit, texture_ref reference, qbool always_select_unit)
 {
 	int unit_num = unit - GL_TEXTURE0;
@@ -498,6 +519,11 @@ void GLM_ApplyRenderingState(r_state_id id)
 qbool GL_EnsureTextureUnitBound(int unit, texture_ref reference)
 {
 	return GL_BindTextureUnitImpl(GL_TEXTURE0 + unit, reference, false);
+}
+
+qbool GL_EnsureTextureUnitBoundAndSelect(int unit, texture_ref reference)
+{
+	return GL_BindTextureUnitImpl(GL_TEXTURE0 + unit, reference, true);
 }
 
 void GL_BindTextureUnit(GLuint unit, texture_ref reference)
@@ -882,6 +908,12 @@ void GL_LoadStateFunctions(void)
 	GL_InvalidateFunction(glBindTextures);
 	if (SDL_GL_ExtensionSupported("GL_ARB_multi_bind") && !COM_CheckParm(cmdline_param_client_nomultibind)) {
 		GL_LoadOptionalFunction(glBindTextures);
+
+		// Invalidate if on particular drivers (see github bug #416)
+		if (GL_Available(glBindTextures) && glConfig.amd_issues) {
+			GL_InvalidateFunction(glBindTextures);
+			glConfig.broken_features |= R_BROKEN_GLBINDTEXTURES;
+		}
 	}
 }
 
@@ -1241,6 +1273,33 @@ void R_GLC_TexturePointer(r_buffer_id buf, int unit, qbool enabled, int size, GL
 	}
 }
 
+void GLC_CustomAlphaTesting(qbool enabled)
+{
+	rendering_state_t state;
+	rendering_state_t* current = &opengl.rendering_state;
+
+	if (enabled) {
+		R_GLC_ConfigureAlphaTesting(&state, true, r_alphatest_func_greater, 0.333f);
+	}
+	else {
+		R_GLC_ConfigureAlphaTesting(&state, false, r_alphatest_func_always, 0);
+	}
+
+	GLC_ToggleAlphaTesting(&state, current);
+}
+
+static void GLC_ToggleAlphaTesting(const rendering_state_t* state, rendering_state_t* current)
+{
+	GL_ApplySimpleToggle(state, current, alphaTesting.enabled, GL_ALPHA_TEST);
+	if (current->alphaTesting.enabled && (state->alphaTesting.func != current->alphaTesting.func || state->alphaTesting.value != current->alphaTesting.value)) {
+		glAlphaFunc(
+			glAlphaTestModeValues[current->alphaTesting.func = state->alphaTesting.func],
+			current->alphaTesting.value = state->alphaTesting.value
+		);
+		R_TraceLogAPICall("glAlphaFunc(%s %f)", txtAlphaTestModeValues[state->alphaTesting.func], state->alphaTesting.value);
+	}
+}
+
 void GLC_ApplyRenderingState(r_state_id id)
 {
 	rendering_state_t* current = &opengl.rendering_state;
@@ -1251,14 +1310,7 @@ void GLC_ApplyRenderingState(r_state_id id)
 	R_TraceEnterRegion(va("GLC_ApplyRenderingState(%s)", state->name), true);
 
 	// Alpha-testing
-	GL_ApplySimpleToggle(state, current, alphaTesting.enabled, GL_ALPHA_TEST);
-	if (current->alphaTesting.enabled && (state->alphaTesting.func != current->alphaTesting.func || state->alphaTesting.value != current->alphaTesting.value)) {
-		glAlphaFunc(
-			glAlphaTestModeValues[current->alphaTesting.func = state->alphaTesting.func],
-			current->alphaTesting.value = state->alphaTesting.value
-		);
-		R_TraceLogAPICall("glAlphaFunc(%s %f)", txtAlphaTestModeValues[state->alphaTesting.func], state->alphaTesting.value);
-	}
+	GLC_ToggleAlphaTesting(state, current);
 
 	// Texture units
 	for (i = 0; i < sizeof(current->textureUnits) / sizeof(current->textureUnits[0]) && i < glConfig.texture_units; ++i) {
@@ -1914,7 +1966,7 @@ void GL_VerifyState(FILE* output)
 	GLuint gl_boundCubemap[MAX_LOGGED_TEXTURE_UNITS] = { 0 };
 
 	R_TraceEnterFunctionRegion;
-	GL_ProcessErrors(__FUNCTION__);
+	GL_ProcessErrors(__func__);
 	GL_DownloadState(&from_gl, gl_bound2d, gl_bound3d, gl_boundCubemap);
 
 	GLC_AssumeState(normal_array.buf);

@@ -1670,8 +1670,10 @@ void CL_ParseSoundlist (void)
 			if (!str[0])
 				break;
 			numsounds++;
-			if (numsounds == MAX_SOUNDS)
-				Host_Error ("Server sent too many sound_precache");
+			if (numsounds >= MAX_SOUNDS) {
+				Host_Error("Server sent too many sound_precache");
+				return;
+			}
 			if (str[0] == '/')
 				str++; // hexum -> fixup server error (submitted by empezar bug #1026106)
 			strlcpy (cl.sound_name[numsounds], str, sizeof(cl.sound_name[numsounds]));
@@ -1739,15 +1741,19 @@ void CL_ParseModellist (qbool extended)
 
 			#if defined (PROTOCOL_VERSION_FTE) && defined (FTE_PEXT_MODELDBL)
 			nummodels++;
-			if (nummodels >= MAX_MODELS) //Spike: tweeked this, we still complain if the server exceeds the standard limit without using extensions.
-				Host_Error ("Server sent too many model_precache");
+			if (nummodels >= MAX_MODELS) {
+				// Spike: tweeked this, we still complain if the server exceeds the standard limit without using extensions.
+				Host_Error("Server sent too many model_precache");
+				return;
+			}
 		
 			if (nummodels >= 256 && !(cls.fteprotocolextensions & FTE_PEXT_MODELDBL))
 			#else
-			if (++nummodels == MAX_MODELS)
+			if (++nummodels >= MAX_MODELS)
 			#endif // PROTOCOL_VERSION_FTE
 			{
 				Host_Error ("Server sent too many model_precache");
+				return;
 			}
 
 			if (str[0] == '/')

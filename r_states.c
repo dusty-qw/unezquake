@@ -135,7 +135,7 @@ static void R_Initialise2DStates(void)
 	rendering_state_t* state;
 	r_vao_id postprocess_vao = R_UseImmediateOpenGL() ? vao_none : vao_postprocess;
 
-	state = R_InitRenderingState(r_state_default_2d, true, "default2DState", vao_none);
+	state = R_InitRenderingState(r_state_default_2d, true, "default2DState", postprocess_vao);
 	state->depth.test_enabled = false;
 	state->cullface.enabled = false;
 
@@ -487,7 +487,7 @@ void R_StateBeginDrawAliasModel(const entity_t* ent, aliashdr_t* paliashdr)
 {
 	extern cvar_t r_viewmodelsize;
 
-	R_TraceEnterRegion(__FUNCTION__, true);
+	R_TraceEnterRegion(__func__, true);
 
 	R_RotateForEntity(ent);
 	if (ent->renderfx & RF_WEAPONMODEL) {
