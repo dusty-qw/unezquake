@@ -26,7 +26,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 cvar_t tp_msgtriggers = {"tp_msgtriggers", "1"};
 cvar_t tp_soundtrigger = {"tp_soundtrigger", "~"};
-cvar_t tp_triggers = {"tp_triggers", "1"};
+cvar_t tp_triggers = {"tp_triggers", "1", 0, Rulesets_OnChange_tp_triggers};
 cvar_t tp_forceTriggers = {"tp_forceTriggers", "0"};
 // re-triggers stuff
 cvar_t re_sub[10] = {{"re_trigger_match_0", "", CVAR_ROM},

@@ -395,11 +395,13 @@ static void Rulesets_Thunderdome(qbool enable)
 static void Rulesets_Modern2020(qbool enable)
 {
 	extern cvar_t cl_independentPhysics, cl_c2spps;
+	extern cvar_t cl_hud;
 	extern cvar_t allow_scripts;
 	int i;
 
 	locked_cvar_t disabled_cvars[] = {
 		{&allow_scripts, "0"},  // disable movement scripting
+		{&cl_hud, "0"}         // allows you place any text on the screen & filter incoming messages (hud strings)
 	};
 
 	if (enable) {
@@ -415,7 +417,7 @@ static void Rulesets_Modern2020(qbool enable)
 		}
 
 		rulesetDef.maxfps = 77;
-		rulesetDef.restrictTriggers = false;
+		rulesetDef.restrictTriggers = false; // triggers are not restricted but will report with ruleset
 		rulesetDef.restrictPacket = true; // packet command could have been exploited for external timers
 		rulesetDef.restrictParticles = false;
 		rulesetDef.restrictLogging = true;
@@ -696,7 +698,6 @@ void Rulesets_OnChange_cl_fakeshaft(cvar_t *var, char *value, qbool *cancel)
 {
 	float fakeshaft = Q_atof(value);
 
-
 	if (!cl.spectator && cls.state != ca_disconnected) {
 		if (fakeshaft == 2)
 			Cbuf_AddText("say fakeshaft 2 (emulation of fakeshaft 0 for servers with antilag feature)\n");
@@ -706,6 +707,39 @@ void Rulesets_OnChange_cl_fakeshaft(cvar_t *var, char *value, qbool *cancel)
 			Cbuf_AddText("say fakeshaft off\n");
 		else
 			Cbuf_AddText(va("say fakeshaft %.1f%%\n", fakeshaft * 100.0));
+	}
+}
+
+void Rulesets_OnChange_tp_triggers(cvar_t *var, char *value, qbool *cancel)
+{
+	int ival = Q_atoi(value);	// this is used in the code
+	float fval = Q_atof(value); // this is used to check value validity
+
+	if (ival == var->integer && fval == var->value) {
+		// no change
+		return;
+	}
+
+	if (fval != 0 && fval != 1) {
+		Com_Printf("Invalid value for %s, use 0 or 1.\n", var->name);
+		*cancel = true;
+		return;
+	}
+
+	if (!cl.spectator && cls.state != ca_disconnected) {
+		if (cls.state == ca_active) {
+			if (cl.standby) {
+				if (ival)
+					Cbuf_AddText("say triggers enabled\n");
+				else
+					Cbuf_AddText("say triggers disabled\n");
+			}
+			else {
+				// disallow during the match
+				Com_Printf("%s changes are not allowed during the match\n", var->name);
+				*cancel = true;
+			}
+		}
 	}
 }
 

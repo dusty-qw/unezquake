@@ -47,6 +47,7 @@ extern cvar_t cl_delay_packet;
 extern cvar_t r_fullbrightSkins;
 extern cvar_t cl_fakeshaft;
 extern cvar_t cl_iDrive;
+extern cvar_t tp_triggers;
 
 
 static void FChecks_VersionResponse (void)
@@ -234,6 +235,9 @@ const char* FChecks_RulesetAdditionString(void)
 
 	// cl_iDrive - strafing aid
 	APPENDFEATURE((cl_iDrive.integer)," idrive");
+
+	// tp_triggers
+	APPENDFEATURE((tp_triggers.integer)," triggers");
 	#undef APPENDFEATURE
 
 	if (strlen(feat_on_buf) > 10) {
