@@ -83,8 +83,9 @@ void GL_EnsureFinished(void)
 	glFinish();
 }
 
-#ifdef WITH_RENDERING_TRACE
-GLenum GL_ProcessErrors(const char* message)
+GLenum GL_ProcessErrors(const char* message);
+
+GLenum GL_ProcessAllErrors(const char* message)
 {
 	GLenum error = glGetError();
 	GLenum firstError = error;
@@ -115,15 +116,10 @@ GLenum GL_ProcessErrors(const char* message)
 	}
 	return firstError;
 }
-#endif // WITH_RENDERING_TRACE
 
 void GL_ConsumeErrors(void)
 {
-	GLenum error = glGetError();
-
-	while (error != GL_NO_ERROR) {
-		error = glGetError();
-	}
+	GL_ProcessAllErrors("Consuming prior errors...");
 }
 
 static void GL_PrintInfoLine(const char* label, int labelsize, const char* fmt, ...)
@@ -151,10 +147,8 @@ void GL_PrintGfxInfo(void)
 	Com_Printf_State(PRINT_ALL, "\nOpenGL (%s)\n", R_UseImmediateOpenGL() ? "classic" : "glsl");
 	GL_PrintInfoLine("Vendor:", 9, "%s", (const char*)glConfig.vendor_string);
 	GL_PrintInfoLine("Renderer:", 9, "%s", (const char*)glConfig.renderer_string);
+	GL_PrintInfoLine("GLSL:", 9, "%s", (const char*)glConfig.glsl_version);
 	GL_PrintInfoLine("Version:", 9, "%s", (const char*)glConfig.version_string);
-	if (R_UseModernOpenGL()) {
-		GL_PrintInfoLine("GLSL:", 9, "%s", (const char*)glConfig.version_string);
-	}
 
 	if (r_showextensions.integer) {
 		Com_Printf_State(PRINT_ALL, "GL_EXTENSIONS: ");
