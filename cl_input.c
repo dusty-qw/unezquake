@@ -91,6 +91,45 @@ kbutton_t in_strafe, in_speed, in_use, in_jump, in_pogo, in_attack, in_attack2;
 kbutton_t in_up, in_down;
 
 int in_impulse;
+static int in_next_impulse;
+static int in_next_impulse_pred;
+static qbool suppress_hide;
+
+// Over-writes weapon selection list
+// Called even if server-side weapon switching is enabled
+static void ForgetWeaponOrder(int impulse, int* weapon_order)
+{
+	weapon_order[0] = impulse;
+	weapon_order[1] = (cl_weaponhide_axe.integer || impulse == 2 ? 1 : 2);
+	weapon_order[2] = (weapon_order[1] == 1 ? 0 : 1);
+	weapon_order[3] = 0;
+}
+
+static void SetNextImpulse(int impulse, qbool from_weapon_script, qbool set_best_weapon)
+{
+	in_next_impulse_pred = impulse;
+
+#ifdef MVD_PEXT1_SERVERSIDEWEAPON
+	if (from_weapon_script && (cls.mvdprotocolextensions1 & MVD_PEXT1_SERVERSIDEWEAPON) && cl_pext_serversideweapon.integer) {
+		in_next_impulse = 0;
+		suppress_hide = false;
+		if (set_best_weapon && cl_weaponforgetorder.integer) {
+			// we can't over-write cl.weapon_order so keep a copy and use that until the server confirms best selection
+			memcpy(cl.weapon_order_clientside, cl.weapon_order, sizeof(cl.weapon_order_clientside));
+			cl.weapon_order_use_clientside = true;
+			ForgetWeaponOrder(impulse, cl.weapon_order_clientside);
+		}
+		return;
+	}
+#endif
+
+	suppress_hide = !from_weapon_script;
+	in_next_impulse = impulse;
+
+	if (set_best_weapon && cl_weaponforgetorder.integer) {
+		ForgetWeaponOrder(impulse, cl.weapon_order);
+	}
+}
 
 #define VOID_KEY (-1)
 #define NULL_KEY (-2)
@@ -1024,12 +1063,16 @@ void CL_FinishMove(usercmd_t* cmd)
 		)
 		) {
 		cmd->impulse = 0;
+		cmd->impulse_pred = 0;
 	}
 	else {
-		cmd->impulse = in_impulse;
+		cmd->impulse = in_next_impulse;
+		cmd->impulse_pred = in_next_impulse_pred;
 	}
+
 	// } shaman RFE 1030281
-	in_impulse = 0;
+	in_next_impulse = 0;
+	in_next_impulse_pred = 0;
 
 	// chop down so no extra bits are kept that the server wouldn't get
 	cmd->forwardmove = MakeChar(cmd->forwardmove);

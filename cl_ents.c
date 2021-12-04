@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "gl_model.h"
 #include "vx_stuff.h"
 #include "pmove.h"
+#include "cl_tent.h"
 #include "utils.h"
 #include "qmb_particles.h"
 #include "rulesets.h"
@@ -61,6 +62,7 @@ void CL_InitEnts(void) {
 	memset(cl_modelnames, 0, sizeof(cl_modelnames));
 
 	cl_modelnames[mi_spike] = "progs/spike.mdl";
+	cl_modelnames[mi_s_spike] = "progs/s_spike.mdl";
 	cl_modelnames[mi_player] = "progs/player.mdl";
 	cl_modelnames[mi_eyes] = "progs/eyes.mdl";
 	cl_modelnames[mi_flag] = "progs/flag.mdl";
@@ -86,6 +88,8 @@ void CL_InitEnts(void) {
 	cl_modelnames[mi_weapon6] = "progs/v_rock.mdl";
 	cl_modelnames[mi_weapon7] = "progs/v_rock2.mdl";
 	cl_modelnames[mi_weapon8] = "progs/v_light.mdl";
+	cl_modelnames[mi_coilgun] = "progs/v_coil.mdl";
+	cl_modelnames[mi_hook] = "progs/v_star.mdl";
 
 	cl_modelnames[mi_vaxe] = "progs/v_axe.mdl";
 	cl_modelnames[mi_vbio] = "progs/v_bio.mdl";
@@ -963,7 +967,13 @@ void CL_LinkPacketEntities(void)
 		{
 			if (cl_rocket2grenade.value && cl_modelindices[mi_grenade] != -1)
 				ent.model = cl.model_precache[cl_modelindices[mi_grenade]];
+			CL_MatchFakeProjectile(cent);
+		} 
+		else if (state->modelindex == cl_modelindices[mi_grenade])
+		{
+			CL_MatchFakeProjectile(cent);
 		}
+
 
 		ent.skinnum = state->skinnum;
 
@@ -1270,6 +1280,7 @@ void CL_ParsePlayerinfo (void)
 
 	player_state_t *prevstate, dummy;
 	int num, i;
+	int wep_predict = 0;
 
 	extern void TP_ParsePlayerInfo(player_state_t *, player_state_t *, player_info_t *info);
 
@@ -1305,6 +1316,7 @@ void CL_ParsePlayerinfo (void)
 		}
 
 		flags = MSG_ReadShort ();
+
 		state->flags = MVD_TranslateFlags(flags);
 
 		state->messagenum = cl.parsecount;
@@ -1366,7 +1378,15 @@ void CL_ParsePlayerinfo (void)
 	} 
 	else 
 	{
-		flags = state->flags = MSG_ReadShort ();
+		flags = state->flags = (unsigned short)MSG_ReadShort ();
+
+#if defined(FTE_PEXT_TRANS) // and any other fte extension that uses this... (we don't support those yet)
+		if (cls.fteprotocolextensions & (FTE_PEXT_TRANS))
+		{
+			if (flags & PF_FTE_EXTRA)
+				flags |= MSG_ReadByte() << 16;
+		}
+#endif
 
 		state->messagenum = cl.parsecount;
 		if (cls.mvdprotocolextensions1 & MVD_PEXT1_FLOATCOORDS) {
@@ -1440,10 +1460,43 @@ void CL_ParsePlayerinfo (void)
 			state->effects = 0;
 
 		if (flags & PF_WEAPONFRAME)
-			state->weaponframe = MSG_ReadByte ();
+		{
+			state->weaponframe = MSG_ReadByte();
+
+			if (cls.mvdprotocolextensions1 & MVD_PEXT1_WEAPONPREDICTION)
+			{
+				wep_predict = MSG_ReadByte();
+				if (wep_predict)
+				{
+					int data_impulse = MSG_ReadByte();
+					if (!(cls.mvdprotocolextensions1 & MVD_PEXT1_SERVERSIDEWEAPON))
+						state->impulse = data_impulse;
+
+
+					state->weapon = MSG_ReadShort();
+					state->items = cl.stats[STAT_ITEMS];
+
+					state->client_time = MSG_ReadFloat();
+					state->attack_finished = MSG_ReadFloat();
+					state->client_nextthink = MSG_ReadFloat();
+					state->client_thinkindex = MSG_ReadByte();
+					state->client_ping = MSG_ReadByte();
+					state->client_predflags = MSG_ReadByte();
+
+					state->ammo_shells = MSG_ReadByte();
+					state->ammo_nails = MSG_ReadByte();
+					state->ammo_rockets = MSG_ReadByte();
+					state->ammo_cells = MSG_ReadByte();
+				}
+			}
+			else
+			{
+				state->weapon = cl.stats[STAT_ACTIVEWEAPON];
+				state->items = cl.stats[STAT_ITEMS];
+			}
+		}
 		else
 			state->weaponframe = 0;
-
 
 		state->alpha = 255;
 #ifdef FTE_PEXT_TRANS
@@ -1541,7 +1594,31 @@ guess_pm_type:
 			if (flags & PF_EFFECTS)
 				MSG_WriteByte(&cls.demomessage, state->effects);
 			if (flags & PF_WEAPONFRAME)
+			{
 				MSG_WriteByte(&cls.demomessage, state->weaponframe);
+
+				if (cls.mvdprotocolextensions1 & MVD_PEXT1_WEAPONPREDICTION)
+				{
+					MSG_WriteByte(&cls.demomessage, wep_predict);
+					if (wep_predict)
+					{
+						MSG_WriteByte(&cls.demomessage, state->impulse);
+						MSG_WriteShort(&cls.demomessage, state->weapon);
+
+						MSG_WriteFloat(&cls.demomessage, state->client_time);
+						MSG_WriteFloat(&cls.demomessage, state->attack_finished);
+						MSG_WriteFloat(&cls.demomessage, state->client_nextthink);
+						MSG_WriteByte(&cls.demomessage, state->client_thinkindex);
+						MSG_WriteByte(&cls.demomessage, state->client_ping);
+						MSG_WriteByte(&cls.demomessage, state->client_predflags);
+
+						MSG_WriteByte(&cls.demomessage, state->ammo_shells);
+						MSG_WriteByte(&cls.demomessage, state->ammo_nails);
+						MSG_WriteByte(&cls.demomessage, state->ammo_rockets);
+						MSG_WriteByte(&cls.demomessage, state->ammo_cells);
+					}
+				}
+			}
 #ifdef FTE_PEXT_TRANS
 			if (flags & PF_TRANS_Z && cls.fteprotocolextensions & FTE_PEXT_TRANS)
 				MSG_WriteByte(&cls.demomessage, state->alpha);		
@@ -1709,6 +1786,7 @@ static void CL_LinkPlayers(void)
 		if (state->messagenum != cl.parsecount)
 			continue;	// not present this frame
 
+
 		// spawn light flashes, even ones coming from invisible objects
 		if (r_powerupglow.value && !(r_powerupglow.value == 2 && j == cl.viewplayernum)) 
 		{
@@ -1829,6 +1907,7 @@ static void CL_LinkPlayers(void)
 		ent.scoreboard = (state->modelindex == cl_modelindices[mi_player]) ? info : NULL;
 		ent.frame = state->frame;
 		ent.effects = state->effects; // Electro - added for shells
+		ent.alpha = (float)state->alpha / 255;
 
 		if (cent->frametime >= 0 && cent->frametime <= cl.time) 
 		{
@@ -1862,7 +1941,7 @@ static void CL_LinkPlayers(void)
 
 			oldphysent = pmove.numphysent;
 			CL_SetSolidPlayers(j);
-			CL_PredictUsercmd(state, &exact, &state->command);
+			CL_PredictUsercmd(state, &exact, &state->command, false);
 			pmove.numphysent = oldphysent;
 			VectorCopy(exact.origin, ent.origin);
 			VectorCopy(exact.origin, predicted_players[j].drawn_origin);
@@ -2078,7 +2157,7 @@ void CL_SetUpPlayerPrediction(qbool dopred)
 					msec = 255;
 				state->command.msec = msec;
 
-				CL_PredictUsercmd (state, &exact, &state->command);
+				CL_PredictUsercmd (state, &exact, &state->command, false);
 				VectorCopy (exact.origin, pplayer->origin);
 			}
 		}
@@ -2378,6 +2457,9 @@ void MVD_Interpolate(void)
 void CL_ClearPredict(void) {
 	memset(predicted_players, 0, sizeof(predicted_players));
 	mvd_fixangle = 0;
+	pmove.effect_frame = 0;
+	pmove.t_width = 0;
+	pmove.impulse = 0;
 }
 
 void CL_CalcPlayerFPS(player_info_t *info, int msec)
