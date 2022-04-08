@@ -461,8 +461,7 @@ char 		*com_args_original;
 com_tokentype_t com_tokentype;
 
 //Parse a token out of a string
-extern cvar_t cl_curlybraces;
-const char *COM_Parse (const char *data)
+const char* COM_ParseEx(const char *data, qbool curlybraces)
 {
 	unsigned char c;
 	int len;
@@ -471,51 +470,67 @@ const char *COM_Parse (const char *data)
 	len = 0;
 	com_token[0] = 0;
 
-	if (!data)
+	if (!data) {
 		return NULL;
+	}
 
 	// skip whitespace
 	while (true) {
-		while ( (c = *data) == ' ' || c == '\t' || c == '\r' || c == '\n')
+		while ((c = *data) == ' ' || c == '\t' || c == '\r' || c == '\n') {
 			data++;
+		}
 
-		if (c == 0)
+		if (c == 0) {
 			return NULL;			// end of file;
+		}
 
 		// skip // comments
-		if (c == '/' && data[1] == '/')
-			while (*data && *data != '\n')
+		if (c == '/' && data[1] == '/') {
+			while (*data && *data != '\n') {
 				data++;
-		else
+			}
+		}
+		else {
 			break;
+		}
 	}
 
 	// handle quoted strings specially
-	if (c == '\"' || (c == '{' && cl_curlybraces.integer) ) {
-		if (c == '{')
+	if (c == '\"' || (c == '{' && curlybraces) ) {
+		if (c == '{') {
 			quotes = 1;
-		else
+		}
+		else {
 			quotes = -1;
+		}
 		data++;
 		while (1) {
 			c = *data;
 			data++;
 			if (quotes < 0) {
-				if (c == '\"')
+				if (c == '\"') {
 					quotes++;
-			} else {
-				if (c == '}' && cl_curlybraces.integer)
+				}
+			}
+			else {
+				if (c == '}' && curlybraces) {
 					quotes--;
-				else if (c == '{' && cl_curlybraces.integer)
+				}
+				else if (c == '{' && curlybraces) {
 					quotes++;
+				}
 			}
 
 			if (!quotes || !c) {
 				com_token[len] = 0;
-				return c ? data:data-1;
+				return c ? data : data - 1;
 			}
 			com_token[len] = c;
 			len++;
+
+			if (len >= sizeof(com_token) - 1) {
+				return NULL; // quoted section too long
+			}
 		}
 	}
 
@@ -524,13 +539,19 @@ const char *COM_Parse (const char *data)
 		com_token[len] = c;
 		data++;
 		len++;
-		if (len >= MAX_COM_TOKEN - 1)
+		if (len >= sizeof(com_token) - 1) {
 			break;
+		}
 		c = *data;
 	} while (c && c != ' ' && c != '\t' && c != '\n' && c != '\r');
 
 	com_token[len] = 0;
 	return data;
+}
+
+const char* COM_Parse(const char* data)
+{
+	return COM_ParseEx(data, false);
 }
 
 #define DEFAULT_PUNCTUATION "(,{})(\':;=!><&|+"
@@ -732,7 +753,7 @@ void COM_InitArgv(int argc, char **argv)
 	for (i = 0, com_argc = 0; com_argc < MAX_NUM_ARGVS - 1 && i < argc; ++i) {
 		if (argv[i]) {
 			// follow qw urls if they are our argument without a +qwurl command
-			if (!strncmp(argv[i], "qw://", 5) && (i == 0 || strncmp(argv[i - 1], "+qwurl", 5)) && com_argc < MAX_NUM_ARGVS - 1) {
+			if (!strncmp(argv[i], "qw://", 5) && (i == 0 || strncmp(argv[i - 1], "+qwurl", 6)) && com_argc < MAX_NUM_ARGVS - 1) {
 				largv[com_argc++] = "+qwurl";
 				largv[com_argc++] = argv[i];
 			}
