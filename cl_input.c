@@ -416,40 +416,24 @@ void IN_Attack2Up(void) { KeyUp(&in_attack2); }
 
 static qbool IN_ShouldJumpBeMoveUp(void)
 {
-	if (!cl_smartjump.value)
-		return false;
+	int pmt;
 
 	if (cls.state != ca_active || !cl_smartjump.value)
-		up = false;
+		return false;
 	else if (cls.demoplayback && !cls.mvdplayback)
-		up = false; // use jump instead of up in demos unless its MVD and I have no idea why QWD have this restriction.
+		return false; // use jump instead of up in demos unless its MVD and I have no idea why QWD have this restriction.
 	else if (cl.spectator)
-		up = (Cam_TrackNum() == -1); // NOTE: cl.spectator is non false during MVD playback, so this code executed.
+		return (Cam_TrackNum() == -1); // NOTE: cl.spectator is non false during MVD playback, so this code executed.
 	else if (cl.stats[STAT_HEALTH] <= 0)
-		up = false;
+		return false;
 	else if (cl.validsequence && (
 		((pmt = cl.frames[cl.validsequence & UPDATE_MASK].playerstate[cl.playernum].pm_type) == PM_FLY)
 		|| pmt == PM_SPECTATOR || pmt == PM_OLD_SPECTATOR))
-		up = true;
+		return true;
 	else if (cl.waterlevel >= 2 && !(cl.teamfortress && (in_forward.state & 1)))
-		up = true;
+		return true;
 	else
-		up = false;
-
-	if (cl.spectator)
-		return (Cam_TrackNum() == -1); // NOTE: cl.spectator is non false during MVD playback, so this code executed.
-
-	if (cl.stats[STAT_HEALTH] <= 0)
 		return false;
-
-	int pmt;
-	if (cl.validsequence && (((pmt = cl.frames[cl.validsequence & UPDATE_MASK].playerstate[cl.playernum].pm_type) == PM_FLY) || pmt == PM_SPECTATOR || pmt == PM_OLD_SPECTATOR))
-		return true;
-
-	if (cl.waterlevel >= 2 && !(cl.teamfortress && (in_forward.state & 1)))
-		return true;
-
-	return false;
 }
 
 void IN_JumpDown(void)
