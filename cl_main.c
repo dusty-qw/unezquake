@@ -1151,6 +1151,11 @@ void CL_ClearState (void)
 		memset(&cl, 0, sizeof(cl));
 	}
 
+	// default weapon selection if nothing else replaces it
+	cl.weapon_order[0] = 2;
+	cl.weapon_order[1] = 1;
+	cl.weapon_order[2] = 0;
+
 	SZ_Clear (&cls.netchan.message);
 
 	// Clear other arrays.
@@ -1992,7 +1997,7 @@ void ReloadPaletteAndColormap(void)
 
 	host_basepal = (byte *) FS_LoadHeapFile ("gfx/palette.lmp", &filesize);
 	if (!host_basepal)
-		Sys_Error ("Couldn't load gfx/palette.lmp");
+		Sys_Error("Couldn't load gfx/palette.lmp\n\nThis is typically caused by being unable to locate pak0.pak.\nCopy pak0.pak into 'id1' folder, in same directory as executable.");
 	FMod_CheckModel("gfx/palette.lmp", host_basepal, filesize);
 
 	host_colormap = (byte *) FS_LoadHeapFile ("gfx/colormap.lmp", &filesize);

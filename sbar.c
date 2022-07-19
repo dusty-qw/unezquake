@@ -132,6 +132,7 @@ cvar_t scr_scoreboard_afk_style       = {"scr_scoreboard_afk_style",      "1"};
 cvar_t	scr_scoreboard_teamsort       = {"scr_scoreboard_teamsort",       "1"};
 cvar_t	scr_scoreboard_forcecolors    = {"scr_scoreboard_forcecolors",    "1"};
 cvar_t	scr_scoreboard_showfrags      = {"scr_scoreboard_showfrags",      "1"};
+cvar_t	scr_scoreboard_showflagstats  = {"scr_scoreboard_showflagstats",  "0"};
 cvar_t	scr_scoreboard_drawtitle      = {"scr_scoreboard_drawtitle",      "1"};
 cvar_t	scr_scoreboard_borderless     = {"scr_scoreboard_borderless",     "1"};
 cvar_t	scr_scoreboard_spectator_name = {"scr_scoreboard_spectator_name", "\xF3\xF0\xE5\xE3\xF4\xE1\xF4\xEF\xF2"}; // brown "spectator". old: &cF20s&cF50p&cF80e&c883c&cA85t&c668a&c55At&c33Bo&c22Dr
@@ -319,6 +320,7 @@ void Sbar_Init(void)
 	Cvar_Register(&scr_scoreboard_teamsort);
 	Cvar_Register(&scr_scoreboard_forcecolors);
 	Cvar_Register(&scr_scoreboard_showfrags);
+	Cvar_Register(&scr_scoreboard_showflagstats);
 	Cvar_Register(&scr_scoreboard_drawtitle);
 	Cvar_Register(&scr_scoreboard_borderless);
 	Cvar_Register(&scr_scoreboard_spectator_name);
@@ -1236,8 +1238,8 @@ static qbool Sbar_ShowTeamKills(void)
 		return ((cl.teamplay & 21) != 21); // 21 = (1)Teamplay On + (4)Team-members take No damage from direct fire + (16)Team-members take No damage from area-affect weaponry, so its like teamplay is off??
 	}
 	else {
-		// in teamplay 3 it's not possible to make teamkills
-		return (cl.teamplay != 3);
+		// in teamplay 3 and 4 it's not possible to make teamkills
+		return !(cl.teamplay == 3 || cl.teamplay == 4);
 	}
 }
 
@@ -1298,7 +1300,7 @@ static void Sbar_DeathmatchOverlay(int start)
 						stats_team++;
 					}
 				}
-				if (cl.teamfortress && Stats_IsFlagsParsed()) {
+				if ((cl.teamfortress || scr_scoreboard_showflagstats.value) && Stats_IsFlagsParsed()) {
 					if (rank_width + statswidth + RANK_WIDTH_TCHSTATS < vid.width - 16) {
 						statswidth += RANK_WIDTH_TCHSTATS;
 						stats_touches++;
@@ -1631,25 +1633,24 @@ static void Sbar_DeathmatchOverlay(int start)
 			}
 
 			// kills
-			snprintf(num, sizeof(num), "%i", playerstats[0]);
-			x += FONT_WIDTH;
+			snprintf(num, sizeof(num), "%5i", playerstats[0]);
 			color.c = (playerstats[0] == 0 ? RGBA_TO_COLOR(255, 255, 255, 255) : RGBA_TO_COLOR(0, 187, 68, 255));
-			Draw_SColoredStringAligned(x, y, num, &color, 1, scale, alpha, proportional, text_align_right, x + 3 * FONT_WIDTH);
-			x += 5 * FONT_WIDTH;
+			Draw_SColoredStringAligned(x, y, num, &color, 1, scale, alpha, proportional, text_align_right, x + 5 * FONT_WIDTH);
+			x += 6 * FONT_WIDTH;
 
 			// teamkills
 			if (stats_team) {
-				snprintf(num, sizeof(num), "%i", playerstats[2]);
+				snprintf(num, sizeof(num), "%3i", playerstats[2]);
 				color.c = (playerstats[2] == 0 ? RGBA_TO_COLOR(255, 255, 255, 255) : RGBA_TO_COLOR(255, 255, 0, 255));
 				Draw_SColoredStringAligned(x, y, num, &color, 1, scale, alpha, proportional, text_align_right, x + 3 * FONT_WIDTH);
 				x += 4 * FONT_WIDTH;
 			}
 
 			// deaths
-			snprintf(num, sizeof(num), "%i", playerstats[1]);
+			snprintf(num, sizeof(num), "%4i", playerstats[1]);
 			color.c = (playerstats[1] == 0 ? RGBA_TO_COLOR(255, 255, 255, 255) : RGBA_TO_COLOR(255, 0, 0, 255));
-			Draw_SColoredStringAligned(x, y, num, &color, 1, scale, alpha, proportional, text_align_right, x + 3 * FONT_WIDTH);
-			x += 4 * FONT_WIDTH;
+			Draw_SColoredStringAligned(x, y, num, &color, 1, scale, alpha, proportional, text_align_right, x + 4 * FONT_WIDTH);
+			x += 5 * FONT_WIDTH;
 
 			if (stats_touches) {
 				// flag touches
@@ -1673,10 +1674,9 @@ static void Sbar_DeathmatchOverlay(int start)
 					// >9 flag touches green
 					color.c = RGBA_TO_COLOR(0x00, 0xFF, 0x00, 0xFF);
 				}
-				snprintf(num, sizeof(num), "%i", playerstats[4]);
-				x += 2 * FONT_WIDTH;
-				Draw_SColoredStringAligned(x, y, num, &color, 1, scale, alpha, proportional, text_align_right, x + 2 * FONT_WIDTH);
-				x += 4 * FONT_WIDTH;
+				snprintf(num, sizeof(num), "%4i", playerstats[4]);
+				Draw_SColoredStringAligned(x, y, num, &color, 1, scale, alpha, proportional, text_align_right, x + 4 * FONT_WIDTH);
+				x += 5 * FONT_WIDTH;
 			}
 
 			if (stats_caps) // flag captures
@@ -1701,10 +1701,9 @@ static void Sbar_DeathmatchOverlay(int start)
 					// >9 caps green
 					color.c = RGBA_TO_COLOR(0x00, 0xFF, 0x00, 0xFF);
 				}
-				snprintf(num, sizeof(num), "%i", playerstats[6]);
-				x += 2 * FONT_WIDTH;
-				Draw_SColoredStringAligned(x, y, num, &color, 1, scale, alpha, proportional, text_align_right, x + 2 * FONT_WIDTH);
-				x += 4 * FONT_WIDTH;
+				snprintf(num, sizeof(num), "%4i", playerstats[6]);
+				Draw_SColoredStringAligned(x, y, num, &color, 1, scale, alpha, proportional, text_align_right, x + 4 * FONT_WIDTH);
+				x += 5 * FONT_WIDTH;
 			}
 		}
 
@@ -1873,8 +1872,8 @@ static void Sbar_TeamOverlay(void)
 		x += FONT_WIDTH;
 
 		// draw players
-		snprintf(num, sizeof(num), "%5i", tm->players);
-		Draw_SStringAligned(x, y, num, 1, 1, proportional, text_align_left, x + FONT_WIDTH * 5);
+		snprintf(num, sizeof(num), "%7i", tm->players);
+		Draw_SStringAligned(x, y, num, 1, 1, proportional, text_align_left, x + 7 * FONT_WIDTH);
 
 		y += skip;
 	}
