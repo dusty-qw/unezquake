@@ -145,7 +145,11 @@ float	FloatSwapPDP2Lit (float f);
 
 #if __FLOAT_WORD_ORDER == __BIG_ENDIAN
 #define __BIG_ENDIAN__
+#elif __BYTE_ORDER == __ORDER_BIG_ENDIAN
+#define __BIG_ENDIAN__
 #elif __FLOAT_WORD_ORDER == __LITTLE_ENDIAN
+#define __LITTLE_ENDIAN__
+#elif __BYTE_ORDER == __ORDER_LITTLE_ENDIAN
 #define __LITTLE_ENDIAN__
 #elif __FLOAT_WORD_ORDER == __PDP_ENDIAN
 #define __PDP_ENDIAN__
@@ -155,8 +159,8 @@ float	FloatSwapPDP2Lit (float f);
 
 #endif
 
-//======================= FreeBSD/OpenBSD DEFINES ====================================
-#if defined(__FreeBSD__) || defined(__OpenBSD__)
+//======================= FreeBSD/OpenBSD/NetBSD DEFINES ====================================
+#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 
 #include <machine/endian.h>
 #if BYTE_ORDER == BIG_ENDIAN
@@ -220,8 +224,9 @@ int Q_atoi (const char *str);
 float Q_atof (const char *str);
 char *Q_ftos (float value); // removes trailing zero chars
 
-char *Q_strcpy( char *to, char *from );
-char *Q_strlwr( char *s1 );
+char* Q_strcpy(char *to, char *from);
+char* Q_strupr(char* s1);
+char* Q_strlwr(char *s1);
 int Q_strcmp2(const char * s1, const char * s2);
 
 // Added by VVD {

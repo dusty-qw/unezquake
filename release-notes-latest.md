@@ -4,7 +4,9 @@ Leaving these here as bugs between dev versions of 3.6 aren't in the release not
 
 - Added `/vid_reload` command to reload textures, rather than full `/vid_restart`.  `/vid_reload_auto` cvar controls automatic/manual.
 - Added `_draw` cvar on hud elements, to take space on-screen but not render content (also filters SP & MP games) (requests #619, #620)
+- Added `/scr_scoreboard_showflagstats`, to force flag columns to be shown on scoreboard (for CTF - thanks to dsvensson)
 - Added support for MacOS qw urls opening via drag and drop emulation (fix by ciscon)
+- Added `/hud_teaminfo_header_spacing` to control lines between headers (default 1 - thanks to xantom)
 - Changed `_show` cvar on hud elements to allow filter for SP & MP games (requests #619, #620)
 - Changed `/gl_consolefont` to fall back to 'original' on load failure, but doesn't change value (for toggling no24bit, #605)
 - Fixed `/gl_no24bit` not affecting aliasmodel skins (3.5 bug, reported by hemostx, #605)
@@ -18,6 +20,19 @@ Leaving these here as bugs between dev versions of 3.6 aren't in the release not
 - Fixed bug causing potential access of freed memory during `vid_reload`/`vid_restart`
 - Fixed bug causing `/cl_curlybraces` to affect general parsing (3.1 bug after workaround in 2009, #640, reported by raket/fix)
 - Fixed bug causing `/r_tracker_inconsole 3` to show frag messages in the notify area (3.5 bug, #642, reported by HangTime)
+- Fixed bug causing `/hud_bar_armor` to display outside bounds when armor value > 100 (affects ctf - #651, reported & fixed by dsvensson)
+- Fixed bug causing copy-to-clipboard from server-browser popup on non-Windows systems to not copy to system clipboard (thanks to dev)
+- Fixed bug causing restore of window which already had input focus (affects linux/macos, thanks to ciscon)
+- Improved alignment of scoreboard scores, removed teamkills in teamplay 4 (thanks to dsvensson)
+- Added arch-linux support to `build_linux.sh` script (thanks to ginzberg)
+- Changed endian detection in GCC/clang (fixes #655, thanks to ciscon)
+- Fixed reading from pipe on posix systems (thanks to qqskha)
+- Fixed weapon selection not defaulting back to `2 1` on map change (#659, reported by ParboiL)
+- Will now load from `ID1` folder if `id1` not present
+- Will now check PAKx.PAK if pakx.pak not present (fixes #637, reported by nzmyers)
+- Skyboxes rotated to match other quake engines (part of #629, requested by inf1niti & lurq)
+- Skyboxes will be loaded on map start if specified in worldspawn (fixes #629, requested by inf1niti & lurq)
+- Fixed playback of looping sounds when using libsndfile to load sounds (reported by lurq)
 
 ### Changes from alpha8=>alpha9 (July 13th => November 14th, 2021)
 
@@ -55,6 +70,7 @@ Leaving these here as bugs between dev versions of 3.6 aren't in the release not
 - Fixed `/gl_no24bit` not taking effect after `/vid_restart` (reported by hemostx, #601)
 - Fixed `/gl_no24bit` not disabling loading external textures (3.5 bug, kind of reported by hemostx, #601)
 - Fixed bug causing `/gl_scaleskytextures` to not affect external textures (reported & fixed by hemostx, #606)
+- Fix invalid protocol adjustments when using NQ progs.dat and `/sv_bigcoords 1`
 
 ### Changes from alpha7=>alpha8 (Feb 9th => July 13th, 2021)
 
@@ -97,5 +113,6 @@ Leaving these here as bugs between dev versions of 3.6 aren't in the release not
 - Server browser shows info at lower resolutions
 - Menu has options for gl_modulate, turn left/right, cvar descriptions match /describe
 - Build support: improve ARM build support, mingw clang, FreeBSD/powerpc 32-bit, ubuntu 20.04 dockerfile, FDK AppStream
+- Support building on NetBSD (thanks to ciscon)
 
 Thanks to all contributors and those who assisted with bug reporting.

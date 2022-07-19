@@ -43,6 +43,10 @@
 - Fixed bugs causing access of invalid memory when loading corrupt .bsp files (very old bugs, reported by mmmds, #615)
 - Fixed bug causing `/gl_particle_gibtrails 1` to turn classic blood trails following gibs into rocket smoke (very old bug, reported by hemostx, #614)
 - Translucent models are first drawn with a z-pass, to stop overdraw affecting level of translucency
+- Fixed bug causing `/hud_bar_armor` to display outside bounds when armor value > 100 (affects ctf - #651, reported & fixed by dsvensson)
+- Fixed bug causing copy-to-clipboard from server-browser popup on non-Windows systems to not copy to system clipboard (thanks to dev)
+- Fixed reading from pipe on posix systems (thanks to qqskha)
+- Fix invalid protocol adjustments when using NQ progs.dat and `/sv_bigcoords 1`
 
 ### Bugs which affected 3.x
 
@@ -61,6 +65,7 @@
 - Fixed `/demo_jump_mark` not working if `/demo_jump_rewind` not set
 - Horizontal field of view limit has increased to 165 (screen ratio adjustment previously limited this to 127 on 16:9) (#389, 3.0 issue)
 - Fixed bug causing `/cl_curlybraces` to affect general parsing (3.1 bug after workaround in 2009, #640, reported by raket/fix)
+- Fixed bug causing restore of window which already had input focus (affects linux/macos, thanks to ciscon)
 
 #### Bugs which affected 3.5 (typically related to renderer rewrite)
 
@@ -155,7 +160,8 @@
 - `/hud_clock_content 1` changes output to show the uptime of the client
 - `/hud_clock_content 2` changes output to show time connected to the server (should match `/cl_clock 1` in oldhud)
 - `/hud_fps_drop <negative>` will be treated as relative to `/cl_maxfps`, e.g. `/hud_fps_drop -5;/cl_maxfps 1001` will show when fps drops to 996
--` /hud_keys` supports user commands hidden in .mvd files & qtv streams
+- `/hud_keys` supports user commands hidden in .mvd files & qtv streams
+- `/hud_teaminfo_header_spacing` to control lines between headers (default 1 - thanks to xantom)
 - `/in_ignore_touch_events` added - allows mouse clicks from touch input devices
 - `/in_ignore_unfocused_keyb` added - should ignore keyboard events immediately after receiving input focus (linux only)
 - `/in_ignore_deadkeys` added - essentially `/in_builtin_keyboard 1` when option key held down (macos only, #111, reported by bogojoker)
@@ -176,6 +182,7 @@
 - `/scr_scoreboard_login_flagfile` maps player flags to graphics to be shown next to player's name when they are logged in
 - `/scr_scoreboard_login_indicator` will be shown next to a player's name when they are logged in (if flag not available)
 - `/scr_scoreboard_login_color` controls the color of a player's name when they are logged in
+- `/scr_scoreboard_showflagstats` will force flag columns to be shown on scoreboard (for CTF - thanks to dsvensson)
 - `/set_ex2` command added, same functionality as `/set_ex` but doesn't resolve funchars - useful if script needs to compare value later (#428)
 - `/status` command will be ignored if an alias with the same name is found, use `/sv_status` instead (#532)
 - `/timedemo` commands show extra info at end to try and highlight stutter (measuring worst frametimes)
@@ -220,6 +227,11 @@
 - Linux: `/register_qwurl_protocol` command will register protocol with xdg (thanks to ciscon)
 - Commands that search by regular expression (`/cvarlist_re` etc) are now case-insensitive (reported by HangTime, #599)
 - Added support for MacOS qw urls opening via drag and drop emulation (thanks to ciscon)
+- Improved alignment of scoreboard scores, removed teamkills in teamplay 4 (thanks to dsvensson)
+- Will now load from `ID1` folder if `id1` not present
+- Will now check PAKx.PAK if pakx.pak not present (fixes #637, reported by nzmyers)
+- Skyboxes rotated to match other quake engines (part of #629, requested by inf1niti & lurq)
+- Skyboxes will be loaded on map start if specified in worldspawn (fixes #629, requested by inf1niti & lurq)
 
 ### Build/meta
 
@@ -230,3 +242,7 @@
 - meson build updated (out of date on 3.5)
 - Fixed build on FreeBSD/powerpc64 (thanks to pkubaj)
 - Remove unsupported 666-deflect message from fragfile.dat (reported by eb, #461)
+- Support building on NetBSD (thanks to ciscon)
+- Lots of help/manual updates (thanks to various, but especially hemostx)
+- Added arch-linux support to `build_linux.sh` script (thanks to ginzberg)
+- Changed endian detection in GCC/clang (fixes #655, thanks to ciscon)
