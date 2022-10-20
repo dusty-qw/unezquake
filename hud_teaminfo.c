@@ -849,6 +849,10 @@ static void Update_TeamInfo(void)
 		ti_clients[i].health = bound(0, st[STAT_HEALTH], 999);
 		ti_clients[i].armor = bound(0, st[STAT_ARMOR], 999);
 		ti_clients[i].items = Filter_FlagsAndRunes(i, st[STAT_ITEMS]);
+		ti_clients[i].shells = bound(0, st[STAT_SHELLS], 999);
+		ti_clients[i].nails = bound(0, st[STAT_NAILS], 999);
+		ti_clients[i].rockets = bound(0, st[STAT_ROCKETS], 999);
+		ti_clients[i].cells = bound(0, st[STAT_CELLS], 999);
 		ti_clients[i].nick[0] = 0; // sad, we don't have nick, will use name
 	}
 }
