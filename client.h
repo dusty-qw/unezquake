@@ -351,7 +351,6 @@ typedef struct {
 	char	map[MAX_STYLESTRING];
 } lightstyle_t;
 
-#define	MAX_EFRAGS			512
 #define	MAX_STATIC_ENTITIES	512		// torches, etc
 #define	MAX_DEMOS			8
 #define	MAX_DEMONAME		16
@@ -827,6 +826,12 @@ typedef struct {
 
 	// damage notifications
 	scr_damage_t damage_notifications[MAX_DAMAGE_NOTIFICATIONS];
+
+	// fog info read from worldspawn
+	vec3_t map_fog_color;
+	float map_fog_density;
+	qbool map_fog_enabled;
+	float map_fog_sky;
 } clientState_t;
 
 #define SCORING_SYSTEM_DEFAULT   0
@@ -921,7 +926,6 @@ extern cvar_t r_powerupglow;
 
 // FIXME, allocate dynamically
 extern	centity_t        cl_entities[CL_MAX_EDICTS];
-extern	efrag_t          cl_efrags[MAX_EFRAGS];
 extern	entity_t         cl_static_entities[MAX_STATIC_ENTITIES];
 extern	lightstyle_t     cl_lightstyle[MAX_LIGHTSTYLES];
 extern	dlight_t         cl_dlights[MAX_DLIGHTS];
