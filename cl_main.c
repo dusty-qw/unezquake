@@ -146,7 +146,7 @@ cvar_t	cl_sbar		= {"cl_sbar", "0"};
 cvar_t	cl_hudswap	= {"cl_hudswap", "0"};
 cvar_t	cl_maxfps	= {"cl_maxfps", "0"};
 cvar_t	cl_physfps	= {"cl_physfps", "0"};	//#fps
-cvar_t	cl_physfps_spectator = {"cl_physfps_spectator", "30"};
+cvar_t	cl_physfps_spectator = {"cl_physfps_spectator", "77"};
 cvar_t  cl_independentPhysics = {"cl_independentPhysics", "1", 0, Rulesets_OnChange_indphys};
 
 cvar_t	cl_predict_players = {"cl_predict_players", "1"};
@@ -279,7 +279,6 @@ clientPersistent_t	cls;
 clientState_t		cl;
 
 centity_t       cl_entities[CL_MAX_EDICTS];
-efrag_t			cl_efrags[MAX_EFRAGS];
 entity_t		cl_static_entities[MAX_STATIC_ENTITIES];
 lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
 dlight_t		cl_dlights[MAX_DLIGHTS];
@@ -1159,7 +1158,6 @@ void CL_ClearState (void)
 	SZ_Clear (&cls.netchan.message);
 
 	// Clear other arrays.
-	memset(cl_efrags, 0, sizeof(cl_efrags));
 	memset(cl_dlight_active, 0, sizeof(cl_dlight_active));
 	memset(cl_lightstyle, 0, sizeof(cl_lightstyle));
 	memset(cl_entities, 0, sizeof(cl_entities));
@@ -1176,11 +1174,7 @@ void CL_ClearState (void)
 	// Set default viewheight for normal game/current pov.
 	cl.stats[STAT_VIEWHEIGHT] = DEFAULT_VIEWHEIGHT;
 
-	// Allocate the efrags and chain together into a free list.
-	cl.free_efrags = cl_efrags;
-	for (i = 0; i < MAX_EFRAGS - 1; i++)
-		cl.free_efrags[i].entnext = &cl.free_efrags[i + 1];
-	cl.free_efrags[i].entnext = NULL;
+	R_Init_EFrags();
 
 	memset(&cshift_empty, 0, sizeof(cshift_empty));
 
@@ -1701,21 +1695,6 @@ void CL_OnChange_name_validate(cvar_t *var, char *val, qbool *cancel)
 //=============================================================================
 
 void CL_InitCommands (void);
-
-void CL_Fog_f (void) 
-{
-	extern cvar_t gl_fogred, gl_foggreen, gl_fogblue, gl_fogenable;
-	
-	if (Cmd_Argc() == 1) 
-	{
-		Com_Printf ("\"fog\" is \"%f %f %f\"\n", gl_fogred.value, gl_foggreen.value, gl_fogblue.value);
-		return;
-	}
-	Cvar_SetValue (&gl_fogenable, 1);
-	Cvar_SetValue (&gl_fogred, atof(Cmd_Argv(1)));
-	Cvar_SetValue (&gl_foggreen, atof(Cmd_Argv(2)));
-	Cvar_SetValue (&gl_fogblue, atof(Cmd_Argv(3)));
-}
 
 static void CL_InitLocal(void)
 {
