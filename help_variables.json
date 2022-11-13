@@ -18892,6 +18892,12 @@
       "group-id": "40",
       "type": "float"
     },
+    "scr_shownick_show_ammo": {
+      "default": "0",
+      "desc": "Displays ammo count next to best weapon.",
+      "group-id": "40",
+      "type": "boolean"
+    },
     "scr_shownick_time": {
       "default": "0.8",
       "desc": "Number of seconds to show results of '/shownick 1' command in KTX.",

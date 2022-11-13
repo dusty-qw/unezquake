@@ -41,6 +41,7 @@ static cvar_t scr_shownick_x               = { "scr_shownick_x",			"0" };
 static cvar_t scr_shownick_name_width      = { "scr_shownick_name_width",	"6" };
 static cvar_t scr_shownick_time            = { "scr_shownick_time",		"0.8" };
 static cvar_t scr_shownick_proportional    = { "scr_shownick_proportional", "0" };
+static cvar_t scr_shownick_show_ammo	   = { "scr_shownick_show_ammo", "0" };
 
 static cvar_t scr_teaminfo_order           = { "scr_teaminfo_order", "%p%n $x10%l$x11 %a/%H %w", CVAR_NONE };
 static cvar_t scr_teaminfo_align_right     = { "scr_teaminfo_align_right", "1" };
@@ -121,6 +122,7 @@ void SCR_HUD_DrawTeamInfo(hud_t *hud)
 		hud_teaminfo_align_right = HUD_FindVar(hud, "align_right");
 		hud_teaminfo_loc_width = HUD_FindVar(hud, "loc_width");
 		hud_teaminfo_name_width = HUD_FindVar(hud, "name_width");
+		hud_teaminfo_show_ammo = HUD_FindVar(hud, "show_ammo");
 		hud_teaminfo_show_enemies = HUD_FindVar(hud, "show_enemies");
 		hud_teaminfo_show_self = HUD_FindVar(hud, "show_self");
 		hud_teaminfo_show_headers = HUD_FindVar(hud, "show_headers");
@@ -286,6 +288,23 @@ static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, float x, int y, int max
 	strlcpy(tmp2, TP_ParseFunChars(tmp2, false), sizeof(tmp2));
 	s = tmp2;
 
+	switch (BestWeaponFromStatItems(ti_cl->items)){
+		case IT_LIGHTNING:
+			a = ti_cl->cells;
+			break;
+		case IT_ROCKET_LAUNCHER:
+		case IT_GRENADE_LAUNCHER:
+			a = ti_cl->rockets;
+			break;
+		case IT_SUPER_NAILGUN:
+		case IT_NAILGUN:
+			a = ti_cl->nails;
+			break;
+		default:
+			a = ti_cl->shells;
+			break;
+	}
+
 	//
 	// parse/draw string like this "%n %h:%a %l %p %w"
 	//
@@ -305,20 +324,16 @@ static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, float x, int y, int max
 						x += width;
 						break;
 					case 'w': // draw "best" weapon icon/name
+					case 'W': // draw "best" weapon icon/name
 						switch (weapon_style) {
 							case 1:
 								if (!width_only) {
+									char *weap_str;
 									if (Has_Both_RL_and_LG(ti_cl->items)) {
-										char *weap_str = tp_name_rlg.string;
-										char weap_white_stripped[32];
-										Util_SkipChars(weap_str, "{}", weap_white_stripped, 32);
-										Draw_SString(x, y, weap_white_stripped, scale, proportional);
-									}
+										weap_str = tp_name_rlg.string;
+									} 
 									else {
-										char *weap_str = TP_ItemName(BestWeaponFromStatItems(ti_cl->items));
-										char weap_white_stripped[32];
-										Util_SkipChars(weap_str, "{}", weap_white_stripped, 32);
-										Draw_SString(x, y, weap_white_stripped, scale, proportional);
+										weap_str = TP_ItemName(BestWeaponFromStatItems(ti_cl->items));
 									}
 									char weap_white_stripped[32];
 									Util_SkipChars(weap_str, "{}", weap_white_stripped, 32);
@@ -760,6 +775,45 @@ void Parse_TeamInfo(char *s)
 	ti_clients[client].armor = atoi(Cmd_Argv(6));
 	ti_clients[client].items = Filter_FlagsAndRunes(client, atoi(Cmd_Argv(7)));
 	strlcpy(ti_clients[client].nick, Cmd_Argv(8), TEAMINFO_NICKLEN); // nick is optional
+	ti_clients[client].shells = atoi(Cmd_Argv(9));
+	ti_clients[client].nails = atoi(Cmd_Argv(10));
+	ti_clients[client].rockets = atoi(Cmd_Argv(11));
+	ti_clients[client].cells = atoi(Cmd_Argv(12));
+}
+
+void Parse_CAInfo(char *s)
+{
+	int		client;
+
+	Cmd_TokenizeString(s);
+	client = atoi(Cmd_Argv(1));
+
+	if (client < 0 || client >= MAX_CLIENTS) {
+		Com_DPrintf("Parse_CAInfo: wrong client %d\n", client);
+		return;
+	}
+
+	if (!cls.mvdplayback) {
+		ti_clients[client].client = client; // no, its not stupid
+		ti_clients[client].time = r_refdef2.time;
+		ti_clients[client].org[0] = atoi(Cmd_Argv(2));
+		ti_clients[client].org[1] = atoi(Cmd_Argv(3));
+		ti_clients[client].org[2] = atoi(Cmd_Argv(4));
+		ti_clients[client].health = atoi(Cmd_Argv(5));
+		ti_clients[client].armor = atoi(Cmd_Argv(6));
+		ti_clients[client].items = atoi(Cmd_Argv(7));
+		strlcpy(ti_clients[client].nick, Cmd_Argv(8), TEAMINFO_NICKLEN); // nick is optional
+		ti_clients[client].shells = atoi(Cmd_Argv(9));
+		ti_clients[client].nails = atoi(Cmd_Argv(10));
+		ti_clients[client].rockets = atoi(Cmd_Argv(11));
+		ti_clients[client].cells = atoi(Cmd_Argv(12));
+	}
+	
+	ti_clients[client].camode = atoi(Cmd_Argv(13));
+	ti_clients[client].isdead = atoi(Cmd_Argv(14));
+	ti_clients[client].timetospawn = atoi(Cmd_Argv(15));
+	ti_clients[client].round_kills = atoi(Cmd_Argv(16));
+	ti_clients[client].round_deaths = atoi(Cmd_Argv(17));
 }
 
 void Parse_CAInfo(char *s)
@@ -864,6 +918,7 @@ void TeamInfo_HudInit(void)
 	Cvar_Register(&scr_shownick_name_width);
 	Cvar_Register(&scr_shownick_time);
 	Cvar_Register(&scr_shownick_proportional);
+	Cvar_Register(&scr_shownick_show_ammo);
 
 	Cvar_Register(&scr_teaminfo_order);
 	Cvar_Register(&scr_teaminfo_align_right);
@@ -955,6 +1010,10 @@ void Parse_Shownick(char *s)
 			shownick.armor = atoi(Cmd_Argv(arg++));
 			shownick.items = atoi(Cmd_Argv(arg++));
 			strlcpy(shownick.nick, Cmd_Argv(arg++), TEAMINFO_NICKLEN); // nick is optional
+			shownick.shells = atoi(Cmd_Argv(arg++));
+			shownick.nails = atoi(Cmd_Argv(arg++));
+			shownick.rockets = atoi(Cmd_Argv(arg++));
+			shownick.cells = atoi(Cmd_Argv(arg++));
 
 			return;
 		}
@@ -962,6 +1021,39 @@ void Parse_Shownick(char *s)
 		default:
 			Com_DPrintf("Parse_Shownick: unsupported version %d\n", version);
 			return;
+	}
+}
+
+static void Update_Shownick(void)
+{
+	int		i;
+	int		*st;
+
+	if (!cls.mvdplayback) {
+		return;
+	}
+
+	for (i = 0; i < MAX_CLIENTS; i++) {
+		if (cl.players[i].spectator || !cl.players[i].name[0])
+			continue;
+
+		if (i != shownick.client)
+			continue;
+			
+		st = cl.players[i].stats;
+
+		shownick.client = i; // no, its not stupid
+
+		VectorCopy(cl.frames[cl.parsecount & UPDATE_MASK].playerstate[i].origin, shownick.org);
+
+		shownick.health = bound(0, st[STAT_HEALTH], 999);
+		shownick.armor = bound(0, st[STAT_ARMOR], 999);
+		shownick.items = st[STAT_ITEMS];
+		shownick.shells = bound(0, st[STAT_SHELLS], 999);
+		shownick.nails = bound(0, st[STAT_NAILS], 999);
+		shownick.rockets = bound(0, st[STAT_ROCKETS], 999);
+		shownick.cells = bound(0, st[STAT_CELLS], 999);
+		shownick.nick[0] = 0; // sad, we don't have nick, will use name
 	}
 }
 
@@ -976,6 +1068,10 @@ void SCR_Draw_ShowNick(void)
 	// check do we have something do draw
 	if (!shownick.time || shownick.time + bound(0.1, scr_shownick_time.value, 3) < r_refdef2.time) {
 		return;
+	}
+
+	if (cls.mvdplayback) {
+		Update_Shownick();
 	}
 
 	// loc is unused
