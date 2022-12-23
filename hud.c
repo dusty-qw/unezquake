@@ -1372,7 +1372,7 @@ hud_t * HUD_Register(char *name, char *var_alias, char *description,
 		char *value = va_arg(argptr, char *);
 
 		if (value == NULL || hud->num_params >= HUD_MAX_PARAMS || hud->num_params >= num_params) {
-			Sys_Error("HUD_Register: HUD_MAX_PARAMS overflow. %d:%d (MAX: %d) (NAME: %s) (SUBVAR: %s)", hud->num_params, num_params, HUD_MAX_PARAMS, name, subvar);
+			Sys_Error("HUD_Register: HUD_MAX_PARAMS overflow.");
 		}
 
 		hud->params[hud->num_params] = HUD_CreateVar(name, subvar, value);
