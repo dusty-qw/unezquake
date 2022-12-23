@@ -928,6 +928,20 @@ void HUD_DrawFrame(hud_t *hud, int x, int y, int width, int height)
 }
 
 //
+// Draw border for HUD element.
+//
+void HUD_DrawBorder(hud_t *hud, int x, int y, int width, int height)
+{
+	if (!hud->border->value)
+	 	return;
+
+	Draw_Fill(x, y, width, 1, 0); 			// top
+	Draw_Fill(x, y+height-1, width, 1, 0); 	// bottom
+	Draw_Fill(x, y, 1, height, 0); 			// left
+	Draw_Fill(x+width-1, y, 1, height, 0); 	// right
+}
+
+//
 // Calculate element placement.
 //
 qbool HUD_PrepareDrawByName(char *name, int width, int height,	// In.
@@ -1106,9 +1120,10 @@ qbool HUD_PrepareDraw(hud_t *hud, int width, int height, // In.
 
 	y += hud->pos_y->value;
 
-	// Draw frame.
+	// Draw frame and border.
 	if (draw) {
 		HUD_DrawFrame(hud, x, y, width, height);
+		HUD_DrawBorder(hud, x, y, width, height);
 	}
 
 	// Assign values.
@@ -1180,7 +1195,7 @@ hud_t * HUD_Register(char *name, char *var_alias, char *description,
 					 hud_func_type draw_func,
 					 char *show, char *place, char *align_x, char *align_y,
 					 char *pos_x, char *pos_y, char *frame, char *frame_color,
-					 char *item_opacity,
+					 char *item_opacity, char *border,
 					 char *params, ...)
 {
 	int i;
@@ -1191,7 +1206,7 @@ hud_t * HUD_Register(char *name, char *var_alias, char *description,
 	// We want to include Frame, frame_color, item_opacity in the list of
 	// available cvar's for the user also. If any additional cvars that
 	// common for all hud elements are added this needs to be increased.
-	int			num_params = 3;
+	int			num_params = 4;
 
 	// Allocate room for the HUD.
 	hud = (hud_t *) Q_malloc(sizeof(hud_t));
@@ -1335,6 +1350,15 @@ hud_t * HUD_Register(char *name, char *var_alias, char *description,
 		hud->params[hud->num_params++] = hud->opacity;
 	}
 
+	//
+	// Border.
+	//
+	{
+		hud->border = HUD_CreateVar(name, "border", (border) ? border : "0");
+		hud->params[hud->num_params++] = hud->border;
+		hud->flags |= HUD_BORDER;
+	}
+
 	// Draw... if not set, will be measured (unlike ->show) but nothing rendered (assuming it follows standard pattern)
 	hud->draw = HUD_CreateVar(name, "draw", "1");
 
@@ -1346,8 +1370,9 @@ hud_t * HUD_Register(char *name, char *var_alias, char *description,
 
 	while (subvar) {
 		char *value = va_arg(argptr, char *);
+
 		if (value == NULL || hud->num_params >= HUD_MAX_PARAMS || hud->num_params >= num_params) {
-			Sys_Error("HUD_Register: HUD_MAX_PARAMS overflow");
+			Sys_Error("HUD_Register: HUD_MAX_PARAMS overflow. %d:%d (MAX: %d) (NAME: %s) (SUBVAR: %s)", hud->num_params, num_params, HUD_MAX_PARAMS, name, subvar);
 		}
 
 		hud->params[hud->num_params] = HUD_CreateVar(name, subvar, value);

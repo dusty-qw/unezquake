@@ -204,7 +204,7 @@ void GameSummary_HudInit(void)
 	HUD_Register(
 		"gamesummary", NULL, "Shows total pickups & current weapons.",
 		HUD_PLUSMINUS, ca_active, 0, SCR_Hud_GameSummary,
-		"0", "top", "left", "top", "0", "0", "0", "0 0 0", NULL,
+		"0", "top", "left", "top", "0", "0", "0", "0 0 0", "0", NULL,
 		"style", "0",
 		"onlytp", "0",
 		"scale", "1",

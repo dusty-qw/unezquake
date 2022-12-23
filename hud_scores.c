@@ -786,7 +786,7 @@ void Scores_HudInit(void)
 	HUD_Register(
 		"score_team", NULL, "Own scores or team scores.",
 		0, ca_active, 0, SCR_HUD_DrawScoresTeam,
-		"0", "screen", "left", "bottom", "0", "0", "0.5", "4 8 32", NULL,
+		"0", "screen", "left", "bottom", "0", "0", "0.5", "4 8 32", "0", NULL,
 		"style", "0",
 		"scale", "1",
 		"align", "right",
@@ -799,7 +799,7 @@ void Scores_HudInit(void)
 	HUD_Register(
 		"score_enemy", NULL, "Scores of enemy or enemy team.",
 		0, ca_active, 0, SCR_HUD_DrawScoresEnemy,
-		"0", "score_team", "after", "bottom", "0", "0", "0.5", "32 4 0", NULL,
+		"0", "score_team", "after", "bottom", "0", "0", "0.5", "32 4 0", "0", NULL,
 		"style", "0",
 		"scale", "1",
 		"align", "right",
@@ -812,7 +812,7 @@ void Scores_HudInit(void)
 	HUD_Register(
 		"score_difference", NULL, "Difference between teamscores and enemyscores.",
 		0, ca_active, 0, SCR_HUD_DrawScoresDifference,
-		"0", "score_enemy", "after", "bottom", "0", "0", "0.5", "0 0 0", NULL,
+		"0", "score_enemy", "after", "bottom", "0", "0", "0.5", "0 0 0", "0", NULL,
 		"style", "0",
 		"scale", "1",
 		"align", "right",
@@ -824,7 +824,7 @@ void Scores_HudInit(void)
 
 	HUD_Register("score_position", NULL, "Position on scoreboard.",
 		0, ca_active, 0, SCR_HUD_DrawScoresPosition,
-		"0", "score_difference", "after", "bottom", "0", "0", "0.5", "0 0 0", NULL,
+		"0", "score_difference", "after", "bottom", "0", "0", "0.5", "0 0 0", "0", NULL,
 		"style", "0",
 		"scale", "1",
 		"align", "right",
@@ -837,7 +837,7 @@ void Scores_HudInit(void)
 	HUD_Register(
 		"score_bar", NULL, "Team, enemy, and difference scores together.",
 		HUD_PLUSMINUS, ca_active, 0, SCR_HUD_DrawScoresBar,
-		"0", "screen", "center", "console", "0", "0", "0.5", "0 0 0", NULL,
+		"0", "screen", "center", "console", "0", "0", "0.5", "0 0 0", "0", NULL,
 		"style", "0",
 		"scale", "1",
 		"format_small", "&c69f%T&r:%t &cf10%E&r:%e $[%D$]",
@@ -853,7 +853,7 @@ void Scores_HudInit(void)
 		"ownfrags" /* jeez someone give me a better name please */,
 		NULL, "Highlights your own frags",
 		0, ca_active, 1, SCR_HUD_DrawOwnFrags,
-		"1", "screen", "center", "top", "0", "50", "0.2", "0 0 100", NULL,
+		"1", "screen", "center", "top", "0", "50", "0.2", "0 0 100", "0", NULL,
 		/*
 		"color", "255 255 255",
 		*/
