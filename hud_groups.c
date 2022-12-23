@@ -206,7 +206,7 @@ void Groups_HudInit(void)
 	HUD_Register(
 		"group1", NULL, "Group element.",
 		HUD_NO_GROW, ca_disconnected, 0, SCR_HUD_Groups_Draw,
-		"0", "screen", "left", "top", "0", "0", ".5", "0 0 0", NULL,
+		"0", "screen", "left", "top", "0", "0", ".5", "0 0 0", "0", NULL,
 		"name", "group1",
 		"width", "64",
 		"height", "64",
@@ -218,7 +218,7 @@ void Groups_HudInit(void)
 	HUD_Register(
 		"group2", NULL, "Group element.",
 		HUD_NO_GROW, ca_disconnected, 0, SCR_HUD_Groups_Draw,
-		"0", "screen", "center", "top", "0", "0", ".5", "0 0 0", NULL,
+		"0", "screen", "center", "top", "0", "0", ".5", "0 0 0", "0", NULL,
 		"name", "group2",
 		"width", "64",
 		"height", "64",
@@ -230,7 +230,7 @@ void Groups_HudInit(void)
 	HUD_Register(
 		"group3", NULL, "Group element.",
 		HUD_NO_GROW, ca_disconnected, 0, SCR_HUD_Groups_Draw,
-		"0", "screen", "right", "top", "0", "0", ".5", "0 0 0", NULL,
+		"0", "screen", "right", "top", "0", "0", ".5", "0 0 0", "0", NULL,
 		"name", "group3",
 		"width", "64",
 		"height", "64",
@@ -242,7 +242,7 @@ void Groups_HudInit(void)
 	HUD_Register(
 		"group4", NULL, "Group element.",
 		HUD_NO_GROW, ca_disconnected, 0, SCR_HUD_Groups_Draw,
-		"0", "screen", "left", "center", "0", "0", ".5", "0 0 0", NULL,
+		"0", "screen", "left", "center", "0", "0", ".5", "0 0 0", "0", NULL,
 		"name", "group4",
 		"width", "64",
 		"height", "64",
@@ -254,7 +254,7 @@ void Groups_HudInit(void)
 	HUD_Register(
 		"group5", NULL, "Group element.",
 		HUD_NO_GROW, ca_disconnected, 0, SCR_HUD_Groups_Draw,
-		"0", "screen", "center", "center", "0", "0", ".5", "0 0 0", NULL,
+		"0", "screen", "center", "center", "0", "0", ".5", "0 0 0", "0", NULL,
 		"name", "group5",
 		"width", "64",
 		"height", "64",
@@ -266,7 +266,7 @@ void Groups_HudInit(void)
 	HUD_Register(
 		"group6", NULL, "Group element.",
 		HUD_NO_GROW, ca_disconnected, 0, SCR_HUD_Groups_Draw,
-		"0", "screen", "right", "center", "0", "0", ".5", "0 0 0", NULL,
+		"0", "screen", "right", "center", "0", "0", ".5", "0 0 0", "0", NULL,
 		"name", "group6",
 		"width", "64",
 		"height", "64",
@@ -278,7 +278,7 @@ void Groups_HudInit(void)
 	HUD_Register(
 		"group7", NULL, "Group element.",
 		HUD_NO_GROW, ca_disconnected, 0, SCR_HUD_Groups_Draw,
-		"0", "screen", "left", "bottom", "0", "0", ".5", "0 0 0", NULL,
+		"0", "screen", "left", "bottom", "0", "0", ".5", "0 0 0", "0", NULL,
 		"name", "group7",
 		"width", "64",
 		"height", "64",
@@ -290,7 +290,7 @@ void Groups_HudInit(void)
 	HUD_Register(
 		"group8", NULL, "Group element.",
 		HUD_NO_GROW, ca_disconnected, 0, SCR_HUD_Groups_Draw,
-		"0", "screen", "center", "bottom", "0", "0", ".5", "0 0 0", NULL,
+		"0", "screen", "center", "bottom", "0", "0", ".5", "0 0 0", "0", NULL,
 		"name", "group8",
 		"width", "64",
 		"height", "64",
@@ -302,7 +302,7 @@ void Groups_HudInit(void)
 	HUD_Register(
 		"group9", NULL, "Group element.",
 		HUD_NO_GROW, ca_disconnected, 0, SCR_HUD_Groups_Draw,
-		"0", "screen", "right", "bottom", "0", "0", ".5", "0 0 0", NULL,
+		"0", "screen", "right", "bottom", "0", "0", ".5", "0 0 0", "0", NULL,
 		"name", "group9",
 		"width", "64",
 		"height", "64",

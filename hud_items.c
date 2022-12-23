@@ -244,7 +244,7 @@ void Items_HudInit(void)
 	HUD_Register(
 		"key1", NULL, "Part of your inventory - silver key.",
 		HUD_INVENTORY, ca_active, 0, SCR_HUD_DrawKey1,
-		"1", "ibar", "top", "left", "0", "64", "0", "0 0 0", NULL,
+		"1", "ibar", "top", "left", "0", "64", "0", "0 0 0", "0", NULL,
 		"style", "0",
 		"scale", "1",
 		"proportional", "0",
@@ -253,7 +253,7 @@ void Items_HudInit(void)
 	HUD_Register(
 		"key2", NULL, "Part of your inventory - gold key.",
 		HUD_INVENTORY, ca_active, 0, SCR_HUD_DrawKey2,
-		"1", "key1", "left", "after", "0", "0", "0", "0 0 0", NULL,
+		"1", "key1", "left", "after", "0", "0", "0", "0 0 0", "0", NULL,
 		"style", "0",
 		"scale", "1",
 		"proportional", "0",
@@ -262,7 +262,7 @@ void Items_HudInit(void)
 	HUD_Register(
 		"ring", NULL, "Part of your inventory - invisibility.",
 		HUD_INVENTORY, ca_active, 0, SCR_HUD_DrawRing,
-		"1", "key2", "left", "after", "0", "0", "0", "0 0 0", NULL,
+		"1", "key2", "left", "after", "0", "0", "0", "0 0 0", "0", NULL,
 		"style", "0",
 		"scale", "1",
 		"proportional", "0",
@@ -271,7 +271,7 @@ void Items_HudInit(void)
 	HUD_Register(
 		"pent", NULL, "Part of your inventory - invulnerability.",
 		HUD_INVENTORY, ca_active, 0, SCR_HUD_DrawPent,
-		"1", "ring", "left", "after", "0", "0", "0", "0 0 0", NULL,
+		"1", "ring", "left", "after", "0", "0", "0", "0 0 0", "0", NULL,
 		"style", "0",
 		"scale", "1",
 		"proportional", "0",
@@ -280,7 +280,7 @@ void Items_HudInit(void)
 	HUD_Register(
 		"suit", NULL, "Part of your inventory - biosuit.",
 		HUD_INVENTORY, ca_active, 0, SCR_HUD_DrawSuit,
-		"1", "pent", "left", "after", "0", "0", "0", "0 0 0", NULL,
+		"1", "pent", "left", "after", "0", "0", "0", "0 0 0", "0", NULL,
 		"style", "0",
 		"scale", "1",
 		"proportional", "0",
@@ -289,7 +289,7 @@ void Items_HudInit(void)
 	HUD_Register(
 		"quad", NULL, "Part of your inventory - quad damage.",
 		HUD_INVENTORY, ca_active, 0, SCR_HUD_DrawQuad,
-		"1", "suit", "left", "after", "0", "0", "0", "0 0 0", NULL,
+		"1", "suit", "left", "after", "0", "0", "0", "0 0 0", "0", NULL,
 		"style", "0",
 		"scale", "1",
 		"proportional", "0",
@@ -299,7 +299,7 @@ void Items_HudInit(void)
 	HUD_Register(
 		"sigil1", NULL, "Part of your inventory - sigil 1.",
 		HUD_INVENTORY, ca_active, 0, SCR_HUD_DrawSigil1,
-		"0", "ibar", "left", "top", "0", "0", "0", "0 0 0", NULL,
+		"0", "ibar", "left", "top", "0", "0", "0", "0 0 0", "0", NULL,
 		"style", "0",
 		"scale", "1",
 		"proportional", "0",
@@ -308,7 +308,7 @@ void Items_HudInit(void)
 	HUD_Register(
 		"sigil2", NULL, "Part of your inventory - sigil 2.",
 		HUD_INVENTORY, ca_active, 0, SCR_HUD_DrawSigil2,
-		"0", "sigil1", "after", "top", "0", "0", "0", "0 0 0", NULL,
+		"0", "sigil1", "after", "top", "0", "0", "0", "0 0 0", "0", NULL,
 		"style", "0",
 		"scale", "1",
 		"proportional", "0",
@@ -317,7 +317,7 @@ void Items_HudInit(void)
 	HUD_Register(
 		"sigil3", NULL, "Part of your inventory - sigil 3.",
 		HUD_INVENTORY, ca_active, 0, SCR_HUD_DrawSigil3,
-		"0", "sigil2", "after", "top", "0", "0", "0", "0 0 0", NULL,
+		"0", "sigil2", "after", "top", "0", "0", "0", "0 0 0", "0", NULL,
 		"style", "0",
 		"scale", "1",
 		"proportional", "0",
@@ -326,7 +326,7 @@ void Items_HudInit(void)
 	HUD_Register(
 		"sigil4", NULL, "Part of your inventory - sigil 4.",
 		HUD_INVENTORY, ca_active, 0, SCR_HUD_DrawSigil4,
-		"0", "sigil3", "after", "top", "0", "0", "0", "0 0 0", NULL,
+		"0", "sigil3", "after", "top", "0", "0", "0", "0 0 0", "0", NULL,
 		"style", "0",
 		"scale", "1",
 		"proportional", "0",

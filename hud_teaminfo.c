@@ -943,7 +943,7 @@ void TeamInfo_HudInit(void)
 	HUD_Register(
 		"teaminfo", NULL, "Show information about your team in short form.",
 		0, ca_active, 0, SCR_HUD_DrawTeamInfo,
-		"0", "", "right", "center", "0", "0", "0.2", "20 20 20", NULL,
+		"0", "", "right", "center", "0", "0", "0.2", "20 20 20", "0", NULL,
 		"layout", "%p%n $x10%l$x11 %a/%H %w",
 		"align_right", "0",
 		"loc_width", "5",

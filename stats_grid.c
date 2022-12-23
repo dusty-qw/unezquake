@@ -1375,7 +1375,7 @@ void TeamHold_HudInit(void)
 	teamholdinfo = HUD_Register(
 		"teamholdinfo", NULL, "Shows which important items in the level that are being held by the teams.",
 		HUD_PLUSMINUS, ca_active, 0, SCR_HUD_DrawTeamHoldInfo,
-		"0", "top", "left", "bottom", "0", "0", "0", "0 0 0", NULL,
+		"0", "top", "left", "bottom", "0", "0", "0", "0 0 0", "0", NULL,
 		"opacity", "0.8",
 		"width", "200",
 		"height", "8",
@@ -1390,7 +1390,7 @@ void TeamHold_HudInit(void)
 	teamholdbar = HUD_Register(
 		"teamholdbar", NULL, "Shows how much of the level (in percent) that is currently being held by either team.",
 		HUD_PLUSMINUS, ca_active, 0, SCR_HUD_DrawTeamHoldBar,
-		"0", "top", "left", "bottom", "0", "0", "0", "0 0 0", NULL,
+		"0", "top", "left", "bottom", "0", "0", "0", "0 0 0", "0", NULL,
 		"opacity", "0.8",
 		"width", "200",
 		"height", "8",
