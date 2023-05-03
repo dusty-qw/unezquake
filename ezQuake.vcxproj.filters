@@ -1196,6 +1196,9 @@
     <ClCompile Include="src\ezquake-icon.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\hud_inlay.c">
+      <Filter>Source Files\HUD</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\adivtab.h">

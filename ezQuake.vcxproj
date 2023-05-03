@@ -2004,6 +2004,7 @@ msversion.bat</Command>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='dbg-vulkan|Win32'">
       </ExcludedFromBuild>
     </ClCompile>
+    <ClCompile Include="src\hud_inlay.c" />
     <ClCompile Include="src\hud_items.c">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='rls-all|Win32'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='rls-modern|Win32'">false</ExcludedFromBuild>
