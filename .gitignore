@@ -1,5 +1,4 @@
 .*
-!.travis.yml
 ezquake
 ezquake.exe
 ezquake-*.exe
@@ -13,3 +12,6 @@ unezquake-*-*
 *.vcxproj*.cache
 SysPrintf.log
 .ezquake/
+.vs
+.*
+!.gitignore
