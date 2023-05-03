@@ -816,41 +816,6 @@ void Parse_CAInfo(char *s)
 	ti_clients[client].round_deaths = atoi(Cmd_Argv(17));
 }
 
-void Parse_CAInfo(char *s)
-{
-	int		client;
-
-	Cmd_TokenizeString(s);
-	client = atoi(Cmd_Argv(1));
-
-	if (client < 0 || client >= MAX_CLIENTS) {
-		Com_DPrintf("Parse_CAInfo: wrong client %d\n", client);
-		return;
-	}
-
-	if (!cls.mvdplayback) {
-		ti_clients[client].client = client; // no, its not stupid
-		ti_clients[client].time = r_refdef2.time;
-		ti_clients[client].org[0] = atoi(Cmd_Argv(2));
-		ti_clients[client].org[1] = atoi(Cmd_Argv(3));
-		ti_clients[client].org[2] = atoi(Cmd_Argv(4));
-		ti_clients[client].health = atoi(Cmd_Argv(5));
-		ti_clients[client].armor = atoi(Cmd_Argv(6));
-		ti_clients[client].items = atoi(Cmd_Argv(7));
-		strlcpy(ti_clients[client].nick, Cmd_Argv(8), TEAMINFO_NICKLEN); // nick is optional
-		ti_clients[client].shells = atoi(Cmd_Argv(9));
-		ti_clients[client].nails = atoi(Cmd_Argv(10));
-		ti_clients[client].rockets = atoi(Cmd_Argv(11));
-		ti_clients[client].cells = atoi(Cmd_Argv(12));
-	}
-	
-	ti_clients[client].camode = atoi(Cmd_Argv(13));
-	ti_clients[client].isdead = atoi(Cmd_Argv(14));
-	ti_clients[client].timetospawn = atoi(Cmd_Argv(15));
-	ti_clients[client].round_kills = atoi(Cmd_Argv(16));
-	ti_clients[client].round_deaths = atoi(Cmd_Argv(17));
-}
-
 void Update_FlagStatus(int player_num, char *team, qbool got_flag)
 {
 	int flag = IT_KEY1 | IT_KEY2;
