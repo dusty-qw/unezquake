@@ -361,6 +361,7 @@ HUD_OBJS := \
     $(SRC_DIR)/hud_editor.o \
     $(SRC_DIR)/hud_radar.o \
     $(SRC_DIR)/hud_speed.o \
+    $(SRC_DIR)/hud_inlay.o \
     $(SRC_DIR)/hud_teaminfo.o \
     $(SRC_DIR)/hud_weapon_stats.o \
     $(SRC_DIR)/hud_autoid.o \
