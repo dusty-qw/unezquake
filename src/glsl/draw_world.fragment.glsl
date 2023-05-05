@@ -97,7 +97,7 @@ void main()
 	int turbType;
 
 #ifdef DRAW_GEOMETRY
-	normal_texture = vec4(Normal, mix(UnClipped.z / r_zFar, 0, min(1, Flags & EZQ_SURFACE_TYPE)));
+	normal_texture = vec4(Normal, mix(UnClipped.z / r_zFar, 0, 0));  // last zero used to be min(1, Flags & EZQ_SURFACE_TYPE); (1 if liquid, 0 if solid)
 #endif
 
 	if (draw_outlines == 1) {
