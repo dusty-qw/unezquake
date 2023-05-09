@@ -3248,6 +3248,13 @@ void CL_ParseStufftext (void)
 		// qtv user list
 		Parse_QtvUserList( s + 2 );
 	}
+	else if (!strncmp(s, "//specinfo ", sizeof("//specinfo ") - 1))
+	{
+		extern void Parse_SpecInfo(char *s);
+		
+		// spectator info
+		Parse_SpecInfo( s + 2 );
+	}
 	else if (!strncmp(s, "//wps ", sizeof("//wps ") - 1))
 	{
 		// weapon stats

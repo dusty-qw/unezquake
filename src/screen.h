@@ -126,6 +126,19 @@ extern double cursor_x, cursor_y;
 // kazik, HUD, incremented every screen update, never reset
 extern  int         host_screenupdatecount;
 
+
+// spectator info
+
+typedef struct ti_spec_s {
+
+	int 		client;
+
+	char		nick[20];
+	char		tracking[20];
+	double		time; // when we recive last update about this player, so we can guess disconnects and etc
+
+} ti_spec_t;
+
 // scr_teaminfo
 
 #define TEAMINFO_SHOWSELF() ((scr_teaminfo.integer == 1) && (scr_teaminfo_show_self.integer >= 1 && cls.mvdplayback))
