@@ -19020,6 +19020,22 @@
         }
       ]
     },
+    "scr_scoreboard_showtracking": {
+      "default": "1",
+      "desc": "Will show names of players spectators are tracking in the scoreboard.",
+      "group-id": "47",
+      "type": "boolean",
+      "values": [
+        {
+          "description": "Do not show who spectators are tracking.",
+          "name": "false"
+        },
+        {
+          "description": "Show who spectators are tracking.",
+          "name": "true"
+        }
+      ]
+    },
     "scr_scoreboard_spectator_name": {
       "desc": "This variable will change what spectators are called in the scoreboard.\nWhen teamplay is not on, this variable is cut to 4 characters.\n&cRGB values are not accepted.",
       "group-id": "47",

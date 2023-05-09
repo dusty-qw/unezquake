@@ -44,6 +44,10 @@ static mpic_t* CL_LoginFlag(int id);
 qbool CL_LoginImageLoad(const char* path);
 static void OnChange_scr_scoreboard_login_flagfile(cvar_t*, char*, qbool*);
 
+void Parse_SpecInfo(char *s);
+
+ti_spec_t ti_specs[MAX_CLIENTS];
+
 typedef struct loginimage_s {
 	char name[16];
 	mpic_t pic;
@@ -136,6 +140,12 @@ cvar_t	scr_scoreboard_showflagstats  = {"scr_scoreboard_showflagstats",  "0"};
 cvar_t	scr_scoreboard_drawtitle      = {"scr_scoreboard_drawtitle",      "1"};
 cvar_t	scr_scoreboard_borderless     = {"scr_scoreboard_borderless",     "1"};
 cvar_t	scr_scoreboard_spectator_name = {"scr_scoreboard_spectator_name", "\xF3\xF0\xE5\xE3\xF4\xE1\xF4\xEF\xF2"}; // brown "spectator". old: &cF20s&cF50p&cF80e&c883c&cA85t&c668a&c55At&c33Bo&c22Dr
+cvar_t	scr_scoreboard_showtracking	  = {"scr_scoreboard_showtracking", "1"};
+cvar_t	scr_scoreboard_showtracking_format = {"scr_scoreboard_showtracking_format", "\xAD\xBE&c777%n&r"};
+cvar_t  scr_scoreboard_showtracking_scale = {"scr_scoreboard_showtracking_scale", "0.7"};
+cvar_t	scr_scoreboard_showtracking_namewidth = {"scr_scoreboard_showtracking_namewidth", "9"};
+cvar_t	scr_scoreboard_showtracking_x = {"scr_scoreboard_showtracking_x", "0"};
+cvar_t	scr_scoreboard_showtracking_y = {"scr_scoreboard_showtracking_y", "2"};
 cvar_t	scr_scoreboard_fillalpha      = {"scr_scoreboard_fillalpha",      "0.7"};
 cvar_t	scr_scoreboard_fillcolored    = {"scr_scoreboard_fillcolored",    "2"};
 cvar_t  scr_scoreboard_proportional   = {"scr_scoreboard_proportional",   "0"};
@@ -325,6 +335,12 @@ void Sbar_Init(void)
 	Cvar_Register(&scr_scoreboard_drawtitle);
 	Cvar_Register(&scr_scoreboard_borderless);
 	Cvar_Register(&scr_scoreboard_spectator_name);
+	Cvar_Register(&scr_scoreboard_showtracking);
+	Cvar_Register(&scr_scoreboard_showtracking_format);
+	Cvar_Register(&scr_scoreboard_showtracking_scale);
+	Cvar_Register(&scr_scoreboard_showtracking_namewidth);
+	Cvar_Register(&scr_scoreboard_showtracking_x);
+	Cvar_Register(&scr_scoreboard_showtracking_y);
 	Cvar_Register(&scr_scoreboard_fillalpha);
 	Cvar_Register(&scr_scoreboard_fillcolored);
 	Cvar_Register(&scr_scoreboard_proportional);
@@ -1278,6 +1294,9 @@ static void Sbar_DeathmatchOverlay(int start)
 	int scoreboardsize, colors_thickness, statswidth, stats_xoffset = 0;
 	int i, k, x, y, xofs, total, p, skip = 10, fragsint;
 	int rank_width, leftover, startx, tempx, mynum;
+	int spectrack_x = scr_scoreboard_showtracking_x.value;
+	int spectrack_y = scr_scoreboard_showtracking_y.value;
+	int spectrack_maxname = scr_scoreboard_showtracking_namewidth.integer;
 	char num[12];
 	char myminutes[11];
 	char fragsstr[10];
@@ -1288,6 +1307,7 @@ static void Sbar_DeathmatchOverlay(int start)
 	char *fstart;
 	player_info_t *s, *tr;
 	ti_player_t *ti_cl;
+	ti_spec_t *ti_sp;
 	mpic_t *pic;
 	float scale = 1.0f;
 	float alpha = 1.0f;
@@ -1486,6 +1506,7 @@ static void Sbar_DeathmatchOverlay(int start)
 		k = fragsort[i];
 		s = &cl.players[k];
 		ti_cl = &ti_clients[k];
+		ti_sp = &ti_specs[k];
 		ca_alpha = (check_ktx_ca_wo() && scr_scoreboard_wipeout.value && ti_cl->isdead) ? 0.25f : 1.0f; // fade dead players in CA/wipeout
 
 		if (!s->name[0]) {
