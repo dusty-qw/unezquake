@@ -3248,7 +3248,7 @@ void CL_ParseStufftext (void)
 		// qtv user list
 		Parse_QtvUserList( s + 2 );
 	}
-	else if (!strncmp(s, "//specinfo ", sizeof("//specinfo ") - 1))
+	else if (!strncmp(s, "//spi ", sizeof("//spi ") - 1))
 	{
 		extern void Parse_SpecInfo(char *s);
 		

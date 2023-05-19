@@ -133,8 +133,7 @@ typedef struct ti_spec_s {
 
 	int 		client;
 
-	char		nick[20];
-	char		tracking[20];
+	int			tracknum;
 	double		time; // when we recive last update about this player, so we can guess disconnects and etc
 
 } ti_spec_t;

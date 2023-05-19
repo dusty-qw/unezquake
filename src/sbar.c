@@ -1285,9 +1285,7 @@ void Parse_SpecInfo(char *s)
 
 	ti_specs[client].client = client; // no, its not stupid
 	ti_specs[client].time = r_refdef2.time;
-
-	strlcpy(ti_specs[client].nick, Cmd_Argv(2), 20);
-	strlcpy(ti_specs[client].tracking, Cmd_Argv(3), 20);
+	ti_specs[client].tracknum = atoi(Cmd_Argv(2));
 }
 
 static void Sbar_DeathmatchOverlay(int start)
@@ -1307,7 +1305,7 @@ static void Sbar_DeathmatchOverlay(int start)
 	char tmp[1024];
 	char *formatstr;
 	char *fstart;
-	player_info_t *s;
+	player_info_t *s, *tr;
 	ti_player_t *ti_cl;
 	ti_spec_t *ti_sp;
 	mpic_t *pic;
@@ -1503,6 +1501,7 @@ static void Sbar_DeathmatchOverlay(int start)
 		float bk_alpha;
 		byte c;
 		clrinfo_t color;
+		qbool istracking;
 
 		k = fragsort[i];
 		s = &cl.players[k];
@@ -1513,6 +1512,16 @@ static void Sbar_DeathmatchOverlay(int start)
 		if (!s->name[0]) {
 			continue;
 		}
+
+		if (s->spectator && (ti_sp->tracknum >= 0) && (ti_sp->tracknum != ti_sp->client) && &cl.players[ti_sp->tracknum]) 
+		{
+			tr = &cl.players[ti_sp->tracknum]; // get who the spec is tracking
+		}
+		else {
+			tr = NULL;
+		}
+
+		istracking = (tr && strlen(tr->name));	// is spec tracking a connected player?
 
 		//render the main background transparencies behind players row
 		if (k == mynum) {
@@ -1621,7 +1630,7 @@ static void Sbar_DeathmatchOverlay(int start)
 
 			x += (cl.teamplay ? 11 : 6) * FONT_WIDTH; // move across to print the name
 
-			if (scr_scoreboard_showtracking.value && strlen(ti_sp->tracking)) 
+			if (scr_scoreboard_showtracking.value && istracking)
 			{
 				// show who spectators are tracking in scoreboard.
 				// this limit len of string because TP_ParseFunChars() do not check overflow
@@ -1630,7 +1639,7 @@ static void Sbar_DeathmatchOverlay(int start)
 				formatstr = tmp;
 				
 				// truncate name to specified width
-				snprintf(tracked, sizeof(tracked), ti_sp->tracking);
+				snprintf(tracked, sizeof(tracked), tr->name);
 				tracked[bound(1, spectrack_maxname, sizeof(tracked)-1)] = '\0';
 				
 				fstart = strstr(formatstr, "%n"); // check format string for "%n"
@@ -1672,7 +1681,7 @@ static void Sbar_DeathmatchOverlay(int start)
 				Draw_SStringAligned(x, y, s->name, scale, alpha, proportional, text_align_left, x + FONT_WIDTH * 15);
 			}
 
-			if (scr_scoreboard_showtracking.value && strlen(ti_sp->tracking)) 
+			if (scr_scoreboard_showtracking.value && istracking)
 			{
 				x += strlen(s->name) * FONT_WIDTH;
 				Draw_SStringAligned(x+spectrack_x, y+spectrack_y, tracking, scale*scr_scoreboard_showtracking_scale.value, alpha, proportional, text_align_left, x + FONT_WIDTH * 10);
