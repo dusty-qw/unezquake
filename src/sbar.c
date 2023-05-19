@@ -1254,6 +1254,24 @@ static qbool Sbar_ShowTeamKills(void)
 	}
 }
 
+void Parse_SpecInfo(char *s)
+{
+	int		client;
+
+	Cmd_TokenizeString(s);
+
+	client = atoi(Cmd_Argv(1));
+
+	if (client < 0 || client >= MAX_CLIENTS) {
+		Com_DPrintf("Parse_SpecInfo: wrong client %d\n", client);
+		return;
+	}
+
+	ti_specs[client].client = client; // no, its not stupid
+	ti_specs[client].time = r_refdef2.time;
+	ti_specs[client].tracknum = atoi(Cmd_Argv(2));
+}
+
 static void Sbar_DeathmatchOverlay(int start)
 {
 	int stats_basic, stats_team, stats_touches, stats_caps, playerstats[7];
@@ -1263,7 +1281,12 @@ static void Sbar_DeathmatchOverlay(int start)
 	char num[12];
 	char myminutes[11];
 	char fragsstr[10];
-	player_info_t *s;
+	char tracking[1024];
+	char tracked[64];
+	char tmp[1024];
+	char *formatstr;
+	char *fstart;
+	player_info_t *s, *tr;
 	ti_player_t *ti_cl;
 	mpic_t *pic;
 	float scale = 1.0f;
@@ -1458,6 +1481,7 @@ static void Sbar_DeathmatchOverlay(int start)
 		float bk_alpha;
 		byte c;
 		clrinfo_t color;
+		qbool istracking;
 
 		k = fragsort[i];
 		s = &cl.players[k];
@@ -1467,6 +1491,16 @@ static void Sbar_DeathmatchOverlay(int start)
 		if (!s->name[0]) {
 			continue;
 		}
+
+		if (s->spectator && (ti_sp->tracknum >= 0) && (ti_sp->tracknum != ti_sp->client) && &cl.players[ti_sp->tracknum]) 
+		{
+			tr = &cl.players[ti_sp->tracknum]; // get who the spec is tracking
+		}
+		else {
+			tr = NULL;
+		}
+
+		istracking = (tr && strlen(tr->name));	// is spec tracking a connected player?
 
 		//render the main background transparencies behind players row
 		if (k == mynum) {
@@ -1575,6 +1609,32 @@ static void Sbar_DeathmatchOverlay(int start)
 
 			x += (cl.teamplay ? 11 : 6) * FONT_WIDTH; // move across to print the name
 
+			if (scr_scoreboard_showtracking.value && istracking)
+			{
+				// show who spectators are tracking in scoreboard.
+				// this limit len of string because TP_ParseFunChars() do not check overflow
+				strlcpy(tmp, scr_scoreboard_showtracking_format.string, sizeof(tmp));
+				strlcpy(tmp, TP_ParseFunChars(tmp, false), sizeof(tmp));
+				formatstr = tmp;
+				
+				// truncate name to specified width
+				snprintf(tracked, sizeof(tracked), tr->name);
+				tracked[bound(1, spectrack_maxname, sizeof(tracked)-1)] = '\0';
+				
+				fstart = strstr(formatstr, "%n"); // check format string for "%n"
+
+				if (fstart)
+				{
+					formatstr[(int)(fstart-formatstr+1)] = 's'; // change 'n' to 's' for easy string handling
+					snprintf(tracking, sizeof(tracking), formatstr, tracked);
+				}
+				else
+				{
+					// incorrect format. display nothing.
+					snprintf(tracking, sizeof(tracking), "%s", " ");
+				}
+			}
+
 			if (s->loginname[0] && scr_scoreboard_login_indicator.string[0]) {
 				mpic_t* flag = CL_LoginFlag(s->loginflag_id);
 				if (s->loginflag[0] && flag) {
@@ -1597,7 +1657,13 @@ static void Sbar_DeathmatchOverlay(int start)
 				}
 			}
 			else {
-				Draw_SStringAligned(x, y, s->name, scale, ca_alpha, proportional, text_align_left, x + FONT_WIDTH * 15);
+				Draw_SStringAligned(x, y, s->name, scale, alpha, proportional, text_align_left, x + FONT_WIDTH * 15);
+			}
+
+			if (scr_scoreboard_showtracking.value && istracking)
+			{
+				x += strlen(s->name) * FONT_WIDTH;
+				Draw_SStringAligned(x+spectrack_x, y+spectrack_y, tracking, scale*scr_scoreboard_showtracking_scale.value, alpha, proportional, text_align_left, x + FONT_WIDTH * 10);
 			}
 
 			y += skip;
