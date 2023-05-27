@@ -47,6 +47,7 @@ $Id: cl_screen.c,v 1.156 2007-10-29 00:56:47 qqshka Exp $
 #include "r_chaticons.h"
 #include "r_renderer.h"
 #include "r_matrix.h"
+#include "rulesets.h"
 #include "qsound.h"
 
 #ifndef CLIENTONLY
@@ -111,7 +112,7 @@ cvar_t	show_velocity_3d		= {"show_velocity_3d", "0"};
 cvar_t	show_velocity_3d_offset_forward	= {"show_velocity_3d_offset_forward", "2.5"};
 cvar_t	show_velocity_3d_offset_down	= {"show_velocity_3d_offset_down", "5"};
 
-cvar_t	cl_hud					= {"cl_hud", "1"};	// QW262 HUD.
+cvar_t	cl_hud					= {"cl_hud", "0", 0, Rulesets_OnChange_cl_hud};	// QW262 HUD.
 
 cvar_t	gl_triplebuffer			= {"gl_triplebuffer", "1"};
 cvar_t  r_chaticons_alpha		= {"r_chaticons_alpha", "0.8"};

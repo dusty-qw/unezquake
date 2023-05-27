@@ -47,7 +47,6 @@ typedef enum {
 	rs_mtfl
 } ruleset_t;
 
-void  Rulesets_Init(void);
 const char* Rulesets_Ruleset(void);
 qbool Rulesets_AllowTimerefresh(void);
 float Rulesets_MaxFPS(void);
@@ -78,6 +77,8 @@ void Rulesets_OnChange_allow_scripts (cvar_t *var, char *value, qbool *cancel);
 void Rulesets_OnChange_cl_fakeshaft (cvar_t *var, char *value, qbool *cancel);
 void Rulesets_OnChange_cl_delay_packet(cvar_t *var, char *value, qbool *cancel);
 void Rulesets_OnChange_cl_iDrive(cvar_t *var, char *value, qbool *cancel);
+void Rulesets_OnChange_cl_hud(cvar_t *var, char *value, qbool *cancel);
+void Rulesets_OnChange_inlay(cvar_t *var, char *value, qbool *cancel);
 void Rulesets_OnChange_tp_triggers (cvar_t *var, char *value, qbool *cancel);
 
 qbool Rulesets_ToggleWhenFlashed(void);

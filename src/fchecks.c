@@ -48,11 +48,13 @@ extern cvar_t r_fullbrightSkins;
 extern cvar_t cl_fakeshaft;
 extern cvar_t cl_iDrive;
 extern cvar_t tp_triggers;
+extern cvar_t cl_hud;
+extern cvar_t scr_teaminlay;
 
 
 static void FChecks_VersionResponse (void)
 {
-	Cbuf_AddText (va("say unezQuake %s " QW_PLATFORM ":" QW_RENDERER "\n", VersionString()));
+	Cbuf_AddText (va("say {unezQuake &c06a%s&r &c777%s&r " QW_PLATFORM ":" QW_RENDERER "}\n", VERSION_NUMBER, VERSION));
 }
 
 static char *FChecks_FServerResponse_Text(void)
@@ -217,7 +219,7 @@ void FChecks_RulesetFeatureAppend(qbool on, const char *code, char *feat_on_buf,
 // format: [+<enabled features>][-<disabled features>]
 const char* FChecks_RulesetAdditionString(void)
 {
-	char feat_on_buf[50] = " MODIFIED:";
+	char feat_on_buf[50] = "&cc80+&r";
 	char feat_off_buf[50] = "-";
 	static char features[100] = "";
 
@@ -225,25 +227,31 @@ const char* FChecks_RulesetAdditionString(void)
 
 	#define APPENDFEATURE(on,code) FChecks_RulesetFeatureAppend((on),(code),feat_on_buf,sizeof (feat_on_buf),feat_off_buf,sizeof (feat_off_buf))
 	// modified models or sounds
-	APPENDFEATURE((strcmp(FMod_Response_Text(), "all models ok") != 0)," models");
+	APPENDFEATURE((strcmp(FMod_Response_Text(), "all models ok") != 0)," &cc80mods&r");
 
 	// movement scripts enabled
-	APPENDFEATURE((allow_scripts.integer)," scripts");
+	APPENDFEATURE((allow_scripts.integer)," &cc80scripts&r");
 
 	// enemy skin forcing enabled
-	APPENDFEATURE((enemyforceskins.integer)," eskins");
+	APPENDFEATURE((enemyforceskins.integer)," &cc80eskins&r");
 
 	// cl_iDrive - strafing aid
-	APPENDFEATURE((cl_iDrive.integer)," idrive");
+	APPENDFEATURE((cl_iDrive.integer)," &cc80idrive&r");
+
+	// inlay enabled
+	APPENDFEATURE((scr_teaminlay.integer)," &cc80inlay&r");
+
+	// cl_hud enabled
+	APPENDFEATURE((cl_hud.integer)," &cc80cl_hud&r");
 
 	// tp_triggers
-	APPENDFEATURE((tp_triggers.integer)," triggers");
+	APPENDFEATURE((tp_triggers.integer)," &cc80triggers&r");
 	#undef APPENDFEATURE
 
 	if (strlen(feat_on_buf) > 10) {
 		strlcat(features, feat_on_buf, sizeof (features));
 	} else {
-		strlcat(features, " nominal", sizeof (features));
+		strlcat(features, "&c9faclear&r", sizeof (features));
 	}
 
 	return features;
@@ -264,7 +272,7 @@ static qbool FChecks_CheckFRulesetRequest (const char *s)
 	char *fServer;
 	const char *features;
 	char *emptystring = "";
-	char *brief_version = "unezq" VERSION_NUMBER;
+	char *brief_version = "unez&c06a" VERSION_NUMBER "&r";
 	const char *ruleset = Rulesets_Ruleset();
 	size_t name_len = strlen(cl.players[cl.playernum].name);
 	size_t pad_len = 12 - min(name_len, 12);
@@ -279,8 +287,8 @@ static qbool FChecks_CheckFRulesetRequest (const char *s)
 			fServer = "server-na";
 		}
 
-		Cbuf_AddText(va("say \"%*s%21s %16s %s%s\"\n",
-			pad_len, emptystring, fServer, brief_version, ruleset, features));
+		Cbuf_AddText(va("say \"{&c777%*s%21s&r %16s %s}\"\n",
+			pad_len, emptystring, fServer, brief_version, features));
 		f_ruleset_reply_time = cls.realtime;
 		return true;
 	}
