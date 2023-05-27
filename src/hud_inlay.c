@@ -64,8 +64,8 @@ static cvar_t scr_teaminlay_show_msg        = { "scr_teaminlay_show_msg",    "1"
 static cvar_t scr_teaminlay_proportional    = { "scr_teaminlay_proportional", "0"};
 static cvar_t scr_teaminlay_low_health      = { "scr_teaminlay_low_health",  "25"};
 
-cvar_t scr_teaminlay = { "scr_teaminlay", "1" }; // Enable / disable hud elements.
-cvar_t teaminlay = { "teaminlay", "1" }; // Enable / disable sending updates.
+cvar_t scr_teaminlay = { "scr_teaminlay", "0", 0, Rulesets_OnChange_inlay }; // Enable / disable hud elements.
+cvar_t teaminlay = { "teaminlay", "0" }; // Enable / disable sending updates.
 cvar_t teaminlay_interval = { "teaminlay_interval", "1" }; // Frequency of sending updates.
 
 // -------------

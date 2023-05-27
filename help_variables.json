@@ -17073,13 +17073,6 @@
       "group-id": "0",
       "system-generated": true
     },
-    "ruleset": {
-      "default": "default",
-      "desc": "Enforces a set of restrictions on the client features.",
-      "group-id": "37",
-      "remarks": "Most commonly used is \"smackdown\"",
-      "type": "string"
-    },
     "s_alsa_device": {
       "desc": "Sets which device ALSA will be trying to open (when s_driver is set to alsa).\nDefault is: \"default\", if that fails it will try \"hw\" and if that fails too, \"plug:hw\" will be tried.",
       "group-id": "26",

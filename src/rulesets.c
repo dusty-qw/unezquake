@@ -25,8 +25,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 /* FIXME: Figure out a nicer way to do all this */
 
-static void Rulesets_OnChange_ruleset (cvar_t *var, char *value, qbool *cancel);
-
 typedef struct rulesetDef_s {
 	ruleset_t ruleset;
 	float maxfps;
@@ -41,17 +39,17 @@ typedef struct rulesetDef_s {
 } rulesetDef_t;
 
 static rulesetDef_t rulesetDef = {
-	rs_default,    // ruleset
-	72.0,          // maxfps
+	rs_modern2020, // ruleset
+	77.0,          // maxfps
 	false,         // restrict triggers
-	false,         // restrict /packet command
+	true,          // restrict /packet command
 	false,         // restrict particles
 	false,         // restrict sound
-	false,         // restrict logging
-	false          // restrict rollangle
+	true,          // restrict logging
+	false,		// restrict inlay
+	false,		// retrict pogo
+	true           // restrict rollangle
 };
-
-cvar_t ruleset = {"ruleset", "default", 0, Rulesets_OnChange_ruleset};
 
 qbool RuleSets_DisallowExternalTexture(struct model_s *mod)
 {
@@ -233,336 +231,6 @@ const char *Rulesets_Ruleset(void)
 	}
 }
 
-static void Rulesets_Smackdown(qbool enable)
-{
-	extern cvar_t cl_independentPhysics, cl_c2spps;
-	extern cvar_t cl_hud;
-	extern cvar_t cl_rollalpha;
-	extern cvar_t r_shiftbeam;
-	extern cvar_t allow_scripts;
-	extern cvar_t cl_iDrive;
-	extern cvar_t scr_allowsnap;
-	int i;
-
-	locked_cvar_t disabled_cvars[] = {
-		{&allow_scripts, "0"},  // disable movement scripting
-		{&cl_iDrive, "0"},      // disable strafing aid
-		{&cl_hud, "0"},         // allows you place any text on the screen & filter incoming messages (hud strings)
-		{&cl_rollalpha, "20"},  // allows you to not dodge while seeing enemies dodging
-		{&r_shiftbeam, "0"},    // perphaps some people would think this allows you to aim better (maybe should be added for demo playback and spectating only)
-		{&scr_allowsnap, "1"}
-	};
-
-	if (enable) {
-		for (i = 0; i < (sizeof(disabled_cvars) / sizeof(disabled_cvars[0])); i++) {
-			Cvar_RulesetSet(disabled_cvars[i].var, disabled_cvars[i].value, 2);
-			Cvar_Set(disabled_cvars[i].var, disabled_cvars[i].value);
-			Cvar_SetFlags(disabled_cvars[i].var, Cvar_GetFlags(disabled_cvars[i].var) | CVAR_ROM);
-		}
-
-		if (cl_independentPhysics.value) {
-			Cvar_Set(&cl_c2spps, "0"); // people were complaining that player move is jerky with this. however this has not much to do with independent physics, but people are too paranoid about it
-			Cvar_SetFlags(&cl_c2spps, Cvar_GetFlags(&cl_c2spps) | CVAR_ROM);
-		}
-
-		rulesetDef.maxfps = 77;
-		rulesetDef.restrictTriggers = true;
-		rulesetDef.restrictPacket = true; // packet command could have been exploited for external timers
-		rulesetDef.restrictParticles = true;
-		rulesetDef.restrictLogging = true;
-		rulesetDef.restrictInlay = true;
-		rulesetDef.restrictPogo = true;
-		rulesetDef.restrictRollAngle = true;
-		rulesetDef.ruleset = rs_smackdown;
-	} else {
-		for (i = 0; i < (sizeof(disabled_cvars) / sizeof(disabled_cvars[0])); i++)
-			Cvar_SetFlags(disabled_cvars[i].var, Cvar_GetFlags(disabled_cvars[i].var) & ~CVAR_ROM);
-
-		if (cl_independentPhysics.value)
-			Cvar_SetFlags(&cl_c2spps, Cvar_GetFlags(&cl_c2spps) & ~CVAR_ROM);
-
-		rulesetDef.maxfps = 72.0;
-		rulesetDef.restrictTriggers = false;
-		rulesetDef.restrictPacket = false;
-		rulesetDef.restrictParticles = false;
-		rulesetDef.restrictLogging = false;
-		rulesetDef.restrictInlay = false;
-		rulesetDef.restrictPogo = false;
-		rulesetDef.restrictRollAngle = false;
-		rulesetDef.ruleset = rs_default;
-	}
-}
-
-static void Rulesets_Qcon(qbool enable)
-{
-	extern cvar_t cl_independentPhysics, cl_c2spps;
-	extern cvar_t cl_hud;
-	extern cvar_t cl_rollalpha;
-	extern cvar_t r_shiftbeam;
-	extern cvar_t allow_scripts;
-	extern cvar_t cl_iDrive;
-	int i;
-
-	locked_cvar_t disabled_cvars[] = {
-		{&allow_scripts, "0"},  // disable movement scripting
-		{&cl_iDrive, "0"},      // disable strafing aid
-		{&cl_hud, "0"},         // allows you place any text on the screen & filter incoming messages (hud strings)
-		{&cl_rollalpha, "20"},  // allows you to not dodge while seeing enemies dodging
-		{&r_shiftbeam, "0"}     // perphaps some people would think this allows you to aim better (maybe should be added for demo playback and spectating only)
-	};
-
-	if (enable) {
-		for (i = 0; i < (sizeof(disabled_cvars) / sizeof(disabled_cvars[0])); i++) {
-			Cvar_RulesetSet(disabled_cvars[i].var, disabled_cvars[i].value, 2);
-			Cvar_Set(disabled_cvars[i].var, disabled_cvars[i].value);
-			Cvar_SetFlags(disabled_cvars[i].var, Cvar_GetFlags(disabled_cvars[i].var) | CVAR_ROM);
-		}
-
-		if (cl_independentPhysics.value) {
-			Cvar_Set(&cl_c2spps, "0"); // people were complaining that player move is jerky with this. however this has not much to do with independent physics, but people are too paranoid about it
-			Cvar_SetFlags(&cl_c2spps, Cvar_GetFlags(&cl_c2spps) | CVAR_ROM);
-		}
-
-		rulesetDef.maxfps = 77;
-		rulesetDef.restrictTriggers = true;
-		rulesetDef.restrictPacket = true; // packet command could have been exploited for external timers
-		rulesetDef.restrictParticles = true;
-		rulesetDef.restrictSound = true;
-		rulesetDef.restrictLogging = true;
-		rulesetDef.restrictInlay = true;
-		rulesetDef.restrictPogo = true;
-		rulesetDef.restrictRollAngle = true;
-		rulesetDef.ruleset = rs_qcon;
-	} else {
-		for (i = 0; i < (sizeof(disabled_cvars) / sizeof(disabled_cvars[0])); i++)
-			Cvar_SetFlags(disabled_cvars[i].var, Cvar_GetFlags(disabled_cvars[i].var) & ~CVAR_ROM);
-
-		if (cl_independentPhysics.value)
-			Cvar_SetFlags(&cl_c2spps, Cvar_GetFlags(&cl_c2spps) & ~CVAR_ROM);
-
-		rulesetDef.maxfps = 72.0;
-		rulesetDef.restrictTriggers = false;
-		rulesetDef.restrictPacket = false;
-		rulesetDef.restrictParticles = false;
-		rulesetDef.restrictSound = false;
-		rulesetDef.restrictLogging = false;
-		rulesetDef.restrictInlay = false;
-		rulesetDef.restrictPogo = false;
-		rulesetDef.restrictRollAngle = false;
-		rulesetDef.ruleset = rs_default;
-	}
-}
-static void Rulesets_Thunderdome(qbool enable)
-{
-	extern cvar_t cl_independentPhysics, cl_c2spps;
-	extern cvar_t cl_hud;
-	extern cvar_t r_shiftbeam;
-	extern cvar_t allow_scripts;
-	extern cvar_t cl_iDrive;
-	int i;
-
-	locked_cvar_t disabled_cvars[] = {
-		{&allow_scripts, "0"},  // disable movement scripting
-		{&cl_iDrive, "0"},      // disable strafing aid
-		{&cl_hud, "0"},         // allows you place any text on the screen & filter incoming messages (hud strings)
-		{&r_shiftbeam, "0"}     // perphaps some people would think this allows you to aim better (maybe should be added for demo playback and spectating only)
-	};
-
-	if (enable) {
-		for (i = 0; i < (sizeof(disabled_cvars) / sizeof(disabled_cvars[0])); i++) {
-			Cvar_RulesetSet(disabled_cvars[i].var, disabled_cvars[i].value, 2);
-			Cvar_Set(disabled_cvars[i].var, disabled_cvars[i].value);
-			Cvar_SetFlags(disabled_cvars[i].var, Cvar_GetFlags(disabled_cvars[i].var) | CVAR_ROM);
-		}
-
-		if (cl_independentPhysics.value) {
-			Cvar_Set(&cl_c2spps, "0"); // people were complaining that player move is jerky with this. however this has not much to do with independent physics, but people are too paranoid about it
-			Cvar_SetFlags(&cl_c2spps, Cvar_GetFlags(&cl_c2spps) | CVAR_ROM);
-		}
-
-		rulesetDef.maxfps = 77;
-		rulesetDef.restrictTriggers = true;
-		rulesetDef.restrictPacket = true; // packet command could have been exploited for external timers
-		rulesetDef.restrictParticles = false;
-		rulesetDef.restrictLogging = true;
-		rulesetDef.restrictInlay = true;
-		rulesetDef.restrictPogo = true;
-		rulesetDef.restrictRollAngle = true;
-		rulesetDef.ruleset = rs_thunderdome;
-	} else {
-		for (i = 0; i < (sizeof(disabled_cvars) / sizeof(disabled_cvars[0])); i++)
-			Cvar_SetFlags(disabled_cvars[i].var, Cvar_GetFlags(disabled_cvars[i].var) & ~CVAR_ROM);
-
-		if (cl_independentPhysics.value)
-			Cvar_SetFlags(&cl_c2spps, Cvar_GetFlags(&cl_c2spps) & ~CVAR_ROM);
-
-		rulesetDef.maxfps = 72.0;
-		rulesetDef.restrictTriggers = false;
-		rulesetDef.restrictPacket = false;
-		rulesetDef.restrictParticles = false;
-		rulesetDef.restrictLogging = false;
-		rulesetDef.restrictInlay = false;
-		rulesetDef.restrictPogo = false;
-		rulesetDef.ruleset = rs_default;
-	}
-}
-static void Rulesets_Modern2020(qbool enable)
-{
-	extern cvar_t cl_independentPhysics, cl_c2spps;
-	extern cvar_t cl_hud;
-	extern cvar_t allow_scripts;
-	int i;
-
-	locked_cvar_t disabled_cvars[] = {
-		{&allow_scripts, "0"},  // disable movement scripting
-		{&cl_hud, "0"}         // allows you place any text on the screen & filter incoming messages (hud strings)
-	};
-
-	if (enable) {
-		for (i = 0; i < (sizeof(disabled_cvars) / sizeof(disabled_cvars[0])); i++) {
-			Cvar_RulesetSet(disabled_cvars[i].var, disabled_cvars[i].value, 2);
-			Cvar_Set(disabled_cvars[i].var, disabled_cvars[i].value);
-			Cvar_SetFlags(disabled_cvars[i].var, Cvar_GetFlags(disabled_cvars[i].var) | CVAR_ROM);
-		}
-
-		if (cl_independentPhysics.value) {
-			Cvar_Set(&cl_c2spps, "0"); // people were complaining that player move is jerky with this. however this has not much to do with independent physics, but people are too paranoid about it
-			Cvar_SetFlags(&cl_c2spps, Cvar_GetFlags(&cl_c2spps) | CVAR_ROM);
-		}
-
-		rulesetDef.maxfps = 77;
-		rulesetDef.restrictTriggers = false; // triggers are not restricted but will report with ruleset
-		rulesetDef.restrictPacket = true; // packet command could have been exploited for external timers
-		rulesetDef.restrictParticles = false;
-		rulesetDef.restrictLogging = true;
-		rulesetDef.restrictInlay = false;
-		rulesetDef.restrictPogo = true;
-		rulesetDef.restrictRollAngle = true;
-		rulesetDef.ruleset = rs_modern2020;
-	} else {
-		for (i = 0; i < (sizeof(disabled_cvars) / sizeof(disabled_cvars[0])); i++)
-			Cvar_SetFlags(disabled_cvars[i].var, Cvar_GetFlags(disabled_cvars[i].var) & ~CVAR_ROM);
-
-		if (cl_independentPhysics.value)
-			Cvar_SetFlags(&cl_c2spps, Cvar_GetFlags(&cl_c2spps) & ~CVAR_ROM);
-
-		rulesetDef.maxfps = 72.0;
-		rulesetDef.restrictTriggers = false;
-		rulesetDef.restrictPacket = false;
-		rulesetDef.restrictParticles = false;
-		rulesetDef.restrictLogging = false;
-		rulesetDef.restrictInlay = false;
-		rulesetDef.restrictPogo = false;
-		rulesetDef.restrictRollAngle = false;
-		rulesetDef.ruleset = rs_default;
-	}
-}
-static void Rulesets_MTFL(qbool enable)
-{
-	/* TODO:
-	   f_flashout trigger
-	   block all other ways to made textures flat(simple)
-	   ?disable external textures for detpacks, grenades, sentry, disp, etc?
-	 */
-	extern cvar_t cl_c2spps, r_fullbrightSkins;
-	extern cvar_t amf_detpacklights;
-	extern cvar_t gl_picmip, gl_max_size, r_drawflat;
-	extern cvar_t vid_hwgammacontrol;
-	extern cvar_t gl_textureless;
-
-	int i = 0;
-
-	locked_cvar_t disabled_cvars[] = {
-		{&r_drawflat, "0"},
-		{&amf_detpacklights, "0"},
-		{&gl_textureless, "0"},
-		{&r_fullbrightSkins, "0"},
-		{&vid_hwgammacontrol, "2"},
-		{&cl_c2spps, "0"},
-	};
-
-	limited_cvar_max_t limited_max_cvars[] = {
-		{&gl_picmip, "3"},
-	};
-
-	limited_cvar_min_t limited_min_cvars[] = {
-		{&gl_max_size, "512"},
-	};
-
-	if (enable) {
-		for (; i < (sizeof(disabled_cvars) / sizeof(disabled_cvars[0])); i++) {
-			Cvar_RulesetSet(disabled_cvars[i].var, disabled_cvars[i].value, 2);
-			Cvar_Set(disabled_cvars[i].var, disabled_cvars[i].value);
-			Cvar_SetFlags(disabled_cvars[i].var, Cvar_GetFlags(disabled_cvars[i].var) | CVAR_ROM);
-		}
-
-		for (i = 0; i < (sizeof(limited_max_cvars) / sizeof(limited_max_cvars[0])); i++) {
-			Cvar_RulesetSet(limited_max_cvars[i].var, limited_max_cvars[i].maxrulesetvalue, 1);
-			Cvar_SetFlags(limited_max_cvars[i].var, Cvar_GetFlags(limited_max_cvars[i].var) | CVAR_RULESET_MAX);
-		}
-
-		for (i = 0; i < (sizeof(limited_min_cvars) / sizeof(limited_min_cvars[0])); i++) {
-			Cvar_RulesetSet(limited_min_cvars[i].var, limited_min_cvars[i].minrulesetvalue, 0);
-			Cvar_SetFlags(limited_min_cvars[i].var, Cvar_GetFlags(limited_min_cvars[i].var) | CVAR_RULESET_MIN);
-		}
-
-		rulesetDef.restrictRollAngle = false;
-		rulesetDef.ruleset = rs_mtfl;
-		v_gamma.modified = true;
-	} else {
-		for (i = 0; i < (sizeof(disabled_cvars) / sizeof(disabled_cvars[0])); i++)
-			Cvar_SetFlags(disabled_cvars[i].var, Cvar_GetFlags(disabled_cvars[i].var) & ~CVAR_ROM);
-
-		for (i = 0; i < (sizeof(limited_max_cvars) / sizeof(limited_max_cvars[0])); i++)
-			Cvar_SetFlags(limited_max_cvars[i].var, Cvar_GetFlags(limited_max_cvars[i].var) & ~CVAR_RULESET_MAX);
-
-		for (i = 0; i < (sizeof(limited_min_cvars) / sizeof(limited_min_cvars[0])); i++)
-			Cvar_SetFlags(limited_min_cvars[i].var, Cvar_GetFlags(limited_min_cvars[i].var) & ~CVAR_RULESET_MIN);
-
-		rulesetDef.ruleset = rs_default;
-		rulesetDef.restrictRollAngle = false;
-		v_gamma.modified = true;
-	}
-}
-
-static void Rulesets_Default(void)
-{
-	rulesetDef.ruleset = rs_default;
-}
-
-void Rulesets_Init(void)
-{
-	int temp;
-
-	Cvar_SetCurrentGroup(CVAR_GROUP_USERINFO);
-	Cvar_Register(&ruleset);
-
-	if ((temp = COM_CheckParm(cmdline_param_client_ruleset)) && temp + 1 < COM_Argc()) {
-		if (!strcasecmp(COM_Argv(temp + 1), "smackdown")) {
-			Cvar_Set(&ruleset, "smackdown");
-			return;
-		} else if (!strcasecmp(COM_Argv(temp + 1), "thunderdome")) {
-			Cvar_Set(&ruleset, "thunderdome");
-			return;
-		} else if (!strcasecmp(COM_Argv(temp + 1), "modern2020")) {
-			Cvar_Set(&ruleset, "modern2020");
-			return;
-		} else if (!strcasecmp(COM_Argv(temp + 1), "mtfl")) {
-			Cvar_Set(&ruleset, "mtfl");
-			return;
-		} else if (strcasecmp(COM_Argv(temp + 1), "qcon")) {
-			Cvar_Set(&ruleset, "qcon");
-			return;
-		} else if (strcasecmp(COM_Argv(temp + 1), "default")){
-			Cvar_Set(&ruleset, "default");
-			return;
-		} else {
-			Rulesets_Default();
-			return;
-		}
-	}
-}
-
 void Rulesets_OnChange_indphys(cvar_t *var, char *value, qbool *cancel)
 {
 	if (cls.state != ca_disconnected) {
@@ -708,6 +376,68 @@ void Rulesets_OnChange_cl_iDrive(cvar_t *var, char *value, qbool *cancel)
 	}
 }
 
+void Rulesets_OnChange_cl_hud(cvar_t *var, char *value, qbool *cancel)
+{
+	int ival = Q_atoi(value);	// this is used in the code
+	float fval = Q_atof(value); // this is used to check value validity
+
+	if (ival == var->integer && fval == var->value) {
+		// no change
+		return;
+	}
+
+	if (fval != 0 && fval != 1) {
+		Com_Printf("Invalid value for %s, use 0 or 1.\n", var->name);
+		*cancel = true;
+		return;
+	}
+
+	if (cls.state == ca_active) {
+		if (cl.standby) {
+			// allow in standby
+			Cbuf_AddText(va("say qw262 hud: %s\n", ival ? "enabled" : "disabled"));
+		}
+		else {
+			// disallow during the match
+			Com_Printf("%s changes are not allowed during the match\n", var->name);
+			*cancel = true;
+		}
+	} else {
+		// allow in not fully connected state
+	}
+}
+
+void Rulesets_OnChange_inlay(cvar_t *var, char *value, qbool *cancel)
+{
+	int ival = Q_atoi(value);	// this is used in the code
+	float fval = Q_atof(value); // this is used to check value validity
+
+	if (ival == var->integer && fval == var->value) {
+		// no change
+		return;
+	}
+
+	if (fval != 0 && fval != 1) {
+		Com_Printf("Invalid value for %s, use 0 or 1.\n", var->name);
+		*cancel = true;
+		return;
+	}
+
+	if (cls.state == ca_active) {
+		if (cl.standby) {
+			// allow in standby
+			Cbuf_AddText(va("say teaminlay: %s\n", ival ? "enabled" : "disabled"));
+		}
+		else {
+			// disallow during the match
+			Com_Printf("%s changes are not allowed during the match\n", var->name);
+			*cancel = true;
+		}
+	} else {
+		// allow in not fully connected state
+	}
+}
+
 void Rulesets_OnChange_cl_fakeshaft(cvar_t *var, char *value, qbool *cancel)
 {
 	float fakeshaft = Q_atof(value);
@@ -755,94 +485,6 @@ void Rulesets_OnChange_tp_triggers(cvar_t *var, char *value, qbool *cancel)
 			}
 		}
 	}
-}
-
-static void Rulesets_OnChange_ruleset(cvar_t *var, char *value, qbool *cancel)
-{
-	extern void Cmd_ReInitAllMacro(void);
-
-	if (cls.state == ca_active && !cl.standby) {
-		// disallow ruleset changes during the match
-		Com_Printf("%s changes are not allowed during the match\n", var->name);
-		*cancel = true;
-		return;
-	}
-
-	if (strncasecmp(value, "smackdown", sizeof("smackdown")) &&
-			strncasecmp(value, "thunderdome", sizeof("thunderdome")) &&
-			strncasecmp(value, "modern2020", sizeof("modern2020")) &&
-			strncasecmp(value, "mtfl", sizeof("mtfl")) &&
-			strncasecmp(value, "qcon", sizeof("qcon")) &&
-			strncasecmp(value, "default", sizeof("default"))) {
-		Com_Printf_State(PRINT_INFO, "Unknown ruleset \"%s\"\n", value);
-		*cancel = true;
-		return;
-	}
-
-	ruleset_t oldRuleset = rulesetDef.ruleset;
-
-	// All checks passed  so we can remove old ruleset and set a new one
-	switch (rulesetDef.ruleset) {
-		case rs_mtfl:
-			Rulesets_MTFL(false);
-			break;
-		case rs_smackdown:
-			Rulesets_Smackdown(false);
-			break;
-		case rs_qcon:
-			Rulesets_Qcon(false);
-			break;
-		case rs_thunderdome:
-			Rulesets_Thunderdome(false);
-			break;
-		case rs_modern2020:
-			Rulesets_Modern2020(false);
-			break;
-		case rs_default:
-			break;
-		default:
-			break;
-	}
-
-	// we need to mark custom textures in the memory (like for backpack and eyes) to be reloaded again
-	Cache_Flush();
-
-	if (!strncasecmp(value, "smackdown", sizeof("smackdown"))) {
-		Rulesets_Smackdown(true);
-		Com_Printf_State(PRINT_OK, "Ruleset Smackdown initialized\n");
-	} else if (!strncasecmp(value, "mtfl", sizeof("mtfl"))) {
-		Rulesets_MTFL(true);
-		Com_Printf_State(PRINT_OK, "Ruleset MTFL initialized\n");
-	} else if (!strncasecmp(value, "thunderdome", sizeof("thunderdome"))) {
-		Rulesets_Thunderdome(true);
-		Com_Printf_State(PRINT_OK, "Ruleset Thunderdome initialized\n");
-	} else if (!strncasecmp(value, "modern2020", sizeof("modern2020"))) {
-		Rulesets_Modern2020(true);
-		Com_Printf_State(PRINT_OK, "Ruleset Modern2020 initialized\n");
-	} else if (!strncasecmp(value, "qcon", sizeof("qcon"))) {
-		Rulesets_Qcon(true);
-		Com_Printf_State(PRINT_OK, "Ruleset Qcon initialized\n");
-	} else if (!strncasecmp(value, "default", sizeof("default"))) {
-		Rulesets_Default();
-		Com_Printf_State(PRINT_OK, "Ruleset default initialized\n");
-	} else {
-		Sys_Error("OnChange_ruleset: WTF?\n");
-		// this will never happen
-		*cancel = true;
-		return;
-	}
-
-	ruleset_t newRuleset = rulesetDef.ruleset;
-
-	if (!cl.spectator && cls.state != ca_disconnected) {
-		if (oldRuleset != newRuleset) {
-			Cbuf_AddText(va("say ruleset changed to {%s}\n", Rulesets_Ruleset()));
-			Cbuf_AddText("say f_ruleset\n");
-		}
-	}
-
-	Cmd_ReInitAllMacro();
-	IN_ClearProtectedKeys();
 }
 
 int Rulesets_MaxSequentialWaitCommands(void)
