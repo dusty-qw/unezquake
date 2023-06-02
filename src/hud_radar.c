@@ -1421,7 +1421,7 @@ void Radar_HudInit(void)
 #ifdef WITH_PNG
 	HUD_Register("radar", NULL, "Plots the players on a picture of the map. (Only when watching MVD's or QTV).",
 		HUD_PLUSMINUS, ca_active, 0, SCR_HUD_DrawRadar,
-		"0", "top", "left", "bottom", "0", "0", "0", "0 0 0", "0", NULL,
+		"0", "top", "left", "bottom", "0", "0", "0", "0 0 0", "0", "0 0 0", NULL,
 		"opacity", "0.5",
 		"width", "30%",
 		"height", "25%",
