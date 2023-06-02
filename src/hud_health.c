@@ -119,7 +119,7 @@ void Health_HudInit(void)
 	HUD_Register(
 		"bar_health", NULL, "Health bar.",
 		HUD_PLUSMINUS, ca_active, 0, SCR_HUD_DrawBarHealth,
-		"0", "health", "right", "center", "0", "0", "0", "0 0 0", "0", NULL,
+		"0", "health", "right", "center", "0", "0", "0", "0 0 0", "0", "0 0 0", NULL,
 		"height", "16",
 		"width", "64",
 		"direction", "0",
@@ -135,7 +135,7 @@ void Health_HudInit(void)
 	HUD_Register(
 		"health", NULL, "Part of your status - health level.",
 		HUD_INVENTORY, ca_active, 0, SCR_HUD_DrawHealth,
-		"1", "face", "after", "center", "0", "0", "0", "0 0 0", "0", NULL,
+		"1", "face", "after", "center", "0", "0", "0", "0 0 0", "0", "0 0 0", NULL,
 		"style", "0",
 		"scale", "1",
 		"align", "right",
@@ -148,7 +148,7 @@ void Health_HudInit(void)
 	HUD_Register(
 		"healthdamage", NULL, "Shows amount of damage done to your health.",
 		HUD_INVENTORY, ca_active, 0, SCR_HUD_DrawHealthDamage,
-		"0", "health", "left", "before", "0", "0", "0", "0 0 0", "0", NULL,
+		"0", "health", "left", "before", "0", "0", "0", "0 0 0", "0", "0 0 0", NULL,
 		"style", "0",
 		"scale", "1",
 		"align", "right",

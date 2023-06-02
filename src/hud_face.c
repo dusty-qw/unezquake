@@ -85,7 +85,7 @@ void Face_HudInit(void)
 	HUD_Register(
 		"face", NULL, "Your bloody face.",
 		HUD_INVENTORY, ca_active, 0, SCR_HUD_DrawFace,
-		"1", "screen", "center", "bottom", "0", "0", "0", "0 0 0", "0", NULL,
+		"1", "screen", "center", "bottom", "0", "0", "0", "0 0 0", "0", "0 0 0", NULL,
 		"scale", "1",
 		NULL
 	);

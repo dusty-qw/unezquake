@@ -81,6 +81,8 @@ typedef struct hud_s
     byte    frame_color_cache[4];       // Cache for parsed frame color.
 
     cvar_t* border;                     // Border cvar
+    cvar_t* border_color;                // Border color cvar.
+    byte    border_color_cache[4];       // Cache for parsed border color.
 
 	cvar_t *opacity;					// The overall opacity of the entire HUD element.
 
@@ -136,7 +138,7 @@ hud_t * HUD_Register(char *name, char *var_alias, char *description,
                      hud_func_type draw_func,
                      char *show, char *place, char *align_x, char *align_y,
                      char *pos_x, char *pos_y, char *frame, char *frame_color,
-                     char *item_opacity, char *border, char *params, ...);
+                     char *item_opacity, char *border, char *border_color, char *params, ...);
 
 
 //

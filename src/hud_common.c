@@ -909,7 +909,7 @@ void CommonDraw_Init(void)
 	HUD_Register(
 		"tracker", NULL, "Shows deaths, frag streaks etc",
 		0, ca_active, 0, SCR_HUD_DrawTracker,
-		"0", "screen", "left", "top", "0", "48", "0", "0 0 0", "0", NULL,
+		"0", "screen", "left", "top", "0", "48", "0", "0 0 0", "0", "0 0 0", NULL,
 		"scale", "1",
 		"proportional", "0",
 		"name_width", "0",
@@ -921,7 +921,7 @@ void CommonDraw_Init(void)
 	HUD_Register(
 		"notify", NULL, "Shows last console lines",
 		HUD_PLUSMINUS, ca_disconnected, 8, SCR_HUD_DrawNotify,
-		"0", "top", "left", "top", "0", "0", "0", "0 0 0", "0", NULL,
+		"0", "top", "left", "top", "0", "0", "0", "0 0 0", "0", "0 0 0", NULL,
 		"rows", "4",
 		"cols", "30",
 		"scale", "1",
@@ -934,7 +934,7 @@ void CommonDraw_Init(void)
 	HUD_Register(
 		"keys", NULL, "Shows which keys user does press at the moment",
 		0, ca_active, 1, SCR_HUD_DrawKeys,
-		"0", "screen", "right", "center", "0", "0", "0.5", "20 20 20", "0", NULL,
+		"0", "screen", "right", "center", "0", "0", "0.5", "20 20 20", "0", "0 0 0", NULL,
 		"scale", "2", "player", "",
 		NULL
 	);
@@ -943,7 +943,7 @@ void CommonDraw_Init(void)
 	HUD_Register(
 		"itemsclock", NULL, "Displays upcoming item respawns",
 		0, ca_active, 1, SCR_HUD_DrawItemsClock,
-		"0", "screen", "right", "center", "0", "0", "0", "0 0 0", "0", NULL,
+		"0", "screen", "right", "center", "0", "0", "0", "0 0 0", "0", "0 0 0", NULL,
 		"timelimit", "5",
 		"style", "0",
 		"scale", "1",
@@ -956,7 +956,7 @@ void CommonDraw_Init(void)
 	HUD_Register(
 		"static_text", NULL, "Static text (demos only).",
 		0, ca_active, 0, SCR_HUD_DrawStaticText,
-		"0", "screen", "left", "top", "0", "0", "0", "0 0 0", "0", NULL,
+		"0", "screen", "left", "top", "0", "0", "0", "0 0 0", "0", "0 0 0", NULL,
 		"big", "0",
 		"style", "0",
 		"scale", "1",
@@ -969,7 +969,7 @@ void CommonDraw_Init(void)
 	HUD_Register(
 		"teamstackbar", NULL, "Shows relative stacks of each team.",
 		HUD_PLUSMINUS, ca_active, 0, SCR_Hud_StackBar,
-		"0", "top", "left", "bottom", "0", "0", "0", "0 0 0", "0", NULL,
+		"0", "top", "left", "bottom", "0", "0", "0", "0 0 0", "0", "0 0 0", NULL,
 		"opacity", "0.8",
 		"width", "200",
 		"height", "8",

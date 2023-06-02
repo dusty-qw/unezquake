@@ -678,7 +678,7 @@ void Speed_HudInit(void)
 	// init speed
 	HUD_Register("speed", NULL, "Shows your current running speed. It is measured over XY or XYZ axis depending on \'xyz\' property.",
 		HUD_PLUSMINUS, ca_active, 7, SCR_HUD_DrawSpeed,
-		"0", "top", "center", "bottom", "0", "-5", "0", "0 0 0", "0", NULL,
+		"0", "top", "center", "bottom", "0", "-5", "0", "0 0 0", "0", "0 0 0", NULL,
 		"xyz", "0",
 		"width", "160",
 		"height", "15",
@@ -701,7 +701,7 @@ void Speed_HudInit(void)
 	// Init speed2 (half circle thingie).
 	HUD_Register("speed2", NULL, "Shows your current running speed. It is measured over XY or XYZ axis depending on \'xyz\' property.",
 		HUD_PLUSMINUS, ca_active, 7, SCR_HUD_DrawSpeed2,
-		"0", "top", "center", "bottom", "0", "0", "0", "0 0 0", "0", NULL,
+		"0", "top", "center", "bottom", "0", "0", "0", "0 0 0", "0", "0 0 0", NULL,
 		"xyz", "0",
 		"opacity", "1.0",
 		"color_stopped", SPEED_STOPPED,

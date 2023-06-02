@@ -899,6 +899,26 @@ void HUD_OnChangeFrameColor(cvar_t *var, char *newval, qbool *cancel)
 	memcpy (hud_elem->frame_color_cache, b_colors, sizeof (byte) * 3);
 }
 
+void HUD_OnChangeBorderColor(cvar_t *var, char *newval, qbool *cancel)
+{
+	// Converts "red" into "255 0 0", etc. or returns input as it was.
+	char *new_color = ColorNameToRGBString (newval);
+	char buf[256], buf2[MAX_COM_TOKEN];
+	size_t hudname_len;
+	hud_t* hud_elem;
+	byte* b_colors;
+
+	hudname_len = min (sizeof (buf), strlen (var->name) - strlen ("_border_color") - strlen ("hud_") + 1);
+	strlcpy (buf, var->name + 4, hudname_len);
+	hud_elem = HUD_Find (buf);
+
+	strlcpy(buf2,new_color,sizeof(buf2));
+	b_colors = StringToRGB (buf2);
+
+	memcpy (hud_elem->border_color_cache, b_colors, sizeof (byte) * 3);
+}
+
+
 //
 // Draw frame for HUD element.
 //
@@ -932,13 +952,20 @@ void HUD_DrawFrame(hud_t *hud, int x, int y, int width, int height)
 //
 void HUD_DrawBorder(hud_t *hud, int x, int y, int width, int height)
 {
-	if (!hud->border->value)
+	int border = hud->border->integer;
+	char *color_str = hud->border_color->string;
+	color_t color = color_str ? RGBAVECT_TO_COLOR(StringToRGB(color_str)) : RGBA_TO_COLOR(0, 0, 0, 255);
+
+	if (!border)
 	 	return;
 
-	Draw_Fill(x, y, width, 1, 0); 			// top
-	Draw_Fill(x, y+height-1, width, 1, 0); 	// bottom
-	Draw_Fill(x, y, 1, height, 0); 			// left
-	Draw_Fill(x+width-1, y, 1, height, 0); 	// right
+	// We want a positive value to draw the border outside of the element, and a negative on the inside.
+	border *= -1; 
+
+	Draw_AlphaFillRGB(x, y, width, border, color); 			// top
+	Draw_AlphaFillRGB(x, y+border, border, height-border, color); 			// left
+	Draw_AlphaFillRGB(x+width-border, y+border, border, height-border, color); 	// right
+	Draw_AlphaFillRGB(x+border, y+height-border, width-(border*2), border, color); 	// bottom
 }
 
 //
@@ -1195,7 +1222,7 @@ hud_t * HUD_Register(char *name, char *var_alias, char *description,
 					 hud_func_type draw_func,
 					 char *show, char *place, char *align_x, char *align_y,
 					 char *pos_x, char *pos_y, char *frame, char *frame_color,
-					 char *item_opacity, char *border,
+					 char *item_opacity, char *border, char *border_color,
 					 char *params, ...)
 {
 	int i;
@@ -1206,7 +1233,7 @@ hud_t * HUD_Register(char *name, char *var_alias, char *description,
 	// We want to include Frame, frame_color, item_opacity in the list of
 	// available cvar's for the user also. If any additional cvars that
 	// common for all hud elements are added this needs to be increased.
-	int			num_params = 4;
+	int			num_params = 5;
 
 	// Allocate room for the HUD.
 	hud = (hud_t *) Q_malloc(sizeof(hud_t));
@@ -1357,6 +1384,15 @@ hud_t * HUD_Register(char *name, char *var_alias, char *description,
 		hud->border = HUD_CreateVar(name, "border", (border) ? border : "0");
 		hud->params[hud->num_params++] = hud->border;
 		hud->flags |= HUD_BORDER;
+	}
+
+	//
+	// Border Color.
+	//
+	{
+		hud->border_color = HUD_CreateVar(name, "border_color", (border_color) ? border_color : "0 0 0");
+		hud->border_color->OnChange = HUD_OnChangeBorderColor;
+		hud->params[hud->num_params++] = hud->border_color;
 	}
 
 	// Draw... if not set, will be measured (unlike ->show) but nothing rendered (assuming it follows standard pattern)

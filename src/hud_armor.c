@@ -229,7 +229,7 @@ void Armor_HudInit(void)
 	HUD_Register(
 		"armor", NULL, "Part of your inventory - armor level.",
 		HUD_INVENTORY, ca_active, 0, SCR_HUD_DrawArmor,
-		"1", "face", "before", "center", "-32", "0", "0", "0 0 0", "0", NULL,
+		"1", "face", "before", "center", "-32", "0", "0", "0 0 0", "0", "0 0 0", NULL,
 		"style", "0",
 		"scale", "1",
 		"align", "right",
@@ -244,7 +244,7 @@ void Armor_HudInit(void)
 	HUD_Register(
 		"iarmor", NULL, "Part of your inventory - armor icon.",
 		HUD_INVENTORY, ca_active, 0, SCR_HUD_DrawArmorIcon,
-		"1", "armor", "before", "center", "0", "0", "0", "0 0 0", "0", NULL,
+		"1", "armor", "before", "center", "0", "0", "0", "0 0 0", "0", "0 0 0", NULL,
 		"style", "0",
 		"scale", "1",
 		"proportional", "0",
@@ -255,7 +255,7 @@ void Armor_HudInit(void)
 	HUD_Register(
 		"armordamage", NULL, "Shows amount of damage done to your armour.",
 		HUD_INVENTORY, ca_active, 0, SCR_HUD_DrawArmorDamage,
-		"0", "armor", "left", "before", "0", "0", "0", "0 0 0", "0", NULL,
+		"0", "armor", "left", "before", "0", "0", "0", "0 0 0", "0", "0 0 0", NULL,
 		"style", "0",
 		"scale", "1",
 		"align", "right",
@@ -268,7 +268,7 @@ void Armor_HudInit(void)
 	HUD_Register(
 		"bar_armor", NULL, "Armor bar.",
 		HUD_PLUSMINUS, ca_active, 0, SCR_HUD_DrawBarArmor,
-		"0", "armor", "left", "center", "0", "0", "0", "0 0 0", "0", NULL,
+		"0", "armor", "left", "center", "0", "0", "0", "0 0 0", "0", "0 0 0", NULL,
 		"height", "16",
 		"width", "64",
 		"direction", "1",

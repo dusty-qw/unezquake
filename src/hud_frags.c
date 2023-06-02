@@ -1433,7 +1433,7 @@ void Frags_HudInit(void)
 	HUD_Register(
 		"frags", NULL, "Show list of player frags in short form.",
 		0, ca_active, 0, SCR_HUD_DrawFrags,
-		"0", "top", "right", "bottom", "0", "0", "0", "0 0 0", "0", NULL,
+		"0", "top", "right", "bottom", "0", "0", "0", "0 0 0", "0", "0 0 0", NULL,
 		"cell_width", "32",
 		"cell_height", "8",
 		"rows", "1",
@@ -1463,7 +1463,7 @@ void Frags_HudInit(void)
 	HUD_Register(
 		"teamfrags", NULL, "Show list of team frags in short form.",
 		0, ca_active, 0, SCR_HUD_DrawTeamFrags,
-		"1", "ibar", "center", "before", "0", "0", "0", "0 0 0", "0", NULL,
+		"1", "ibar", "center", "before", "0", "0", "0", "0 0 0", "0", "0 0 0", NULL,
 		"cell_width", "32",
 		"cell_height", "8",
 		"rows", "1",

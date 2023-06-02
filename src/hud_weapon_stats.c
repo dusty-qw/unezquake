@@ -226,7 +226,7 @@ void WeaponStats_HUDInit(void)
 	HUD_Register(
 		"weaponstats", NULL, "Weapon stats",
 		0, ca_active, 0, SCR_HUD_WeaponStats,
-		"0", "screen", "center", "bottom", "0", "0", "0", "0 0 0", "0", NULL,
+		"0", "screen", "center", "bottom", "0", "0", "0", "0 0 0", "0", "0 0 0", NULL,
 		"format", "&c990sg&r:%2 &c099ssg&r:%3 &c900rl&r:#7 &c009lg&r:%8",
 		"textalign", "center",
 		"scale", "1",
