@@ -44,7 +44,12 @@ RCFLAGS_c :=
 LDFLAGS_c :=
 
 SRC_DIR = src
-INCLUDES = -I$(SRC_DIR)/minizip -I$(SRC_DIR)/qwprot/src
+
+ifneq (,$(wildcard $(SRC_DIR)/qwprot/src/*.h))
+    INCLUDES = -I$(SRC_DIR)/qwprot/src
+else
+    $(error qwprot submodule missing, try initializing submodules with "git submodule update --init --recursive --remote")
+endif
 
 ifdef CONFIG_WINDOWS
     LDFLAGS_c += -mwindows
@@ -568,7 +573,7 @@ ifeq ($(USE_SYSTEM_MINIZIP),1)
 	LIBS_c += $(MINIZIP_LIBS)
 else
 	OBJS_c += $(SRC_DIR)/minizip/ioapi.o $(SRC_DIR)/minizip/unzip.o
-	CFLAGS_c += -Iminizip
+	CFLAGS_c += -I$(SRC_DIR)/minizip
 endif
 
 ### Targets ###

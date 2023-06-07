@@ -13,5 +13,5 @@ unezquake-*-*
 SysPrintf.log
 .ezquake/
 .vs
-.*
+
 !.gitignore
