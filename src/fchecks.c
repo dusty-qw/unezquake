@@ -272,13 +272,19 @@ static qbool FChecks_CheckFRulesetRequest (const char *s)
 	char *fServer;
 	const char *features;
 	char *emptystring = "";
-	char *brief_version = "unez&c06a" VERSION_NUMBER "&r";
 	const char *ruleset = Rulesets_Ruleset();
+	char shorthash[50];
+	char versionwithhash[50];
 	size_t name_len = strlen(cl.players[cl.playernum].name);
 	size_t pad_len = 12 - min(name_len, 12);
 
 	if (cl.spectator || (f_ruleset_reply_time && cls.realtime - f_ruleset_reply_time < 20))
 		return false;
+
+	// truncate build hash to 5 characters
+	snprintf(shorthash, sizeof(shorthash), VERSION);
+	shorthash[5] = '\0';
+	snprintf(versionwithhash, sizeof(versionwithhash), "unez&c06a%s-%s&r", VERSION_NUMBER, shorthash);
 
 	if (Util_F_Match(s, "f_ruleset"))	{
 		features = FChecks_RulesetAdditionString();
@@ -287,8 +293,8 @@ static qbool FChecks_CheckFRulesetRequest (const char *s)
 			fServer = "server-na";
 		}
 
-		Cbuf_AddText(va("say \"{&c777%*s%21s&r %16s %s}\"\n",
-			pad_len, emptystring, fServer, brief_version, features));
+		Cbuf_AddText(va("say \"{&c777%*s%21s&r %s %s}\"\n",
+			pad_len, emptystring, fServer, versionwithhash, features));
 		f_ruleset_reply_time = cls.realtime;
 		return true;
 	}
