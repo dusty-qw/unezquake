@@ -1636,6 +1636,13 @@
       "remarks": "Sign of the value is ignored.",
       "type": "float"
     },
+    "cl_easyaircontrol": {
+      "default": "0",
+      "desc": "When greater than 0, this modifies your input keys held\nto make air control beeline to your held direction.",
+      "group-id": "9",
+      "remarks": "Only useful at values of 0 or [45-90], recommend 62.5 if not 0.",
+      "type": "float"
+    },
     "cl_fp_messages": {
       "default": "4",
       "desc": "This variable is used in conjunction with the variable \"cl_fp_persecond\" to define when the floodprot protection should be triggered (if \"cl_floodprot\" is set to \"1\").",

@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "input.h"
 #include "pmove.h"		// PM_FLY etc
 #include "rulesets.h"
+#include "cl_easyaircontrol.h"
 
 static void IN_AttackUp_CommonHide(void);
 
@@ -64,6 +65,7 @@ cvar_t cam_zoomaccel = { "cam_zoomaccel", "2000" };
 #endif
 
 extern cvar_t cl_independentPhysics;
+extern cvar_t cl_easyaircontrol;
 extern qbool physframe;
 extern double physframetime;
 
@@ -1091,6 +1093,9 @@ void CL_SendCmd(void)
 		Cam_Track(cmd);
 	}
 
+	if (cl_easyaircontrol.value && !(cl.onground))
+		CL_EasyAirControl(cmd);
+
 	CL_FinishMove(cmd);
 	cmdtime_msec += cmd->msec;
 
@@ -1305,6 +1310,7 @@ void CL_InitInput(void)
 	Cvar_Register(&cl_pitchspeed);
 	Cvar_Register(&cl_anglespeedkey);
 	Cvar_Register(&cl_iDrive);
+	Cvar_Register(&cl_easyaircontrol);
 
 	Cvar_SetCurrentGroup(CVAR_GROUP_INPUT_MISC);
 	Cvar_Register(&lookspring);
