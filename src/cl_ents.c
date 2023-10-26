@@ -164,7 +164,6 @@ void CL_ClearScene(void)
 void CL_AddEntityToList(visentlist_t* list, visentlist_entrytype_t vistype, entity_t* ent, modtype_t type, qbool shell)
 {
 	extern cvar_t gl_outline;
-	extern cvar_t gl_outline_width;
 
 	if (list->count < sizeof(list->list) / sizeof(list->list[0])) {
 		list->list[cl_visents.count].ent = *ent;
@@ -174,7 +173,7 @@ void CL_AddEntityToList(visentlist_t* list, visentlist_entrytype_t vistype, enti
 		list->list[cl_visents.count].distance = VectorDistanceQuick(cl.simorg, ent->origin);
 		list->list[cl_visents.count].draw[vistype] = true;
 
-		ent->outlineScale = bound(0, 0.5f * gl_outline_width.value, 1.0f) * (r_refdef2.outlineBase + DotProduct(ent->origin, r_refdef2.outline_vpn));
+		ent->outlineScale = 0.5f * (r_refdef2.outlineBase + DotProduct(ent->origin, r_refdef2.outline_vpn));
 		ent->outlineScale = bound(ent->outlineScale, 0, 2);
 
 		++list->typecount[vistype];
