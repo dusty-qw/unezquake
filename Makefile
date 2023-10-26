@@ -115,10 +115,10 @@ ZLIB_LIBS ?= -lz
 CFLAGS_c += $(ZLIB_CFLAGS)
 LIBS_c += $(ZLIB_LIBS)
 
-PCRE_CFLAGS ?= $(shell pkg-config libpcre --cflags)
-PCRE_LIBS ?= $(shell pkg-config libpcre --libs)
-CFLAGS_c += $(PCRE_CFLAGS)
-LIBS_c += $(PCRE_LIBS)
+PCRE2_CFLAGS ?= $(shell pkg-config libpcre2-8 --cflags)
+PCRE2_LIBS ?= $(shell pkg-config libpcre2-8 --libs)
+CFLAGS_c += $(PCRE2_CFLAGS) -DPCRE2_CODE_UNIT_WIDTH=8
+LIBS_c += $(PCRE2_LIBS)
 
 EXPAT_CFLAGS ?= $(shell pkg-config expat --cflags)
 EXPAT_LIBS ?= $(shell pkg-config expat --libs)
@@ -144,6 +144,11 @@ JANSSON_CFLAGS ?= $(shell pkg-config jansson --cflags)
 JANSSON_LIBS ?= $(shell pkg-config jansson --libs)
 CFLAGS += $(JANSSON_CFLAGS)
 LIBS_c += $(JANSSON_LIBS)
+
+MINIZIP_CFLAGS ?= $(shell pkg-config --cflags minizip)
+MINIZIP_LIBS ?= $(shell pkg-config --libs minizip)
+CFLAGS_c += $(MINIZIP_CFLAGS)
+LIBS_c += $(MINIZIP_LIBS)
 
 SPEEX_LIBS ?= $(shell pkg-config speex --libs) $(shell pkg-config speexdsp --libs)
 ifdef SPEEX_LIBS
@@ -555,26 +560,12 @@ LIBS_c += -lm
     endif
 endif
 
-ifeq ($(SYS),NetBSD)
-    USE_SYSTEM_MINIZIP=1
-endif
-
 #ifdef CONFIG_OGG
 #    OGG_CFLAGS ?= $(shell pkg-config vorbisfile --cflags) -DWITH_OGG_VORBIS
 #    OGG_LIBS ?= $(shell pkg-config vorbisfile --libs)
 #    CFLAGS_c += $(OGG_CFLAGS)
 #    LIBS_c += $(OGG_LIBS)
 #endif
-
-ifeq ($(USE_SYSTEM_MINIZIP),1)
-	MINIZIP_CFLAGS ?= $(shell pkg-config --cflags minizip)
-	MINIZIP_LIBS ?= $(shell pkg-config --libs minizip)
-	CFLAGS_c += $(MINIZIP_CFLAGS)
-	LIBS_c += $(MINIZIP_LIBS)
-else
-	OBJS_c += $(SRC_DIR)/minizip/ioapi.o $(SRC_DIR)/minizip/unzip.o
-	CFLAGS_c += -I$(SRC_DIR)/minizip
-endif
 
 ### Targets ###
 
