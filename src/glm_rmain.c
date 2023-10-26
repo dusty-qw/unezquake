@@ -55,11 +55,6 @@ qbool GLM_CompileWorldGeometryProgram(void)
 	return R_ProgramReady(r_program_fx_world_geometry) && GLM_CompilePostProcessVAO();
 }
 
-extern cvar_t r_fx_geometry_color;
-extern cvar_t r_fx_geometry_width;
-extern cvar_t r_fx_geometry_factor;
-extern cvar_t r_fx_geometry_factor2;
-
 static void GLM_DrawWorldOutlines(void)
 {
 	texture_ref normals = GL_FramebufferTextureReference(framebuffer_std, fbtex_worldnormals);
@@ -79,15 +74,6 @@ static void GLM_DrawWorldOutlines(void)
 		renderer.TextureUnitBind(0, normals);
 
 		R_ProgramUse(r_program_fx_world_geometry);
-
-		float color[4] = {0,0,0,1};
-		for(int i = 0; i < 3; i++) color[i] = (float)r_fx_geometry_color.color[i] / 255.0f;
-		R_ProgramUniform4fv(r_program_uniform_fx_world_geometry_outline_color, color);
-
-		R_ProgramUniform1i(r_program_uniform_fx_world_geometry_outline_width, r_fx_geometry_width.integer);
-		R_ProgramUniform1f(r_program_uniform_fx_world_geometry_outline_factor, bound(0, r_fx_geometry_factor.value, 0.999));
-		R_ProgramUniform1f(r_program_uniform_fx_world_geometry_outline_factor2, r_fx_geometry_factor2.value);
-
 		R_ApplyRenderingState(r_state_fx_world_geometry);
 
 		GL_DrawArrays(GL_TRIANGLE_STRIP, 0, 4);

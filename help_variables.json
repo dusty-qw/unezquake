@@ -16003,12 +16003,6 @@
       "remarks": "Requires vid_framebuffer 1|2 and Modern OpenGL (vid_renderer 1). See /gl_outline for model outline",
       "type": "boolean"
     },
-    "r_fx_geometry_color": {
-      "default": "0",
-      "desc": "Changes the color of the outlines rendered by r_fx_geometry in RGB format.",
-      "group-id": "35",
-      "type": "string"
-    },
     "r_glstats": {
       "default": "0",
       "desc": "When enabled, it creates a window in the top right of the screen showing the number of particles and etc. in use.",

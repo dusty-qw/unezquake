@@ -223,10 +223,6 @@ cvar_t gl_outline                          = {"gl_outline", "0"};
 cvar_t gl_outline_width                    = {"gl_outline_width", "1"};
 cvar_t gl_smoothmodels                     = {"gl_smoothmodels", "1"};
 cvar_t r_fx_geometry                       = {"r_fx_geometry", "0"};
-cvar_t r_fx_geometry_color                 = {"r_fx_geometry_color", "0 0 0"};
-cvar_t r_fx_geometry_width                 = {"r_fx_geometry_width", "1"};
-cvar_t r_fx_geometry_factor                = {"r_fx_geometry_factor", "0.9"};
-cvar_t r_fx_geometry_factor2               = {"r_fx_geometry_factor2", "2"}; // before it was 8
 
 cvar_t gl_vbo_clientmemory                 = {"gl_vbo_clientmemory", "0", CVAR_LATCH_GFX };
 
@@ -707,10 +703,6 @@ void R_Init(void)
 	Cvar_Register(&gl_smoothmodels);
 
 	Cvar_Register(&r_fx_geometry);
-	Cvar_Register(&r_fx_geometry_color);
-	Cvar_Register(&r_fx_geometry_width);
-	Cvar_Register(&r_fx_geometry_factor);
-	Cvar_Register(&r_fx_geometry_factor2);
 
 	Cvar_Register(&gl_vbo_clientmemory);
 

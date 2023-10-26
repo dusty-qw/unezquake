@@ -326,14 +326,6 @@ static r_program_uniform_t program_uniforms[] = {
 	{ r_program_lightmap_compute, "firstLightmap", 1, false },
 	// r_program_uniform_turb_glc_fog_skyFogMix,
 	{ r_program_sky_glc, "skyFogMix", 1, false },
-	// r_program_uniform_fx_world_geometry_outline_color
-	{ r_program_fx_world_geometry, "outline_color", 1, false },
-	// r_program_uniform_fx_world_geometry_outline_width
-	{ r_program_fx_world_geometry, "outline_width", 1, false },
-	// r_program_uniform_fx_world_geometry_outline_factor
-	{ r_program_fx_world_geometry, "outline_factor", 1, false },
-	// r_program_uniform_fx_world_geometry_outline_factor2
-	{ r_program_fx_world_geometry, "outline_factor2", 1, false }
 };
 
 #ifdef C_ASSERT
