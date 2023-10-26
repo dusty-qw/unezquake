@@ -148,6 +148,15 @@ char *VersionStringFull (void)
 	return str;
 }
 
+char *VersionHash (void)
+{
+	static char str[64];
+
+	snprintf (str, sizeof(str), "%s", VERSION);
+
+	return str;
+}
+
 typedef struct version_context_St
 {
 	char *buffer;

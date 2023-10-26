@@ -85,6 +85,7 @@ void CL_Version_f(void);
 char *VersionString(void);
 char *VersionStringColour(void);
 char *VersionStringFull(void);
+char *VersionHash(void);
 
 void VersionCheck_Init(void);
 void VersionCheck_Shutdown(void);
