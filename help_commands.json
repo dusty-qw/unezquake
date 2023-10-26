@@ -362,7 +362,7 @@
     "syntax": "<address>"
   },
   "connectbr": {
-    "system-generated": true
+    "description": "Connects to given server via fastest available path (ping-wise)."
   },
   "cuff": {
     "system-generated": true
@@ -1241,6 +1241,9 @@
     "description": "Connects you to a server as a spectator. If no address is specified, observe will reconnect to the last visited server as a spectator.\n\nExample:\nobserve 123.124.125.126",
     "syntax": "<address>"
   },
+  "observebr": {
+    "description": "Connects to given server as spectator via fastest available path (ping-wise)."
+  },
   "observeqtv": {
     "system-generated": true
   },
@@ -2082,6 +2085,9 @@
   },
   "writeip": {
     "description": "Records all IP addresses on the server IP list. The file name is listip.cfg."
+  },
+  "clipboard": {
+    "description": "Copies all the following arguments to the system clipboard"
   },
   "z_ext_list": {
     "system-generated": true

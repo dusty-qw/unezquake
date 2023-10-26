@@ -10,12 +10,14 @@ set -e
 # dependencies to avoid installing Intel versions in the cross-compilation
 # case.
 dependencies=(
-    pcre
+    pcre2
     freetype
     jansson
     libpng
     jpeg-turbo
     libmodplug
+    minizip
+    lame
     mpg123
     speex
     speexdsp
@@ -60,8 +62,7 @@ function create_bundle() {
     echo "Bundled content types:"
     find ezQuake.app/Contents -type f -exec file {} \;
 
-    mkdir artifact
-    mv ezQuake.app artifact/
+    zip -9 ezQuake.zip ezQuake.app
 }
 
 function build_intel() {
