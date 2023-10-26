@@ -54,7 +54,7 @@ extern cvar_t scr_teaminlay;
 
 static void FChecks_VersionResponse (void)
 {
-	Cbuf_AddText (va("say {unezQuake &c06a%s&r &c777%s&r " QW_PLATFORM ":" QW_RENDERER "}\n", VERSION_NUMBER, VERSION));
+	Cbuf_AddText (va("say {unezQuake &c06a%s&r &c777%s&r " QW_PLATFORM ":" QW_RENDERER "}\n", VERSION_NUMBER, VersionHash()));
 }
 
 static char *FChecks_FServerResponse_Text(void)
@@ -282,7 +282,7 @@ static qbool FChecks_CheckFRulesetRequest (const char *s)
 		return false;
 
 	// truncate build hash to 5 characters
-	snprintf(shorthash, sizeof(shorthash), VERSION);
+	snprintf(shorthash, sizeof(shorthash), VersionHash());
 	shorthash[5] = '\0';
 	snprintf(versionwithhash, sizeof(versionwithhash), "unez&c06a%s-%s&r", VERSION_NUMBER, shorthash);
 
