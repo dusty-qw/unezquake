@@ -14,12 +14,16 @@ jobs:
          - target: windows-multi-x64
            config: rls-all
            platform: x64
+           triplet: x64-windows-static
 
     steps:
     - name: Check out code
       uses: actions/checkout@v3
       with:
         submodules: true
+
+    - name: Setup vcpkg (it does not install any package yet)
+      uses: lukka/run-vcpkg@v11
 
     - name: Add msbuild to PATH
       uses: microsoft/setup-msbuild@v1.1
@@ -34,7 +38,10 @@ jobs:
       run: cp misc\vstudio\txt2c\.vs\txt2c.exe .vs\
 
     - name: Build ezquake
-      run: msbuild ezQuake.vcxproj -t:rebuild -property:Configuration=${{ matrix.config }} -property:Platform=${{ matrix.platform }}
+      run: msbuild ezQuake.vcxproj -t:rebuild -property:Configuration=${{ matrix.config }} -property:Platform=${{ matrix.platform }} -property:VcpkgEnableManifest=true
+      env:
+        VcpkgConfiguration: Release
+        VcpkgTriplet: ${{ matrix.triplet }}
 
     - name: Create checksum
       run: |
@@ -62,10 +69,10 @@ jobs:
       env:
         SSH_AUTH_SOCK: C:\ssh_agent.sock
       run: |
-           mkdir -p upload/releases/windows/${{ github.ref_name }}/${{ matrix.platform }}/${{ matrix.config }}
+           mkdir -p upload/releases/${{ github.ref_name }}/windows/${{ matrix.platform }}/${{ matrix.config }}
            mkdir -p upload/releases/latest/windows/${{ matrix.platform }}/${{ matrix.config }}
-           cp .vs/${{ matrix.platform }}/${{ matrix.config }}/Output/ezQuake.exe upload/releases/windows/${{ github.ref_name }}/${{ matrix.platform }}/${{ matrix.config }}/ezquake.exe
-           cp .vs/${{ matrix.platform }}/${{ matrix.config }}/Output/ezQuake.md5 upload/releases/windows/${{ github.ref_name }}/${{ matrix.platform }}/${{ matrix.config }}/ezquake.md5
+           cp .vs/${{ matrix.platform }}/${{ matrix.config }}/Output/ezQuake.exe upload/releases/${{ github.ref_name }}/windows/${{ matrix.platform }}/${{ matrix.config }}/ezquake.exe
+           cp .vs/${{ matrix.platform }}/${{ matrix.config }}/Output/ezQuake.md5 upload/releases/${{ github.ref_name }}/windows/${{ matrix.platform }}/${{ matrix.config }}/ezquake.md5
            cp .vs/${{ matrix.platform }}/${{ matrix.config }}/Output/ezQuake.exe upload/releases/latest/windows/${{ matrix.platform }}/${{ matrix.config }}/ezquake.exe
            cp .vs/${{ matrix.platform }}/${{ matrix.config }}/Output/ezQuake.md5 upload/releases/latest/windows/${{ matrix.platform }}/${{ matrix.config }}/ezquake.md5
            sftp -rp -o 'StrictHostKeyChecking no' -o 'UserKnownHostsFile /dev/null' -P ${{ secrets.SFTP_PORT }} ${{ secrets.SFTP_USERNAME }}@${{ secrets.SFTP_HOST }}:/releases <<< $'put -rp upload/releases/*'
@@ -78,7 +85,7 @@ jobs:
       matrix:
        target: [linux-x86_64]
        include:
-         - target: linux-x86_644
+         - target: linux-x86_64
            platform: x86_64
 
     steps:
@@ -111,10 +118,10 @@ jobs:
       env:
         SSH_AUTH_SOCK: /tmp/ssh_agent.sock
       run: |
-           mkdir -p upload/releases/linux/${{ matrix.platform }}
+           mkdir -p upload/releases/${{ github.ref_name }}/linux
            mkdir -p upload/releases/latest/linux/${{ matrix.platform }}
-           cp ezQuake-${{ matrix.platform }}.AppImage upload/releases/linux/${{ matrix.platform }}/${{ env.DATE }}_${GITHUB_SHA::7}_ezQuake-${{ matrix.platform }}.AppImage
-           cp ezQuake-${{ matrix.platform }}.AppImage.md5 upload/releases/linux/${{ matrix.platform }}/${{ env.DATE }}_${GITHUB_SHA::7}_ezQuake-${{ matrix.platform }}.AppImage.md5
+           cp ezQuake-${{ matrix.platform }}.AppImage upload/releases/${{ github.ref_name }}/linux/ezQuake-${{ matrix.platform }}.AppImage
+           cp ezQuake-${{ matrix.platform }}.AppImage.md5 upload/releases/${{ github.ref_name }}/linux/ezQuake-${{ matrix.platform }}.AppImage.md5
            cp ezQuake-${{ matrix.platform }}.AppImage upload/releases/latest/linux/${{ matrix.platform }}/ezQuake-${{ matrix.platform }}.AppImage
            cp ezQuake-${{ matrix.platform }}.AppImage.md5 upload/releases/latest/linux/${{ matrix.platform }}/ezQuake-${{ matrix.platform }}.AppImage.md5
            sftp -rp -o 'StrictHostKeyChecking no' -o 'UserKnownHostsFile /dev/null' -P ${{ secrets.SFTP_PORT }} ${{ secrets.SFTP_USERNAME }}@${{ secrets.SFTP_HOST }}:/releases <<< $'put -rp upload/releases/*'

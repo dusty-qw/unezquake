@@ -108,10 +108,14 @@ typedef enum {
 	r_program_uniform_simple3d_color,
 	r_program_uniform_lighting_firstLightmap,
 	r_program_uniform_sky_glc_fog_skyFogMix,
-	r_program_uniform_fx_world_geometry_outline_color,
-	r_program_uniform_fx_world_geometry_outline_width,
-	r_program_uniform_fx_world_geometry_outline_factor,
-	r_program_uniform_fx_world_geometry_outline_factor2,
+	r_program_uniform_outline_color,
+	r_program_uniform_outline_depth_threshold,
+	r_program_uniform_outline_scale,
+	r_program_uniform_aliasmodel_outline_color_model,
+	r_program_uniform_aliasmodel_outline_color_team,
+	r_program_uniform_aliasmodel_outline_color_enemy,
+	r_program_uniform_aliasmodel_outline_use_player_color,
+	r_program_uniform_aliasmodel_outline_scale,
 	r_program_uniform_count
 } r_program_uniform_id;
 

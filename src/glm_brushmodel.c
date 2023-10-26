@@ -34,8 +34,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 typedef struct vbo_world_surface_s {
 	float normal[4];
-	float tex_vecs0[4];
-	float tex_vecs1[4];
+	float lm_vecs0[4];
+	float lm_vecs1[4];
 } vbo_world_surface_t;
 
 void GLM_CreateBrushModelVAO(void)
@@ -70,8 +70,8 @@ void GLM_CreateBrushModelVAO(void)
 
 			VectorCopy(surf->plane->normal, surfaces[i].normal);
 			surfaces[i].normal[3] = surf->plane->dist;
-			memcpy(surfaces[i].tex_vecs0, surf->texinfo->vecs[0], sizeof(surf->texinfo->vecs[0]));
-			memcpy(surfaces[i].tex_vecs1, surf->texinfo->vecs[1], sizeof(surf->texinfo->vecs[1]));
+			memcpy(surfaces[i].lm_vecs0, surf->lmvecs[0], sizeof(surf->lmvecs[0]));
+			memcpy(surfaces[i].lm_vecs1, surf->lmvecs[1], sizeof(surf->lmvecs[1]));
 		}
 		buffers.Create(r_buffer_brushmodel_surface_data, buffertype_storage, "brushmodel-surfs", cl.worldmodel->numsurfaces * sizeof(vbo_world_surface_t), surfaces, bufferusage_constant_data);
 		Q_free(surfaces);
@@ -129,7 +129,6 @@ void GLM_ChainBrushModelSurfaces(model_t* clmodel, entity_t* ent)
 {
 	int i;
 	msurface_t* psurf;
-	extern msurface_t* alphachain;
 	qbool drawFlatFloors = r_drawflat_mode.integer == 0 && (r_drawflat.integer == 2 || r_drawflat.integer == 1) && clmodel->isworldmodel;
 	qbool drawFlatWalls = r_drawflat_mode.integer == 0 && (r_drawflat.integer == 3 || r_drawflat.integer == 1) && clmodel->isworldmodel;
 
@@ -158,10 +157,6 @@ void GLM_ChainBrushModelSurfaces(model_t* clmodel, entity_t* ent)
 
 			clmodel->first_texture_chained = min(clmodel->first_texture_chained, psurf->texinfo->miptex);
 			clmodel->last_texture_chained = max(clmodel->last_texture_chained, psurf->texinfo->miptex);
-		}
-		else if (psurf->flags & SURF_DRAWALPHA) {
-			// FIXME: Find an example...
-			CHAIN_SURF_B2F(psurf, alphachain); // FIXME: ?
 		}
 		else {
 			if (drawFlatFloors && (psurf->flags & SURF_DRAWFLAT_FLOOR)) {

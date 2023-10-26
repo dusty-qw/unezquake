@@ -76,6 +76,12 @@ Clone the ezQuake source code:
 ```
 git clone --recurse-submodules https://github.com/ezQuake/ezquake-source.git ezquake
 ```
+
+Initialize Vcpkg, and refresh submodules if needed:
+```
+bootstrap.bat
+```
+
 Load the solution into VS, and compile your preferred target.
 
 
@@ -140,19 +146,19 @@ Make sure you have the dependencies installed:
 
 (You may skip installing dependencies if you are going to use the build-linux.sh script included in the repository, this will take care of installing packages for you.)
 
-- For *Ubuntu 16.10+*
+- For *Debian/Ubuntu 16.10+*
 ```
-sudo apt install git build-essential libsdl2-dev libjansson-dev libexpat-dev libcurl4-openssl-dev libpng-dev libjpeg-dev libsndfile-dev libspeex-dev libspeexdsp-dev libxxf86vm-dev
+sudo apt install git build-essential libsdl2-dev libjansson-dev libexpat-dev libcurl4-openssl-dev libpng-dev libjpeg-dev libsndfile-dev libspeex-dev libspeexdsp-dev libxxf86vm-dev libpcre2-dev
 ```
 - For *openSUSE Tumbleweed*
 ```
 sudo zypper install -t pattern devel_C_C++
-sudo zypper install git pcre-devel Mesa-libGL-devel SDL2-devel libjansson-devel libexpat-devel libcurl-devel libpng16-devel libpng16-compat-devel libjpeg8-devel libjpeg-turbo libsndfile-devel speex-devel speexdsp-devel libXxf86vm-devel
+sudo zypper install git pcre2-devel Mesa-libGL-devel SDL2-devel libjansson-devel libexpat-devel libcurl-devel libpng16-devel libpng16-compat-devel libjpeg8-devel libjpeg-turbo libsndfile-devel speex-devel speexdsp-devel libXxf86vm-devel
 ```
 - For *Fedora*
 ```
 sudo dnf group install 'C Development Tools and Libraries'
-sudo dnf install git pcre-devel mesa-libEGL-devel SDL2-devel jansson-devel expat-devel libcurl-devel libpng-devel libjpeg-turbo-devel libsndfile-devel speex-devel speexdsp-devel libXxf86vm-devel
+sudo dnf install git pcre2-devel mesa-libEGL-devel SDL2-devel jansson-devel expat-devel libcurl-devel libpng-devel libjpeg-turbo-devel libsndfile-devel speex-devel speexdsp-devel libXxf86vm-devel
 ```
 
 Clone the git repository:
@@ -195,7 +201,7 @@ Make sure you run the `brew doctor` as instructed before doing anything else.
 Then run:
 
 ```
-brew install sdl2 sdl2_net sdl2_image sdl2_gfx sdl2_mixer pcre jansson pkg-config speex speexdsp libsndfile
+brew install sdl2 sdl2_net sdl2_image sdl2_gfx sdl2_mixer pcre2 jansson pkg-config speex speexdsp libsndfile
 ```
 
 When it's done, just run `make` and it should compile without errors.
