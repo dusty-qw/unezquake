@@ -1093,7 +1093,7 @@ void CL_SendCmd(void)
 		Cam_Track(cmd);
 	}
 
-	if (cl_easyaircontrol.value && !(cl.onground))
+	if (cl_easyaircontrol.value && !(cl.onground) && !(cl.waterlevel >= 2) && cl.standby)
 		CL_EasyAirControl(cmd);
 
 	CL_FinishMove(cmd);
