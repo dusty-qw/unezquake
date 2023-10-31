@@ -37,7 +37,7 @@
 
 #define VERSION_UNKNOWN "Unknown"
 #define VERSION_GITHUB_MAXLEN 32768 // ~2k @ ~2023
-#define VERSION_GITHUB_URL "https://api.github.com/repos/qw-group/ezquake-source/releases/latest"
+#define VERSION_GITHUB_URL "https://api.github.com/repos/dusty-qw/unezquake/releases/latest"
 
 static char version_latest[VERSION_MAX_LEN] = VERSION_UNKNOWN;
 static qbool version_refreshing = false;
