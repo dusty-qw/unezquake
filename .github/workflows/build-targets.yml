@@ -34,7 +34,7 @@ jobs:
     - name: Copy txt2c
       run: cp misc\vstudio\txt2c\.vs\txt2c.exe .vs\
 
-    - name: Build ezquake
+    - name: Build unezquake
       run: msbuild ezQuake.vcxproj -t:rebuild -property:Configuration=${{ matrix.config }} -property:Platform=${{ matrix.platform }} -property:VcpkgEnableManifest=true
       env:
         VcpkgConfiguration: Release
@@ -44,7 +44,7 @@ jobs:
       uses: actions/upload-artifact@v3
       with:
         name: ${{ matrix.target }}
-        path: .vs\${{ matrix.platform }}\${{ matrix.config }}\Output\ezQuake.exe
+        path: .vs\${{ matrix.platform }}\${{ matrix.config }}\Output\unezQuake.exe
 
   macos-build:
     runs-on: macos-12
@@ -69,7 +69,7 @@ jobs:
     - uses: actions/upload-artifact@v3
       with:
         name: macos-${{matrix.ARCH}}
-        path: ezQuake.zip
+        path: unezQuake.zip
 
   linux-build:
     runs-on: ubuntu-latest
@@ -91,9 +91,9 @@ jobs:
       run: sudo apt-get install libfuse2
 
     - name: Build
-      run: ./misc/appimage/appimage-manual_creation.sh
+      run: sh ./misc/appimage/appimage-manual_creation.sh
 
     - uses: actions/upload-artifact@v3
       with:
         name: ${{ matrix.target }}-AppImage
-        path: ezQuake-${{ matrix.platform }}.AppImage
+        path: unezQuake-${{ matrix.platform }}.AppImage

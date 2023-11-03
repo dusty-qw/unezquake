@@ -60,9 +60,9 @@
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{5147CA71-1D3D-4F61-9847-87B36421C323}</ProjectGuid>
-    <RootNamespace>ezQuake</RootNamespace>
+    <RootNamespace>unezQuake</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-    <ProjectName>ezQuake</ProjectName>
+    <ProjectName>unezQuake</ProjectName>
     <AdditionalIncludeDirectories>$(VcpkgManifestRoot)/vcpkg_installed/$(VcpkgHostTriplet)/include/SDL2;$(VcpkgManifestRoot)/vcpkg_installed/$(VcpkgHostTriplet)/include/minizip;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
