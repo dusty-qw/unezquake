@@ -31,29 +31,29 @@ mkdir -p $BUNDLE_NAME/Contents/Resources
 cp $BINARY $BUNDLE_NAME/Contents/MacOS/.
 cp $(dirname $0)/$ICON_FILE $BUNDLE_NAME/Contents/Resources/.
 
-echo '#!/bin/sh' > $BUNDLE_NAME/Contents/MacOS/ezquake
-echo '' >> $BUNDLE_NAME/Contents/MacOS/ezquake
-echo 'PNAME="$(dirname "$BASH_SOURCE")"' >> $BUNDLE_NAME/Contents/MacOS/ezquake
-echo 'DIRNAME="$HOME"/Library/Application\ Support/ezQuake' >> $BUNDLE_NAME/Contents/MacOS/ezquake
-echo 'DIRNAME2="$PNAME"/../../..' >> $BUNDLE_NAME/Contents/MacOS/ezquake
-echo '' >> $BUNDLE_NAME/Contents/MacOS/ezquake
-echo 'if [ -f "$DIRNAME"/id1/pak0.pak ]; then' >> $BUNDLE_NAME/Contents/MacOS/ezquake
-echo "    exec \"\$PNAME\"/$BINARY -basedir \"\$DIRNAME\" \$*" >> $BUNDLE_NAME/Contents/MacOS/ezquake
-echo 'elif [ -f "$DIRNAME2"/id1/pak0.pak ]; then' >> $BUNDLE_NAME/Contents/MacOS/ezquake
-echo "    exec \"\$PNAME\"/$BINARY -basedir \"\$DIRNAME2\" \$*" >> $BUNDLE_NAME/Contents/MacOS/ezquake
-echo 'else' >> $BUNDLE_NAME/Contents/MacOS/ezquake
-echo '    mkdir -p "$DIRNAME"/id1' >> $BUNDLE_NAME/Contents/MacOS/ezquake
-echo '    touch "$DIRNAME"/id1/Copy\ your\ pak0.pak\ and\ pak1.pak\ files\ here.txt' >> $BUNDLE_NAME/Contents/MacOS/ezquake
-echo '    osascript -e "tell app \"Finder\" to open (\"${DIRNAME}/id1/\" as POSIX file)"' >> $BUNDLE_NAME/Contents/MacOS/ezquake
-echo '    osascript -e "tell app \"Finder\" to activate"' >> $BUNDLE_NAME/Contents/MacOS/ezquake
-echo 'fi' >> $BUNDLE_NAME/Contents/MacOS/ezquake
+echo '#!/bin/sh' > $BUNDLE_NAME/Contents/MacOS/unezquake
+echo '' >> $BUNDLE_NAME/Contents/MacOS/unezquake
+echo 'PNAME="$(dirname "$BASH_SOURCE")"' >> $BUNDLE_NAME/Contents/MacOS/unezquake
+echo 'DIRNAME="$HOME"/Library/Application\ Support/unezQuake' >> $BUNDLE_NAME/Contents/MacOS/unezquake
+echo 'DIRNAME2="$PNAME"/../../..' >> $BUNDLE_NAME/Contents/MacOS/unezquake
+echo '' >> $BUNDLE_NAME/Contents/MacOS/unezquake
+echo 'if [ -f "$DIRNAME"/id1/pak0.pak ]; then' >> $BUNDLE_NAME/Contents/MacOS/unezquake
+echo "    exec \"\$PNAME\"/$BINARY -basedir \"\$DIRNAME\" \$*" >> $BUNDLE_NAME/Contents/MacOS/unezquake
+echo 'elif [ -f "$DIRNAME2"/id1/pak0.pak ]; then' >> $BUNDLE_NAME/Contents/MacOS/unezquake
+echo "    exec \"\$PNAME\"/$BINARY -basedir \"\$DIRNAME2\" \$*" >> $BUNDLE_NAME/Contents/MacOS/unezquake
+echo 'else' >> $BUNDLE_NAME/Contents/MacOS/unezquake
+echo '    mkdir -p "$DIRNAME"/id1' >> $BUNDLE_NAME/Contents/MacOS/unezquake
+echo '    touch "$DIRNAME"/id1/Copy\ your\ pak0.pak\ and\ pak1.pak\ files\ here.txt' >> $BUNDLE_NAME/Contents/MacOS/unezquake
+echo '    osascript -e "tell app \"Finder\" to open (\"${DIRNAME}/id1/\" as POSIX file)"' >> $BUNDLE_NAME/Contents/MacOS/unezquake
+echo '    osascript -e "tell app \"Finder\" to activate"' >> $BUNDLE_NAME/Contents/MacOS/unezquake
+echo 'fi' >> $BUNDLE_NAME/Contents/MacOS/unezquake
 
-chmod u+x $BUNDLE_NAME/Contents/MacOS/ezquake
+chmod u+x $BUNDLE_NAME/Contents/MacOS/unezquake
 
-/usr/libexec/PlistBuddy -c "Add :CFBundleName string \"ezQuake\"" $BUNDLE_NAME/Contents/Info.plist > /dev/null
+/usr/libexec/PlistBuddy -c "Add :CFBundleName string \"unezQuake\"" $BUNDLE_NAME/Contents/Info.plist > /dev/null
 /usr/libexec/PlistBuddy -c "Add :CFBundleIconFile string \"$ICON_FILE\"" $BUNDLE_NAME/Contents/Info.plist
-/usr/libexec/PlistBuddy -c "Add :CFBundleExecutable string \"ezquake\"" $BUNDLE_NAME/Contents/Info.plist
-/usr/libexec/PlistBuddy -c "Add :CFBundleIdentifier string \"io.github.ezquake\"" $BUNDLE_NAME/Contents/Info.plist
+/usr/libexec/PlistBuddy -c "Add :CFBundleExecutable string \"unezquake\"" $BUNDLE_NAME/Contents/Info.plist
+/usr/libexec/PlistBuddy -c "Add :CFBundleIdentifier string \"io.github.unezquake\"" $BUNDLE_NAME/Contents/Info.plist
 /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string \"$VERSION\"" $BUNDLE_NAME/Contents/Info.plist
 
 # qw:// protocol support
@@ -75,4 +75,4 @@ chmod u+x $BUNDLE_NAME/Contents/MacOS/ezquake
 /usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:0:CFBundleTypeExtensions:2 string dem" $BUNDLE_NAME/Contents/Info.plist
 
 sh $(dirname $0)/fixbundle.sh $BUNDLE_NAME $BUNDLE_NAME/Contents/MacOS/$BINARY
-ditto -c -k --keepParent --arch x86_64 --arch arm64 $BUNDLE_NAME ezquake.zip
+ditto -c -k --keepParent --arch x86_64 --arch arm64 $BUNDLE_NAME unezquake.zip

@@ -66,9 +66,9 @@ function create_bundle() {
 
     echo
     echo "Bundled content types:"
-    find ezQuake.app/Contents -type f -exec file {} \;
+    find unezQuake.app/Contents -type f -exec file {} \;
 
-    zip -9 ezQuake.zip ezQuake.app
+    zip -9 unezQuake.zip unezQuake.app
 }
 
 function build_intel() {
