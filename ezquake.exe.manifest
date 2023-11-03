@@ -6,8 +6,8 @@
     processorArchitecture="*" 
     version="5.1.0.0"
     type="win32"
-    name="ezquake.exe"/>
- <description>ezQuake</description>
+    name="unezquake.exe"/>
+ <description>unezQuake</description>
  <dependency>
   <dependentAssembly>
     <assemblyIdentity
