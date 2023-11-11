@@ -1503,6 +1503,7 @@ static void Sbar_DeathmatchOverlay(int start)
 		clrinfo_t color;
 		qbool istracking;
 
+		tr = NULL;
 		k = fragsort[i];
 		s = &cl.players[k];
 		ti_cl = &ti_clients[k];
@@ -1513,12 +1514,20 @@ static void Sbar_DeathmatchOverlay(int start)
 			continue;
 		}
 
-		if (s->spectator && (ti_sp->tracknum >= 0) && (ti_sp->tracknum != ti_sp->client) && &cl.players[ti_sp->tracknum]) 
+		// if spectator who is tracking a player
+		if (s->spectator && (ti_sp->tracknum != -1) && &cl.players[ti_sp->tracknum]) 
 		{
-			tr = &cl.players[ti_sp->tracknum]; // get who the spec is tracking
-		}
-		else {
-			tr = NULL;
+			// if spectator is self
+			if (ti_sp->tracknum == ti_sp->client)
+			{
+				// can't track self so set to null
+				// otherwise get player number
+				tr = (k == mynum) ? NULL : &cl.players[Sbar_PlayerNum()];
+			}
+			else
+			{
+				tr = &cl.players[ti_sp->tracknum]; // get who the spec is tracking
+			}
 		}
 
 		istracking = (tr && strlen(tr->name));	// is spec tracking a connected player?
