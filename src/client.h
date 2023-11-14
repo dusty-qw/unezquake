@@ -1275,6 +1275,7 @@ void Dev_TextureList(void);
 // weapons scripts
 int IN_BestWeapon(qbool rendering_only);
 int IN_BestWeaponReal(qbool rendering_only);
+void IN_SafeSwitch(void);
 
 // hud_common.c
 void CL_RemovePrefixFromName(int player);
