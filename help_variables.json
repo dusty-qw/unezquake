@@ -2714,6 +2714,34 @@
       "group-id": "53",
       "type": "float"
     },
+    "cl_safeswitch": {
+      "default": "0",
+      "desc": "Switch away from LG when entering water. Mostly useful in CA/Wipeout modes where discharging has no effect on enemy.",
+      "group-id": "49",
+      "remarks": "Will select weapons according to your specified weapon order. You can also set a custom order using cl_safeswitch_order.",
+      "type": "enum",
+      "values": [
+        {
+          "description": "Disabled",
+          "name": "0"
+        },
+        {
+          "description": "Enabled",
+          "name": "1"
+        },
+        {
+          "description": "Enabled only during CA/Wipeout",
+          "name": "2"
+        }
+      ]
+    },
+    "cl_safeswitch_order": {
+      "default": "",
+      "desc": "Sets a custom weapon order for cl_safeswitch (e.g., \"5 3 2 1\").",
+      "group-id": "49",
+      "remarks": "Leave blank to use the order from your previous weapon selection.",
+      "type": "string"
+    },
     "cl_savehistory": {
       "default": "1",
       "desc": "Save console commands history to .ezquake_history. Loads history from this file while starting ezquake.",

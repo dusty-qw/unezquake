@@ -18,11 +18,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "movie.h"
 #include "gl_model.h"
 #include "teamplay.h"
+#include "utils.h"
 #include "input.h"
 #include "pmove.h"		// PM_FLY etc
 #include "rulesets.h"
 
 static void IN_AttackUp_CommonHide(void);
+void IN_SafeSwitch(void);
 
 cvar_t cl_anglespeedkey = { "cl_anglespeedkey","1.5" };
 cvar_t cl_backspeed = { "cl_backspeed","400" };
@@ -36,6 +38,8 @@ cvar_t cl_movespeedkey = { "cl_movespeedkey","2.0" };
 cvar_t cl_nodelta = { "cl_nodelta","0" };
 cvar_t cl_pitchspeed = { "cl_pitchspeed","150" };
 cvar_t cl_upspeed = { "cl_upspeed","400" };
+cvar_t cl_safeswitch = {"cl_safeswitch", "0"};
+cvar_t cl_safeswitch_order = {"cl_safeswitch_order", ""};
 cvar_t cl_sidespeed = { "cl_sidespeed","400" };
 cvar_t cl_smartspawn = {"cl_smartspawn", "0"};
 cvar_t cl_yawspeed = { "cl_yawspeed","140" };
@@ -492,14 +496,14 @@ void IN_RememberWpOrder(void)
 		cl.weapon_order[i] = (i < c) ? Q_atoi(Cmd_Argv(i + 1)) : 0;
 }
 
-static int IN_BestWeapon_Common(int implicit, int* weapon_order, qbool persist, qbool rendering_only);
+static int IN_BestWeapon_Common(int implicit, int* weapon_order, qbool persist, qbool rendering_only, qbool ignore_lg);
 
 // picks the best available (carried & having some ammunition) weapon according to users current preference
 // or if the intersection (whished * carried) is empty
 // select the top wished weapon
 int IN_BestWeapon(qbool rendering_only)
 {
-	return IN_BestWeapon_Common(cl.weapon_order[0], cl.weapon_order, cl_weaponforgetorder.integer != 1, rendering_only);
+	return IN_BestWeapon_Common(cl.weapon_order[0], cl.weapon_order, cl_weaponforgetorder.integer != 1, rendering_only, false);
 }
 
 // picks the best available (carried & having some ammunition) weapon according to users current preference
@@ -507,11 +511,11 @@ int IN_BestWeapon(qbool rendering_only)
 // select the current weapon
 int IN_BestWeaponReal(qbool rendering_only)
 {
-	return IN_BestWeapon_Common(in_impulse, cl.weapon_order, cl_weaponforgetorder.integer != 1, rendering_only);
+	return IN_BestWeapon_Common(in_impulse, cl.weapon_order, cl_weaponforgetorder.integer != 1, rendering_only, false);
 }
 
 // finds the best weapon from the carried weapons; if none is found, returns implicit
-static int IN_BestWeapon_Common(int implicit, int* weapon_order, qbool persist, qbool rendering_only)
+static int IN_BestWeapon_Common(int implicit, int* weapon_order, qbool persist, qbool rendering_only, qbool ignore_lg)
 {
 	int i, imp, items;
 	int best = implicit;
@@ -553,7 +557,7 @@ static int IN_BestWeapon_Common(int implicit, int* weapon_order, qbool persist, 
 				best = 7;
 			break;
 		case 8:
-			if (items & IT_LIGHTNING && cl.stats[STAT_CELLS] >= 1)
+			if (items & IT_LIGHTNING && cl.stats[STAT_CELLS] >= 1 && !ignore_lg)
 				best = 8;
 		}
 	}
@@ -615,7 +619,7 @@ void IN_Weapon(void)
 			0
 		};
 
-		cl.weapon_order[0] = best = IN_BestWeapon_Common(1, temp_order, false, false);
+		cl.weapon_order[0] = best = IN_BestWeapon_Common(1, temp_order, false, false, false);
 	}
 	else if (first == 12) {
 		int best_temp = IN_BestWeapon(false);
@@ -632,7 +636,7 @@ void IN_Weapon(void)
 			0
 		};
 
-		cl.weapon_order[0] = best = IN_BestWeapon_Common(1, temp_order, false, false);
+		cl.weapon_order[0] = best = IN_BestWeapon_Common(1, temp_order, false, false, false);
 	}
 	else {
 		// read user input
@@ -667,6 +671,65 @@ void IN_Weapon(void)
 			in_impulse = best;
 
 		break;
+	}
+}
+
+void IN_SafeSwitch(void)
+{
+	static qbool underwater;
+	int best, mode, i, c;
+
+	if (!cl_safeswitch.value || (cl_safeswitch.value == 2 && !check_ktx_ca_wo()))
+		return;
+
+	if (cl.teamfortress)
+		return;
+
+	if (underwater && cl.waterlevel < 1)
+	{
+		underwater = false; // we are now out of water
+		return;
+	}
+
+	if (!underwater && cl.waterlevel >= 2)
+	{
+		underwater = true; // we are now underwater
+
+		if (cl.weapon_order[0] != 8) // is LG selected?
+			return;
+
+		if (cl_safeswitch_order.string[0])
+		{
+			Cmd_TokenizeString(cl_safeswitch_order.string);
+			c = Cmd_Argc() - 1;
+
+			for (i = 0; i < MAXWEAPONS; i++)
+				cl.weapon_order[i] = (i < c) ? Q_atoi(Cmd_Argv(i)) : 0;
+		}
+
+		best = IN_BestWeapon_Common(1, cl.weapon_order, false, false, true);
+
+		mode = (int)cl_weaponpreselect.value;
+
+		if (mode == 3) {
+			mode = (cl.deathmatch == 1) ? 1 : 0;
+		}
+		else if (mode == 4) {
+			mode = (cl.deathmatch == 1) ? 2 : 0;
+		}
+
+		switch (mode) 	{
+		case 2:
+			if ((in_attack.state & 3) && best) // user is holding +attack and there is some weapon available
+				in_impulse = best;
+			break;
+		case 1: break;	// don't select weapon immediately
+		default: case 0:	// no pre-selection
+			if (best)
+				in_impulse = best;
+
+			break;
+		}
 	}
 }
 
@@ -1298,6 +1361,8 @@ void CL_InitInput(void)
 	Cvar_Register(&cl_upspeed);
 	Cvar_Register(&cl_forwardspeed);
 	Cvar_Register(&cl_backspeed);
+	Cvar_Register(&cl_safeswitch);
+	Cvar_Register(&cl_safeswitch_order);
 	Cvar_Register(&cl_sidespeed);
 	Cvar_Register(&cl_smartspawn);
 	Cvar_Register(&cl_movespeedkey);
