@@ -31,6 +31,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "pmove.h"
 #include "utils.h"
 #include "sbar.h"
+#include "screen.h"
 #include "qtv.h"
 
 static int Cam_MainTrackNum(void);
@@ -39,6 +40,7 @@ static vec3_t desired_position; // where the camera wants to be.
 static int oldbuttons;
 static qbool cmddown, olddown;
 extern cvar_t cam_thirdperson, cl_camera_tpp;
+extern ti_player_t ti_clients[MAX_CLIENTS];
 
 cvar_t cl_hightrack = {"cl_hightrack", "0" };	// track high fragger 
 cvar_t cl_chasecam = {"cl_chasecam", "1"};		// "through the eyes" view
@@ -124,8 +126,11 @@ static qbool Cam_FirstPersonMode(void)
 // returns true if we should draw this player, we don't if we are chase camming
 qbool Cam_DrawPlayer(int playernum)
 {
-	if (cl.spectator && cl.autocam && cl.spec_locked && cl.spec_track == playernum && Cam_FirstPersonMode())
-		return false;
+	if ((cl.spectator && cl.autocam && cl.spec_locked && cl.spec_track == playernum && Cam_FirstPersonMode()) ||
+		(check_ktx_ca_wo() && &ti_clients[cl.spec_track].isdead && &ti_clients[cl.spec_track].tracking == playernum)) // CA/Wipeout: don't draw players being tracked by dead specs
+		{
+			return false;
+		}
 	return true;
 }
 

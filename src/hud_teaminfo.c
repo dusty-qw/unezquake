@@ -814,6 +814,7 @@ void Parse_CAInfo(char *s)
 	ti_clients[client].timetospawn = atoi(Cmd_Argv(15));
 	ti_clients[client].round_kills = atoi(Cmd_Argv(16));
 	ti_clients[client].round_deaths = atoi(Cmd_Argv(17));
+	ti_clients[client].tracking = atoi(Cmd_Argv(18));
 }
 
 void Update_FlagStatus(int player_num, char *team, qbool got_flag)
