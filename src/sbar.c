@@ -1529,7 +1529,7 @@ static void Sbar_DeathmatchOverlay(int start)
 			}
 		}
 
-		istracking = (tr && tr->name[0]);	// is spec tracking a connected player?
+		istracking = (tr != NULL && tr->name != NULL && tr->name[0] != '\0');	// is spec tracking a connected player?
 
 		//render the main background transparencies behind players row
 		if (k == mynum) {
