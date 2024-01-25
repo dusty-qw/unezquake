@@ -1514,7 +1514,7 @@ static void Sbar_DeathmatchOverlay(int start)
 		}
 
 		// if spectator who is tracking a player
-		if (s->spectator && (ti_sp->tracknum != -1) && &cl.players[ti_sp->tracknum]) 
+		if (s->spectator && scr_scoreboard_showtracking.value && (ti_sp->tracknum > -1)) 
 		{
 			// if spectator is self
 			if (ti_sp->tracknum == ti_sp->client)
@@ -1529,7 +1529,7 @@ static void Sbar_DeathmatchOverlay(int start)
 			}
 		}
 
-		istracking = (tr != NULL && tr->name != NULL && tr->name[0] != '\0');	// is spec tracking a connected player?
+		istracking = (scr_scoreboard_showtracking.value && (tr != NULL));	// is spec tracking a connected player?
 
 		//render the main background transparencies behind players row
 		if (k == mynum) {
@@ -1638,7 +1638,7 @@ static void Sbar_DeathmatchOverlay(int start)
 
 			x += (cl.teamplay ? 11 : 6) * FONT_WIDTH; // move across to print the name
 
-			if (scr_scoreboard_showtracking.value && istracking)
+			if (istracking)
 			{
 				// show who spectators are tracking in scoreboard.
 				// this limit len of string because TP_ParseFunChars() do not check overflow
@@ -1652,10 +1652,10 @@ static void Sbar_DeathmatchOverlay(int start)
 				
 				fstart = strstr(formatstr, "%n"); // check format string for "%n"
 
-				if (fstart)
+				if (fstart && (tracked[0] != '\0'))
 				{
 					formatstr[(int)(fstart-formatstr+1)] = 's'; // change 'n' to 's' for easy string handling
-					snprintf(tracking, sizeof(tracking), formatstr, tracked);
+					snprintf(tracking, sizeof(tracking), formatstr, Player_StripNameColor(tracked));
 				}
 				else
 				{
@@ -1689,7 +1689,7 @@ static void Sbar_DeathmatchOverlay(int start)
 				Draw_SStringAligned(x, y, s->name, scale, alpha, proportional, text_align_left, x + FONT_WIDTH * 15);
 			}
 
-			if (scr_scoreboard_showtracking.value && istracking)
+			if (istracking)
 			{
 				x += strlen(s->name) * FONT_WIDTH;
 				Draw_SStringAligned(x+spectrack_x, y+spectrack_y, tracking, scale*scr_scoreboard_showtracking_scale.value, alpha, proportional, text_align_left, x + FONT_WIDTH * 10);
