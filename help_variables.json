@@ -1611,7 +1611,7 @@
       "default": "0",
       "desc": "When greater than 0, this modifies your input keys held\nto make air control beeline to your held direction.",
       "group-id": "9",
-      "remarks": "Only useful at values of 0 or [45-90], recommend 62.5 if not 0.",
+      "remarks": "Only useful at values of 0 or [45-90], recommend 62.5 if not 0.\nOnly works during prewar.",
       "type": "float"
     },
     "cl_fp_messages": {
