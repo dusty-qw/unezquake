@@ -353,7 +353,7 @@ void Clock_HudInit(void)
 	HUD_Register(
 		"clock", NULL, "Shows current local time (hh:mm:ss).",
 		HUD_PLUSMINUS, ca_disconnected, 8, SCR_HUD_DrawClock,
-		"0", "top", "right", "console", "0", "0", "0", "0 0 0", "0", "0 0 0", NULL,
+		"0", "top", "right", "console", "0", "0", "0", "0 0 0", NULL,
 		"big", "1",
 		"style", "0",
 		"scale", "1",
@@ -368,7 +368,7 @@ void Clock_HudInit(void)
 	HUD_Register(
 		"democlock", NULL, "Shows current demo time (hh:mm:ss).",
 		HUD_PLUSMINUS, ca_disconnected, 7, SCR_HUD_DrawDemoClock,
-		"1", "top", "right", "console", "0", "8", "0", "0 0 0", "0", "0 0 0", NULL,
+		"1", "top", "right", "console", "0", "8", "0", "0 0 0", NULL,
 		"big", "0",
 		"style", "0",
 		"scale", "1",
@@ -381,7 +381,7 @@ void Clock_HudInit(void)
 	HUD_Register(
 		"gameclock", NULL, "Shows current game time (hh:mm:ss).",
 		HUD_PLUSMINUS, ca_disconnected, 8, SCR_HUD_DrawGameClock,
-		"1", "top", "right", "console", "0", "0", "0", "0 0 0", "0", "0 0 0", NULL,
+		"1", "top", "right", "console", "0", "0", "0", "0 0 0", NULL,
 		"big", "1",
 		"style", "0",
 		"scale", "1",
@@ -396,7 +396,7 @@ void Clock_HudInit(void)
 	HUD_Register(
 			"scoreclock", NULL, "Shows current date and time on the scoreboard",
 			HUD_NO_DRAW | HUD_ON_INTERMISSION | HUD_ON_SCORES | HUD_ON_FINALE, ca_disconnected, 8, SCR_HUD_DrawScoreClock,
-			"1", "screen", "center", "bottom", "0", "-10", "0", "0 0 0", "0", "0 0 0", NULL,
+			"1", "screen", "center", "bottom", "0", "-10", "0", "0 0 0", NULL,
 			"scale", "1",
 			"format", "%d-%m-%Y %H:%M:%S",
 			"proportional", "0",
