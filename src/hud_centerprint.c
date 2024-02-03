@@ -227,8 +227,8 @@ void CenterPrint_HudInit(void)
 {
 	HUD_Register(
 		"centerprint", NULL, "Shows alerts from server, countdowns etc.",
-		HUD_PLUSMINUS, ca_active, 0, SCR_HUD_DrawCenterPrint,
-		"0", "screen", "center", "center", "0", "0", "0", "0 0 0", "0", "0 0 0", NULL,
+		HUD_PLUSMINUS | HUD_ON_FINALE, ca_active, 0, SCR_HUD_DrawCenterPrint,
+		"0", "screen", "center", "center", "0", "0", "0", "0 0 0", NULL,
 		"scale", "1",
 		"proportional", "0",
 		"speed", "8",

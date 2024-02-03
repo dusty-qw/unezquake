@@ -1222,7 +1222,7 @@ hud_t * HUD_Register(char *name, char *var_alias, char *description,
 					 hud_func_type draw_func,
 					 char *show, char *place, char *align_x, char *align_y,
 					 char *pos_x, char *pos_y, char *frame, char *frame_color,
-					 char *item_opacity, char *border, char *border_color,
+					 char *item_opacity,
 					 char *params, ...)
 {
 	int i;
@@ -1381,7 +1381,7 @@ hud_t * HUD_Register(char *name, char *var_alias, char *description,
 	// Border.
 	//
 	{
-		hud->border = HUD_CreateVar(name, "border", (border) ? border : "0");
+		hud->border = HUD_CreateVar(name, "border", "0");
 		hud->params[hud->num_params++] = hud->border;
 		hud->flags |= HUD_BORDER;
 	}
@@ -1390,7 +1390,7 @@ hud_t * HUD_Register(char *name, char *var_alias, char *description,
 	// Border Color.
 	//
 	{
-		hud->border_color = HUD_CreateVar(name, "border_color", (border_color) ? border_color : "0 0 0");
+		hud->border_color = HUD_CreateVar(name, "border_color", "0 0 0");
 		hud->border_color->OnChange = HUD_OnChangeBorderColor;
 		hud->params[hud->num_params++] = hud->border_color;
 	}

@@ -346,7 +346,7 @@ void Net_HudInit(void)
 	HUD_Register(
 		"net", NULL, "Shows network statistics, like latency, packet loss, average packet sizes and bandwidth. Shown only when you are connected to a server.",
 		HUD_PLUSMINUS, ca_active, 7, SCR_HUD_DrawNetStats,
-		"0", "top", "left", "center", "0", "0", "0.2", "0 0 0", "0", "0 0 0", NULL,
+		"0", "top", "left", "center", "0", "0", "0.2", "0 0 0", NULL,
 		"period", "1",
 		"scale", "1",
 		"proportional", "0",
@@ -357,7 +357,7 @@ void Net_HudInit(void)
 	HUD_Register(
 		"netproblem", NULL, "Shows an icon if you are experiencing network problems",
 		HUD_NO_FRAME, ca_active, 0, SCR_HUD_NetProblem,
-		"1", "top", "left", "top", "0", "0", "0", "0 0 0", "0", "0 0 0", NULL,
+		"1", "top", "left", "top", "0", "0", "0", "0 0 0", NULL,
 		"scale", "1",
 		NULL
 	);
@@ -366,7 +366,7 @@ void Net_HudInit(void)
 	HUD_Register(
 		"ping", NULL, "Shows most important net conditions, like ping and pl. Shown only when you are connected to a server.",
 		HUD_PLUSMINUS, ca_active, 9, SCR_HUD_DrawPing,
-		"0", "screen", "left", "bottom", "0", "0", "0", "0 0 0", "0", "0 0 0", NULL,
+		"0", "screen", "left", "bottom", "0", "0", "0", "0 0 0", NULL,
 		"period", "1",
 		"show_pl", "1",
 		"show_min", "0",

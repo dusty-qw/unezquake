@@ -412,7 +412,7 @@ void Ammo_HudInit(void)
 	HUD_Register(
 		"ammo", NULL, "Part of your inventory - ammo for active weapon.",
 		HUD_INVENTORY, ca_active, 0, SCR_HUD_DrawAmmoCurrent,
-		"1", "health", "after", "center", "32", "0", "0", "0 0 0", "0", "0 0 0", NULL,
+		"1", "health", "after", "center", "32", "0", "0", "0 0 0", NULL,
 		"style", "0",
 		"scale", "1",
 		"align", "right",
@@ -424,7 +424,7 @@ void Ammo_HudInit(void)
 
 	HUD_Register("ammo1", NULL, "Part of your inventory - ammo - shells.",
 				 HUD_INVENTORY, ca_active, 0, SCR_HUD_DrawAmmo1,
-				 "0", "ibar", "left", "top", "0", "0", "0", "0 0 0", "0", "0 0 0", NULL,
+				 "0", "ibar", "left", "top", "0", "0", "0", "0 0 0", NULL,
 				 "style", "0",
 				 "scale", "1",
 				 "align", "right",
@@ -433,7 +433,7 @@ void Ammo_HudInit(void)
 				 NULL);
 	HUD_Register("ammo2", NULL, "Part of your inventory - ammo - nails.",
 				 HUD_INVENTORY, ca_active, 0, SCR_HUD_DrawAmmo2,
-				 "0", "ammo1", "after", "top", "0", "0", "0", "0 0 0", "0", "0 0 0", NULL,
+				 "0", "ammo1", "after", "top", "0", "0", "0", "0 0 0", NULL,
 				 "style", "0",
 				 "scale", "1",
 				 "align", "right",
@@ -442,7 +442,7 @@ void Ammo_HudInit(void)
 				 NULL);
 	HUD_Register("ammo3", NULL, "Part of your inventory - ammo - rockets.",
 				 HUD_INVENTORY, ca_active, 0, SCR_HUD_DrawAmmo3,
-				 "0", "ammo2", "after", "top", "0", "0", "0", "0 0 0", "0", "0 0 0", NULL,
+				 "0", "ammo2", "after", "top", "0", "0", "0", "0 0 0", NULL,
 				 "style", "0",
 				 "scale", "1",
 				 "align", "right",
@@ -451,7 +451,7 @@ void Ammo_HudInit(void)
 				 NULL);
 	HUD_Register("ammo4", NULL, "Part of your inventory - ammo - cells.",
 				 HUD_INVENTORY, ca_active, 0, SCR_HUD_DrawAmmo4,
-				 "0", "ammo3", "after", "top", "0", "0", "0", "0 0 0", "0", "0 0 0", NULL,
+				 "0", "ammo3", "after", "top", "0", "0", "0", "0 0 0", NULL,
 				 "style", "0",
 				 "scale", "1",
 				 "align", "right",
@@ -463,7 +463,7 @@ void Ammo_HudInit(void)
 	HUD_Register(
 		"iammo", NULL, "Part of your inventory - ammo icon.",
 		HUD_INVENTORY, ca_active, 0, SCR_HUD_DrawAmmoIconCurrent,
-		"1", "ammo", "before", "center", "0", "0", "0", "0 0 0", "0", "0 0 0", NULL,
+		"1", "ammo", "before", "center", "0", "0", "0", "0 0 0", NULL,
 		"style", "0",
 		"scale", "1",
 		"show_always", "0",
@@ -472,25 +472,25 @@ void Ammo_HudInit(void)
 
 	HUD_Register("iammo1", NULL, "Part of your inventory - ammo icon.",
 				 HUD_INVENTORY, ca_active, 0, SCR_HUD_DrawAmmoIcon1,
-				 "0", "ibar", "left", "top", "0", "0", "0", "0 0 0", "0", "0 0 0", NULL,
+				 "0", "ibar", "left", "top", "0", "0", "0", "0 0 0", NULL,
 				 "style", "2",
 				 "scale", "1",
 				 NULL);
 	HUD_Register("iammo2", NULL, "Part of your inventory - ammo icon.",
 				 HUD_INVENTORY, ca_active, 0, SCR_HUD_DrawAmmoIcon2,
-				 "0", "iammo1", "after", "top", "0", "0", "0", "0 0 0", "0", "0 0 0", NULL,
+				 "0", "iammo1", "after", "top", "0", "0", "0", "0 0 0", NULL,
 				 "style", "2",
 				 "scale", "1",
 				 NULL);
 	HUD_Register("iammo3", NULL, "Part of your inventory - ammo icon.",
 				 HUD_INVENTORY, ca_active, 0, SCR_HUD_DrawAmmoIcon3,
-				 "0", "iammo2", "after", "top", "0", "0", "0", "0 0 0", "0", "0 0 0", NULL,
+				 "0", "iammo2", "after", "top", "0", "0", "0", "0 0 0", NULL,
 				 "style", "2",
 				 "scale", "1",
 				 NULL);
 	HUD_Register("iammo4", NULL, "Part of your inventory - ammo icon.",
 				 HUD_INVENTORY, ca_active, 0, SCR_HUD_DrawAmmoIcon4,
-				 "0", "iammo3", "after", "top", "0", "0", "0", "0 0 0", "0", "0 0 0", NULL,
+				 "0", "iammo3", "after", "top", "0", "0", "0", "0 0 0", NULL,
 				 "style", "2",
 				 "scale", "1",
 				 NULL);
