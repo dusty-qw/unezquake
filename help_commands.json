@@ -1753,6 +1753,9 @@
     "description": "Clears the currently selected sandbox directory. On the next restart, ezQuake will prompt you to select a directory again.",
     "remarks": "macOS only"
   },
+  "systemalias": {
+    "description": "Sets a temporary system alias.\nSystemaliases will not save to your config and won't be removed when running unaliasall."
+  },
   "tcl_eval": {
     "description": "Execute <string> as Tcl code.",
     "syntax": "<string>"
