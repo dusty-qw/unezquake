@@ -1037,6 +1037,12 @@
         }
       ]
     },
+    "cl_allow_remote_commands": {
+      "default": "",
+      "desc": "This variable controls which aliases and commands a remote server is allowed to execute on the client. Input a comma-separated list of commands to toggle access.",
+      "group-id": "9",
+      "type": "string"
+    },
     "cl_anglespeedkey": {
       "default": "1.5",
       "desc": "This variable sets multiplier by which your \"cl_yawspeed\" (how fast you turn) is multiplied when running (+speed).",

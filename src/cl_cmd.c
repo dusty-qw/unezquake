@@ -31,6 +31,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "menu.h"
 #include "qtv.h"
 #include "fs.h"
+#include "rcmd.h"
 
 /*time type to be used for rcon encryption*/
 #define __qtime_t uint64_t
@@ -1082,6 +1083,40 @@ qbool CL_CheckServerCommand (void) {
 	}
 
 	return false;
+}
+
+// Called by Cmd_ExecuteString if cbuf_current == &cbuf_svc
+qbool CL_CheckServerCommandWhitelisted (void) {
+	rcmd_t *rcmd;
+
+	if (!rcmd_count)
+	{
+		goto allow;
+	}
+
+	rcmd = Hash_Get(rcmd_hash, Cmd_Argv(0));
+	if (!rcmd)
+	{
+		goto deny;
+	}
+
+	if (rcmd->type == RCMD_WILDCARD)
+	{
+		goto allow;
+	}
+
+	if (rcmd->type == RCMD_WITH_ARGS && Rcmd_IsValidArgs(rcmd, Cmd_Args()))
+	{
+		goto allow;
+	}
+
+deny:
+	Com_DPrintf("Preventing server from running %s\n", Cmd_MakeArgs(0));
+	return false;
+
+allow:
+	Com_DPrintf("Accepting %s from server\n", Cmd_MakeArgs(0));
+	return true;
 }
 
 usermainbuttons_t CL_GetLastCmd(int player_slot)
