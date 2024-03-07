@@ -39,6 +39,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "tr_types.h"
 #include "teamplay.h"
 #include "tp_triggers.h"
+#include "rcmd.h"
 #include "rulesets.h"
 #include "version.h"
 #include "stats_grid.h"
@@ -286,6 +287,15 @@ cvar_t cl_debug_antilag_send    = { "cl_debug_antilag_send", "0" };
 
 // weapon-switching debugging
 cvar_t cl_debug_weapon_view     = { "cl_debug_weapon_view", "0" };
+
+// remote command execution restrictions
+static void OnChange_allow_remote_commands(cvar_t *var, char *string, qbool *cancel);
+cvar_t cl_allow_remote_commands = {
+	"cl_allow_remote_commands",
+	"",
+	0,
+	OnChange_allow_remote_commands
+};
 
 /// persistent client state
 clientPersistent_t	cls;
@@ -1753,6 +1763,68 @@ void CL_OnChange_name_validate(cvar_t *var, char *val, qbool *cancel)
 
 void CL_InitCommands (void);
 
+static void OnChange_allow_remote_commands(cvar_t *var, char *string, qbool *cancel)
+{
+	char *cmd, *args;
+	rcmd_t *rcmd;
+
+	// There are no prior value set, so we can go ahead and start adding
+	// new entries to our hash right away.
+	if (strlen(var->string) == 0 || !rcmd_count)
+	{
+		goto add;
+	}
+
+	// Duplicate the string since strtok mutates the string it operates on.
+	cmd = strtok(Q_strdup(var->string), ",");
+	while (cmd != NULL)
+	{
+		Com_DPrintf("Removing %s from rcmd_hash\n", cmd);
+
+		args = strchr(cmd, ' ');
+		if (args)
+		{
+			*args++ = '\0';
+		}
+
+		rcmd = Hash_Get(rcmd_hash, cmd);
+		if (rcmd)
+		{
+			Rcmd_Remove(rcmd);
+			Hash_Remove(rcmd_hash, cmd);
+		}
+
+		cmd = strtok(NULL, ",");
+	}
+
+add:
+	Rcmd_HashInit();
+
+	// Duplicate the string since strtok mutates the string it operates on.
+	cmd = strtok(Q_strdup(string), ",");
+	while (cmd != NULL)
+	{
+		Com_DPrintf("Adding %s to rcmd_hash\n", cmd);
+
+		args = strchr(cmd, ' ');
+		if (args)
+		{
+			*args++ = '\0';
+		}
+
+		rcmd = Hash_Get(rcmd_hash, cmd);
+		if (!rcmd)
+		{
+			rcmd = Rcmd_New();
+			Hash_Add(rcmd_hash, cmd, (void *)rcmd);
+			rcmd_count++;
+		}
+
+		Rcmd_Add(rcmd, cmd, args);
+		cmd = strtok(NULL, ",");
+	}
+}
+
 static void CL_InitLocal(void)
 {
 	char st[256];
@@ -1950,6 +2022,9 @@ static void CL_InitLocal(void)
 
 	// debugging weapons
 	Cvar_Register(&cl_debug_weapon_view);
+
+	// remote command execution restrictions
+	Cvar_Register(&cl_allow_remote_commands);
 
 	snprintf(st, sizeof(st), "ezQuake %i", REVISION);
 
