@@ -608,6 +608,7 @@ set(client_headers
         ${SOURCE_DIR}/mvd_utils_common.h
         ${SOURCE_DIR}/qsound.h
         ${SOURCE_DIR}/qtv.h
+        ${SOURCE_DIR}/rcmd.h
         ${SOURCE_DIR}/rulesets.h
         ${SOURCE_DIR}/sbar.h
         ${SOURCE_DIR}/screen.h
@@ -700,6 +701,7 @@ set(client
         ${SOURCE_DIR}/mvd_utils.c
         ${SOURCE_DIR}/mvd_xmlstats.c
         ${SOURCE_DIR}/qtv.c
+        ${SOURCE_DIR}/rcmd.c
         ${SOURCE_DIR}/rulesets.c
         ${SOURCE_DIR}/sbar.c
         ${SOURCE_DIR}/settings_page.c
