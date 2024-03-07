@@ -284,11 +284,18 @@ cvar_t cl_debug_antilag_send    = { "cl_debug_antilag_send", "0" };
 // weapon-switching debugging
 cvar_t cl_debug_weapon_view     = { "cl_debug_weapon_view", "0" };
 
+// The following aliases and commands are required to allow KTX to work properly.
+#define KTX	"bf,changing,cmd ack,cmd new,cmd pext,cmd prespawn,cmd snap,cmd spawn,color,fullserverinfo," \
+		"infoset,ktx_infoset,ktx_sinfoset,nextul,on_enter,on_enter_ctf,on_enter_ffa,on_spec_enter,"  \
+		"on_spec_enter_ctf,on_spec_enter_ffa,packet,play,reconnect,say,sinfoset,skin,skins,team"
+
+static void KTX_Init_f(void);
+
 // remote command execution restrictions
 static void OnChange_allow_remote_commands(cvar_t *var, char *string, qbool *cancel);
 cvar_t cl_allow_remote_commands = {
 	"cl_allow_remote_commands",
-	"",
+	KTX,
 	0,
 	OnChange_allow_remote_commands
 };
@@ -2083,6 +2090,8 @@ static void CL_InitLocal(void)
 
 		Cmd_AddCommand("dev_gfxbenchmarklightmaps", GL_BenchmarkLightmapFormats);
 	}
+
+	Cmd_AddCommand("ktx_init", KTX_Init_f);
 }
 
 void GFX_Init (void) 
@@ -2201,6 +2210,8 @@ void CL_Init (void)
 	QTV_Init();
 
 	Sys_InitIPC();
+
+	KTX_Init_f();
 }
 
 //============================================================================
@@ -3098,4 +3109,336 @@ static void CL_Authenticate_f(void)
 
 	Com_Printf("Starting authentication process...\n");
 	Cbuf_AddTextEx(&cbuf_main, va("cmd login \"%s\"\n", cl_username.string));
+}
+
+static void KTX_Init_f(void)
+{
+	Com_Printf("Adapting and securing client for KTX use.\n\n"
+		"For security reasons servers are no longer allowed to push aliases and upload "
+		"files to your computer.\n\n"
+		"NOTE: votemap <map name> to change map\n");
+
+	Cvar_Set(&cl_allow_remote_commands, KTX);
+
+	// The list of aliases has been extracted from the ktx source code and
+	// translated into systemaliases.
+	Cbuf_AddTextEx(&cbuf_main, "systemalias +scores cmd +scores\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias +wp_stats cmd +wp_stats\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias -scores cmd -scores\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias -wp_stats cmd -wp_stats\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias 10fav_go cmd 10fav_go\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias 10on10 cmd 10on10 %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias 11fav_go cmd 11fav_go\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias 12fav_go cmd 12fav_go\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias 13fav_go cmd 13fav_go\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias 14fav_go cmd 14fav_go\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias 15fav_go cmd 15fav_go\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias 16fav_go cmd 16fav_go\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias 17fav_go cmd 17fav_go\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias 18fav_go cmd 18fav_go\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias 19fav_go cmd 19fav_go\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias 1fav_go cmd 1fav_go\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias 1on1 cmd 1on1 %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias 20fav_go cmd 20fav_go\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias 2fav_go cmd 2fav_go\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias 2on2 cmd 2on2 %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias 2on2on2 cmd 2on2on2 %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias 3fav_go cmd 3fav_go\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias 3on3 cmd 3on3 %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias 3on3on3 cmd 3on3on3 %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias 4fav_go cmd 4fav_go\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias 4on4 cmd 4on4 %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias 4on4on4 cmd 4on4on4 %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias 5fav_go cmd 5fav_go\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias 6fav_go cmd 6fav_go\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias 7fav_go cmd 7fav_go\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias 8fav_go cmd 8fav_go\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias 9fav_go cmd 9fav_go\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias XonX cmd XonX %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias about cmd about\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias admin cmd admin %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias agree cmd agree\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias airstep cmd airstep\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias antilag cmd antilag\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias arena cmd arena\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias auto_pow cmd auto_pow\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias autotrack cmd autotrack\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias autotrackktx cmd autotrackktx\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias ban cmd ban %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias banip cmd banip %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias banrem cmd banrem %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias berzerk cmd berzerk\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias blitz2v2 cmd blitz2v2 %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias blitz4v4 cmd blitz4v4 %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias bloodfest cmd bloodfest\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias botcmd cmd botcmd %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias break cmd break\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias callalias cmd callalias %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias cam cmd cam\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias captain cmd captain\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias carena cmd carena %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias check cmd check %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias cm cmd cm\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias cmdslist_dl cmd cmdslist_dl %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias coach cmd coach\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias colorforce cmd colorforce\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias commands cmd commands %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias coop_nm_pu cmd coop_nm_pu\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias ctf cmd ctf %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias ctfbasedspawn cmd ctfbasedspawn\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias demomark cmd demomark\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias dinfo cmd dinfo %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias discharge cmd discharge\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias dlist cmd dlist %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias dm cmd dm\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias dmgfrags cmd dmgfrags\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias dmm1 cmd dmm1\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias dmm2 cmd dmm2\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias dmm3 cmd dmm3\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias dmm4 cmd dmm4\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias dmm5 cmd dmm5\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias downplayers cmd downplayers\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias downspecs cmd downspecs\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias dropitem cmd dropitem %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias droppack cmd droppack\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias dropquad cmd dropquad\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias dropring cmd dropring\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias dumpent cmd dumpent %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias effi cmd effi\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias elect cmd elect\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias exclusive cmd exclusive\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias fairpacks cmd fairpacks\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias fallbunny cmd fallbunny\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias fav10_add cmd fav10_add\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias fav11_add cmd fav11_add\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias fav12_add cmd fav12_add\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias fav13_add cmd fav13_add\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias fav14_add cmd fav14_add\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias fav15_add cmd fav15_add\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias fav16_add cmd fav16_add\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias fav17_add cmd fav17_add\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias fav18_add cmd fav18_add\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias fav19_add cmd fav19_add\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias fav1_add cmd fav1_add\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias fav20_add cmd fav20_add\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias fav2_add cmd fav2_add\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias fav3_add cmd fav3_add\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias fav4_add cmd fav4_add\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias fav5_add cmd fav5_add\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias fav6_add cmd fav6_add\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias fav7_add cmd fav7_add\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias fav8_add cmd fav8_add\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias fav9_add cmd fav9_add\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias fav_add cmd fav_add\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias fav_all_del cmd fav_all_del\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias fav_del cmd fav_del\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias fav_next cmd fav_next\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias fav_show cmd fav_show\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias ffa cmd ffa %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias flagstatus cmd flagstatus\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias force_spec cmd force_spec %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias forcebreak cmd forcebreak\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias forcemap cmd forcemap %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias forcestart cmd forcestart\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias fp cmd fp\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias fp_spec cmd fp_spec\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias fpslist cmd fpslist\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias fragsdown cmd fragsdown\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias fragsup cmd fragsup\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias freeze cmd freeze\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias fresh cmd fresh\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias freshguns cmd freshguns\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias freshpacks cmd freshpacks\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias freshtime cmd freshtime\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias gamemodes cmd gamemodes\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias giveme cmd giveme %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias gren_mode cmd gren_mode\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias handicap cmd handicap %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias hdptoggle cmd hdptoggle\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias hook_classic cmd hook_classic\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias hook_crhook cmd hook_crhook\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias hook_fast cmd hook_fast\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias hook_smooth cmd hook_smooth\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias hoonymode cmd hoonymode %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias info cmd info %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias infolock cmd infolock\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias infospec cmd infospec\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias instagib cmd instagib\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias instagib_coilgun_kickback cmd instagib_coilgun_kickback\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias iplist cmd iplist\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias kick cmd kick %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias kill cmd kill\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias killer cmd killer\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias killquad cmd killquad\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias kinfo cmd kinfo %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias klist cmd klist\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias ksound1 cmd ksound1\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias ksound2 cmd ksound2\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias ksound3 cmd ksound3\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias ksound4 cmd ksound4\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias ksound5 cmd ksound5\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias ksound6 cmd ksound6\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias kuinfo cmd kuinfo %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias lastscores cmd lastscores %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias laststats cmd laststats\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias lgcmode cmd lgcmode\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias list cmd list\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias lock cmd lock\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias lockmap cmd lockmap\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias lockmode cmd lockmode\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias mapcycle cmd mapcycle\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias maps cmd maps %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias mapslist_dl cmd mapslist_dl %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias mctf cmd mctf\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias messages cmd messages\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias midair cmd midair\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias midair_minheight cmd midair_minheight\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias mkick cmd mkick %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias mmode cmd mmode %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias moreinfo cmd moreinfo\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias motd cmd motd\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias multi cmd multi %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias n cmd n\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias newcomer cmd newcomer\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias next_best cmd next_best\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias next_map cmd next_map\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias next_pow cmd next_pow\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias no cmd no\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias no_gl cmd no_gl\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias no_lg cmd no_lg\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias noga cmd noga\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias nohook cmd nohook\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias noitems cmd noitems\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias norunes cmd norunes\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias nospecs cmd nospecs\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias nosweep cmd nosweep\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias noweapon cmd noweapon %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias options cmd options\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias overtime cmd overtime\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias overtimeup cmd overtimeup\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias pause cmd pause\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias pickspawn cmd pickspawn\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias pickup cmd pickup\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias pitchsl cmd pitchsl\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias pos_angles cmd pos_angles %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias pos_move cmd pos_move %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias pos_origin cmd pos_origin %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias pos_save cmd pos_save %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias pos_show cmd pos_show %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias pos_velocity cmd pos_velocity %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias powerups cmd powerups %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias powerups_pickup cmd powerups_pickup %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias practice cmd practice\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias prewar cmd prewar\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias qenemy cmd qenemy\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias qizmo cmd qizmo\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias qlag cmd qlag\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias qpoint cmd qpoint\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias ra_break cmd ra_break\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias ra_pos cmd ra_pos\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias race cmd race\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias race_break cmd race_break\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias race_break_all cmd race_break_all\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias race_cancel cmd race_cancel\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias race_chasecam cmd race_chasecam\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias race_chasecam_freelook cmd race_chasecam_freelook\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias race_chasecam_view cmd race_chasecam_view\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias race_countdown_down cmd race_countdown_down\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias race_countdown_up cmd race_countdown_up\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias race_del_checkpoint cmd race_del_checkpoint\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias race_dl_record_demo cmd race_dl_record_demo %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias race_hide_players cmd race_hide_players\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias race_match cmd race_match\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias race_pacemaker cmd race_pacemaker %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias race_ready cmd race_ready\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias race_route_clear cmd race_route_clear\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias race_route_switch cmd race_route_switch\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias race_scoring cmd race_scoring\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias race_set_checkpoint cmd race_set_checkpoint\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias race_set_falsestart cmd race_set_falsestart %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias race_set_finish cmd race_set_finish\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias race_set_start cmd race_set_start\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias race_set_timeout cmd race_set_timeout %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias race_set_weapon_mode cmd race_set_weapon_mode\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias race_show_lineup cmd race_show_lineup\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias race_show_record_details cmd race_show_record_details %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias race_show_route cmd race_show_route\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias race_show_toptimes cmd race_show_toptimes\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias race_simultaneous cmd race_simultaneous\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias race_toggle cmd race_toggle\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias ready cmd ready\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias removeitem cmd removeitem %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias report cmd report\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias rnd cmd rnd %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias roundsdown cmd roundsdown\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias roundsup cmd roundsup\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias rpickup cmd rpickup\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias rules cmd rules\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias s-l cmd s-l %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias s-m cmd s-m %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias s-p cmd s-p %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias s-r cmd s-r %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias s-t cmd s-t %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias scores cmd scores\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias sct_hex cmd sct_hex\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias sct_oct cmd sct_oct\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias sh_speed cmd sh_speed\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias shownick cmd shownick %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias silence cmd silence\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias skinforce cmd skinforce\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias slowready cmd slowready\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias spawn cmd spawn\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias spawn666time cmd spawn666time %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias spawn_show cmd spawn_show\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias speed cmd speed\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias stats cmd stats\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias status1 cmd status1\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias status2 cmd status2\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias swapall cmd swapall\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias teamoverlay cmd teamoverlay\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias teleportcap cmd teleportcap %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias teleteam cmd teleteam\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias time cmd time\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias time10 cmd time10\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias time15 cmd time15\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias time20 cmd time20\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias time25 cmd time25\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias time30 cmd time30\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias time5 cmd time5\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias timedown cmd timedown\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias timedown1 cmd timedown1\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias timeup cmd timeup\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias timeup1 cmd timeup1\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias tkfjump cmd tkfjump\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias tkrjump cmd tkrjump\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias toggleready cmd toggleready\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias tossflag cmd tossflag\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias tossrune cmd tossrune\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias tot cmd tot\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias totmode cmd totmode\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias tp cmd tp\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias tpmsg cmd tpmsg %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias tracklist cmd tracklist\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias trx_play cmd trx_play\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias trx_rec cmd trx_rec\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias trx_stop cmd trx_stop\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias uinfo cmd uinfo %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias upplayers cmd upplayers\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias upspecs cmd upspecs\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias victim cmd victim\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias votecoop cmd votecoop\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias votemap cmd votemap %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias voteprivate cmd voteprivate\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias vwep cmd vwep\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias who cmd who\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias whonot cmd whonot\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias whoskin cmd whoskin\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias whovote cmd whovote\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias wipeout cmd wipeout %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias wp_reset cmd wp_reset\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias wreg cmd wreg %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias y cmd y\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias yawnmode cmd yawnmode\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias yawsl cmd yawsl\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias yes cmd yes\n");
 }
