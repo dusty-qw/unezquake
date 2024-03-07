@@ -935,6 +935,9 @@
   "kill": {
     "description": "Suicide. (-2 frags on ktpro/kteam servers)"
   },
+  "ktx_init": {
+    "description": "Initialize all common KTX aliases"
+  },
   "legacyquake": {
     "arguments": [
       {
