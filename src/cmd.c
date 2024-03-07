@@ -798,6 +798,8 @@ void Cmd_Alias_f (void)
 		a->flags |= ALIAS_SERVER;
 	if (!strcasecmp(Cmd_Argv(0), "tempalias"))
 		a->flags |= ALIAS_TEMP;
+	if (!strcasecmp(Cmd_Argv(0), "systemalias") && cbuf_current == &cbuf_main)
+		a->flags |= ALIAS_SYSTEM;
 
 	// copy the rest of the command line
 	a->value = Q_strdup(Cmd_MakeArgs(2));
@@ -916,20 +918,18 @@ void Cmd_UnAliasAll_f (void)
 		Com_Printf("Connected to a server, will not remove server aliases\n");
 		for (a = cmd_alias; a; a = next) {
 			next = a->next;
-			if ((a->flags & ALIAS_SERVER) == 0) {
+			if ((a->flags & ALIAS_SERVER) == 0 && (a->flags & ALIAS_SYSTEM) == 0) {
 				Cmd_DeleteAlias(a->name);
 			}
 		}
 	} else {
 		for (a = cmd_alias; a ; a = next) {
 			next = a->next;
-			Q_free(a->value);
-			Q_free(a);
-		}
-		cmd_alias = NULL;
+			if ((a->flags & ALIAS_SYSTEM) == 0) {
+				Cmd_DeleteAlias(a->name);
+			}
 
-		// clear hash
-		memset (cmd_alias_hash, 0, sizeof(cmd_alias_t*) * ALIAS_HASHPOOL_SIZE);
+		}
 	}
 }
 
@@ -2404,6 +2404,7 @@ void Cmd_Init (void)
 	Cmd_AddCommand ("aliasedit", Cmd_AliasEdit_f);
 	Cmd_AddCommand ("alias", Cmd_Alias_f);
 	Cmd_AddCommand ("tempalias", Cmd_Alias_f);
+	Cmd_AddCommand ("systemalias", Cmd_Alias_f);
 	Cmd_AddCommand ("viewalias", Cmd_Viewalias_f);
 	Cmd_AddCommand ("unaliasall", Cmd_UnAliasAll_f);
 	Cmd_AddCommand ("unalias", Cmd_UnAlias_f);
