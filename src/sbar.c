@@ -1521,7 +1521,7 @@ static void Sbar_DeathmatchOverlay(int start)
 			{
 				// can't track self so set to null
 				// otherwise get player number
-				tr = (k == mynum) ? NULL : &cl.players[Sbar_PlayerNum()];
+				tr = (k == mynum) ? NULL : &cl.players[Cam_TrackNum()];
 			}
 			else
 			{
