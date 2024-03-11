@@ -18212,6 +18212,24 @@
       "group-id": "40",
       "type": "string"
     },
+    "scr_autoid_ingame": {
+      "default": "0",
+      "desc": "Enable in-game autoID of teammates.",
+      "group-id": "40",
+      "type": "integer"
+    },
+    "scr_autoid_ingame_namelength": {
+      "default": "6",
+      "desc": "Maximum name length for in-game autoID.",
+      "group-id": "40",
+      "type": "integer"
+    },
+    "scr_autoid_ingame_weapon": {
+      "default": "1",
+      "desc": "Show best weapon in in-game teammate autoID.",
+      "group-id": "40",
+      "type": "integer"
+    },
     "scr_autoid_namelength": {
       "default": "0",
       "desc": "Maximum number of characters for autoID player names.",
@@ -18282,6 +18300,12 @@
           "name": "64"
         }
       ]
+    },
+    "scr_autoid_yoffset": {
+      "default": "0",
+      "desc": "Adjusts the vertical offset of autoID.",
+      "group-id": "40",
+      "type": "integer"
     },
     "scr_centerMenu": {
       "default": "1",

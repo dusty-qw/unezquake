@@ -25,6 +25,7 @@ $Id: cl_screen.c,v 1.156 2007-10-29 00:56:47 qqshka Exp $
 #include "fonts.h"
 #include "r_matrix.h"
 #include "r_local.h"
+#include "utils.h"
 
 /*********************************** AUTOID ***********************************/
 
@@ -35,6 +36,10 @@ static cvar_t scr_autoid_namelength                = { "scr_autoid_namelength", 
 static cvar_t scr_autoid_barlength                 = { "scr_autoid_barlength", "16" };
 static cvar_t scr_autoid_weaponicon                = { "scr_autoid_weaponicon", "1" };
 static cvar_t scr_autoid_scale                     = { "scr_autoid_scale", "1" };
+static cvar_t scr_autoid_ingame					   = { "scr_autoid_ingame", "0" };
+static cvar_t scr_autoid_ingame_namelength         = { "scr_autoid_ingame_namelength", "6" };
+static cvar_t scr_autoid_ingame_weapon         	   = { "scr_autoid_ingame_weapon", "1" };
+static cvar_t scr_autoid_yoffset		           = { "scr_autoid_yoffset", "0" };
 static cvar_t scr_autoid_proportional              = { "scr_autoid_proportional", "0" };
 
 // These aren't static as they're also used for multiview hud
@@ -105,6 +110,8 @@ void SCR_SetupAutoID(void)
 	centity_t *cent;
 	item_vis_t visitem;
 	autoid_player_t *id;
+	qbool autoid_ingame = scr_autoid_ingame.integer;
+	qbool currentlyplaying = (!cls.demoplayback && !cl.spectator);
 
 	autoid_count = 0;
 
@@ -116,7 +123,7 @@ void SCR_SetupAutoID(void)
 		return;
 	}
 
-	if (!cls.demoplayback && !cl.spectator) {
+	if (currentlyplaying && !autoid_ingame) {
 		return;
 	}
 
@@ -140,6 +147,11 @@ void SCR_SetupAutoID(void)
 
 		if ((state->modelindex == cl_modelindices[mi_player] && ISDEAD(state->frame)) ||
 			state->modelindex == cl_modelindices[mi_h_player]) {
+			continue;
+		}
+
+		// Don't show autoid for eyes while playing a live game
+		if (currentlyplaying && (state->modelindex == cl_modelindices[mi_eyes])) {
 			continue;
 		}
 
@@ -348,10 +360,12 @@ static void SCR_DrawAutoIDStatus(autoid_player_t *autoid_p, int x, int y, float 
 void SCR_DrawAntilagIndicators(void)
 {
 	int i;
+	qbool autoid_ingame = scr_autoid_ingame.integer;
+	qbool currentlyplaying = (!cls.demoplayback && !cl.spectator);
 	extern cvar_t cl_debug_antilag_lines;
 	extern cvar_t cl_debug_antilag_view;
 
-	if (!cl_debug_antilag_lines.integer || (!cls.demoplayback && !cl.spectator) || cl.intermission) {
+	if (!cl_debug_antilag_lines.integer || (currentlyplaying && !autoid_ingame) || cl.intermission) {
 		return;
 	}
 
@@ -400,29 +414,82 @@ void SCR_DrawAntilagIndicators(void)
 
 void SCR_DrawAutoID(void)
 {
-	int i, x, y;
+	int i, j, k, x, y, yoffset;
 	float scale;
+	char name[MAX_SCOREBOARDNAME], tmp[1024];
 	qbool proportional = scr_autoid_proportional.integer;
+	qbool autoid_ingame = scr_autoid_ingame.integer;
+	qbool currentlyplaying = (!cls.demoplayback && !cl.spectator);
+	qbool ismyteam;
+	ti_player_t *ti_cl;
+	extern ti_player_t ti_clients[MAX_CLIENTS];
+	extern cvar_t tp_name_rlg;
+	extern cvar_t tp_name_rl;
+	extern cvar_t tp_name_lg;
 
-	if (!scr_autoid.value || (!cls.demoplayback && !cl.spectator) || cl.intermission) {
+	int sorted_autoids[MAX_CLIENTS];
+
+	if (!scr_autoid.value || (currentlyplaying && !autoid_ingame) || cl.intermission) {
 		return;
 	}
+
+	// Sort autoids to match clients
+	for (i = 0; i < autoid_count; i++) {
+		for (j = 0; j < MAX_CLIENTS; j++) {
+			if (cl.players[j].userid == autoids[i].player->userid)
+				sorted_autoids[i] = j;
+		}
+
+		sorted_autoids[i] = bound(0, sorted_autoids[i], MAX_CLIENTS);
+	}
+
+	yoffset = 8 + scr_autoid_yoffset.integer;
 
 	for (i = 0; i < autoid_count; i++) {
 		x = autoids[i].x * vid.width / glwidth;
 		y = (glheight - autoids[i].y) * vid.height / glheight;
+		k = sorted_autoids[i];
 		scale = (scr_autoid_scale.value > 0 ? scr_autoid_scale.value : 1.0);
-
+		ismyteam = (cl.teamplay && !strcmp(autoids[i].player->team, cl.players[cl.playernum].team));
+		ti_cl = &ti_clients[k];
+		
 		if (scr_autoid.integer) {
-			if (scr_autoid_namelength.integer >= 1 && scr_autoid_namelength.integer < MAX_SCOREBOARDNAME) {
-				char name[MAX_SCOREBOARDNAME];
-
-				strlcpy(name, autoids[i].player->name, sizeof(name));
-				name[scr_autoid_namelength.integer] = 0;
-				Draw_SString(x - Draw_StringLength(name, -1, 0.5 * scale, proportional), y - 8 * scale, name, scale, proportional);
+			if ((currentlyplaying && !ismyteam)) {
+				continue;	// Don't show autoid if playing a live game and player isn't on your team
 			}
-			else {
-				Draw_SString(x - Draw_StringLength(autoids[i].player->name, -1, 0.5 * scale, proportional), y - 8 * scale, autoids[i].player->name, scale, proportional);
+			else if (currentlyplaying && ismyteam) {	// in-game stuff here
+				char *weap_str = "";
+				char weap_white_stripped[32];
+				
+				// Skip if not getting player updates, such as if teamoverlay is disabled
+				if (ti_cl->time && (ti_cl->time + TI_TIMEOUT >= r_refdef2.time)) {
+					if ((ti_cl->items & IT_ROCKET_LAUNCHER) && (ti_cl->items & IT_LIGHTNING))
+						weap_str = tp_name_rlg.string;
+					else if (ti_cl->items & IT_LIGHTNING)
+						weap_str = tp_name_lg.string;
+					else if (ti_cl->items & IT_ROCKET_LAUNCHER)
+						weap_str = tp_name_rl.string;
+				}
+
+				Util_SkipChars(weap_str, "{}", weap_white_stripped, 32); // hide curly brackets
+
+				snprintf(name, sizeof(name), "%s", TP_ParseFunChars(ti_cl->nick[0] ? ti_cl->nick : cl.players[k].shortname, false));
+				if (scr_autoid_ingame_namelength.integer >= 1 && scr_autoid_ingame_namelength.integer < MAX_SCOREBOARDNAME) {
+					name[scr_autoid_ingame_namelength.integer] = 0;
+				}
+
+				snprintf(tmp, sizeof(tmp), "%s %s", Player_StripNameColor(name), scr_autoid_ingame_weapon.integer ? weap_white_stripped : "");
+				Draw_SString(x - Draw_StringLengthColors(tmp, -1, 0.5 * scale, proportional), y - yoffset * scale, tmp, scale, proportional);
+			}
+			else {	// demos, qtv, spectating
+				if (scr_autoid_namelength.integer >= 1 && scr_autoid_namelength.integer < MAX_SCOREBOARDNAME) {
+					strlcpy(name, autoids[i].player->name, sizeof(name));
+					name[scr_autoid_namelength.integer] = 0;
+					Draw_SString(x - Draw_StringLength(name, -1, 0.5 * scale, proportional), y - yoffset * scale, name, scale, proportional);
+				}
+				else {
+					Draw_SString(x - Draw_StringLength(autoids[i].player->name, -1, 0.5 * scale, proportional), y - yoffset * scale, autoids[i].player->name, scale, proportional);
+				}
 			}
 		}
 
@@ -442,6 +509,10 @@ void SCR_RegisterAutoIDCvars(void)
 		Cvar_Register(&scr_autoid_barlength);
 		Cvar_Register(&scr_autoid_weaponicon);
 		Cvar_Register(&scr_autoid_scale);
+		Cvar_Register(&scr_autoid_ingame);
+		Cvar_Register(&scr_autoid_ingame_namelength);
+		Cvar_Register(&scr_autoid_ingame_weapon);
+		Cvar_Register(&scr_autoid_yoffset);
 		Cvar_Register(&scr_autoid_healthbar_bg_color);
 		Cvar_Register(&scr_autoid_healthbar_normal_color);
 		Cvar_Register(&scr_autoid_healthbar_mega_color);
