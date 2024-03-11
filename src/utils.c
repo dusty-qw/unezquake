@@ -180,6 +180,19 @@ byte* StringToRGB(char *s)
 	return rgb;
 }
 
+void RGBToString(const byte *rgb, char *s) {
+	// Scale down each value from 0x0 to 0xff to the range of 0x0 to 0xf.
+	byte r = rgb[0] * 0xf / 0xff;
+	byte g = rgb[1] * 0xf / 0xff;
+	byte b = rgb[2] * 0xf / 0xff;
+
+	// Convert the value to its hex representation. The characters will be
+	// used in a "&cRGB" string.
+	s[0] = (r < 10) ? ('0' + r) : ('a' + r - 0xa);
+	s[1] = (g < 10) ? ('0' + g) : ('a' + g - 0xa);
+	s[2] = (b < 10) ? ('0' + b) : ('a' + b - 0xa);
+}
+
 /*
    float f[10];
    int size = sizeof(f)/sizeof(f[0]);
