@@ -46,7 +46,7 @@ extern cvar_t allow_scripts;
 extern cvar_t cl_delay_packet;
 extern cvar_t r_fullbrightSkins;
 extern cvar_t cl_fakeshaft;
-extern cvar_t cl_iDrive;
+extern cvar_t cl_socd;
 extern cvar_t tp_triggers;
 extern cvar_t cl_hud;
 extern cvar_t scr_teaminlay;
@@ -235,8 +235,8 @@ const char* FChecks_RulesetAdditionString(void)
 	// enemy skin forcing enabled
 	APPENDFEATURE((enemyforceskins.integer)," &cc80eskins&r");
 
-	// cl_iDrive - strafing aid
-	APPENDFEATURE((cl_iDrive.integer)," &cc80idrive&r");
+	// cl_socd (previously cl_iDrive) - strafing aid
+	APPENDFEATURE((cl_socd.integer)," &cc80socd&r");
 
 	// inlay enabled
 	APPENDFEATURE((scr_teaminlay.integer)," &cc80inlay&r");
