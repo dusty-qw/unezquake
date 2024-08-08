@@ -1514,7 +1514,7 @@ static void Sbar_DeathmatchOverlay(int start)
 		}
 
 		// if spectator who is tracking a player
-		if (s->spectator && scr_scoreboard_showtracking.value && (ti_sp->tracknum > -1)) 
+		if (s->spectator && scr_scoreboard_showtracking.value && (ti_sp->tracknum > -1) && !cl.players[ti_sp->tracknum].spectator) 
 		{
 			// if spectator is self
 			if (ti_sp->tracknum == ti_sp->client)
