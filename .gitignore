@@ -13,9 +13,11 @@ unezquake-*-*
 SysPrintf.log
 .ezquake/
 .vs
+/.vscode
 *.json.c
 *.glsl.c
 vcpkg_installed/
 src/.msversion.h
+/build-*/
 
 !.gitignore

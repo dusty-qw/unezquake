@@ -202,7 +202,7 @@ cvar_t	vm_rtChecks		= { "vm_rtChecks", "1"};
 int		vm_debugLevel;
 
 // used by SV_Error to get rid of running vm's before longjmp
-static int forced_unload;
+// static int forced_unload;
 
 struct vm_s	vmTable[ VM_COUNT ];
 void VM_VmInfo_f( void );
@@ -434,13 +434,13 @@ void VM_LoadSymbols( vm_t *vm ) {
 		char	*c;
 		void	*v;
 	} mapfile;
-	char *text_p;
+	const char *text_p;
 	//char	name[MAX_QPATH];
 	char	symbols[MAX_QPATH];
 	vmSymbol_t	**prev, *sym;
 	int		count;
 	int		value;
-	int		chars;
+	size_t	chars;
 	int		segment;
 	int		numInstructions;
 
@@ -1448,7 +1448,7 @@ intptr_t QDECL VM_Call( vm_t *vm, int nargs, int callnum, ... )
 	if ( vm->entryPoint ) 
 	{
 		//rcg010207 -  see dissertation at top of VM_DllSyscall() in this file.
-		int args[MAX_VMMAIN_CALL_ARGS-1];
+		int args[MAX_VMMAIN_CALL_ARGS-1] = {0};
 		va_list ap;
 		va_start( ap, callnum );
 		for ( i = 0; i < nargs; i++ ) {
@@ -1467,7 +1467,7 @@ intptr_t QDECL VM_Call( vm_t *vm, int nargs, int callnum, ... )
 #endif
 			r = VM_CallInterpreted2( vm, nargs+1, (int*)&callnum );
 #else
-		int args[MAX_VMMAIN_CALL_ARGS];
+		int args[MAX_VMMAIN_CALL_ARGS] = {0};
 		va_list ap;
 
 		args[0] = callnum;
