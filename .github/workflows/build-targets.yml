@@ -30,7 +30,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: windows-multi-x64
-        path: ezquake.exe
+        path: unezquake.exe
 
   macos-build:
     runs-on: macos-latest
@@ -66,13 +66,13 @@ jobs:
 
     - name: Pre-zip to preserve executable bit
       run: |
-          zip -r -9 ${GITHUB_WORKSPACE}/ezQuake.zip ezQuake.app
+          zip -r -9 ${GITHUB_WORKSPACE}/unezQuake.zip unezQuake.app
       working-directory: build-macos-${{matrix.ARCH}}-release-ci/Release
 
     - uses: actions/upload-artifact@v4
       with:
-        name: ezQuake-macos-${{matrix.ARCH}}
-        path: ezQuake.zip
+        name: unezQuake-macos-${{matrix.ARCH}}
+        path: unezQuake.zip
 
   macos-universal:
       needs: macos-build
@@ -84,37 +84,37 @@ jobs:
           - name: Download Intel Build
             uses: actions/download-artifact@v4
             with:
-                name: ezQuake-macos-arm64
+                name: unezQuake-macos-arm64
                 path: artifacts/arm64
 
           - name: Download ARM64 Build
             uses: actions/download-artifact@v4
             with:
-                name: ezQuake-macos-x64
+                name: unezQuake-macos-x64
                 path: artifacts/x64
 
           - name: Create Universal Binary
             run: |
-                (cd artifacts/x64 && unzip -qq ezQuake.zip) && (cd artifacts/arm64 && unzip -qq ezQuake.zip)
-                cp -r artifacts/arm64/ezQuake.app .
-                lipo -create -output ezQuake.app/Contents/MacOS/ezQuake \
-                    artifacts/x64/ezQuake.app/Contents/MacOS/ezQuake \
-                    artifacts/arm64/ezQuake.app/Contents/MacOS/ezQuake
-                codesign --force --sign - --entitlements misc/install/ezquake.entitlements.plist --options runtime --timestamp ezQuake.app
-                zip -r ezQuake.zip ezQuake.app
+                (cd artifacts/x64 && unzip -qq unezQuake.zip) && (cd artifacts/arm64 && unzip -qq unezQuake.zip)
+                cp -r artifacts/arm64/unezQuake.app .
+                lipo -create -output unezQuake.app/Contents/MacOS/unezQuake \
+                    artifacts/x64/unezQuake.app/Contents/MacOS/unezQuake \
+                    artifacts/arm64/unezQuake.app/Contents/MacOS/unezQuake
+                codesign --force --sign - --entitlements misc/install/unezQuake.entitlements.plist --options runtime --timestamp unezQuake.app
+                zip -r unezQuake.zip unezQuake.app
 
           - name: Delete macOS arch specific builds
             uses: geekyeggo/delete-artifact@v5
             with:
                 name: |
-                    ezQuake-macos-arm64
-                    ezQuake-macos-x64
+                    unezQuake-macos-arm64
+                    unezQuake-macos-x64
 
           - name: Upload Build Artifact
             uses: actions/upload-artifact@v4
             with:
-                name: ezQuake-macOS
-                path: ezQuake.zip
+                name: unezQuake-macOS
+                path: unezQuake.zip
                 compression-level: 9
 
   appimage-build:
@@ -153,4 +153,4 @@ jobs:
     - uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.target }}-AppImage
-        path: ezQuake-${{ matrix.platform }}.AppImage
+        path: unezQuake-${{ matrix.platform }}.AppImage
