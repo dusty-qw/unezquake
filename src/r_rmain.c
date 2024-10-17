@@ -114,6 +114,15 @@ static void OnDynamicLightingChange(cvar_t* var, char* value, qbool* cancel)
 	}
 }
 
+static void OnRemoveCollinearVerticesChanged(cvar_t* var, char* value, qbool* cancel)
+{
+#if defined(__APPLE__) && defined(__aarch64__)
+	// At least arm64 based MacBook laptops are known to require this workaround.
+	Cvar_SetIgnoreCallback(var, "1");
+	*cancel = true;
+#endif
+}
+
 cvar_t cl_multiview                        = {"cl_multiview", "0" };
 cvar_t cl_mvdisplayhud                     = {"cl_mvdisplayhud", "1"};
 cvar_t cl_mvhudvertical                    = {"cl_mvhudvertical", "0"};
@@ -182,6 +191,7 @@ cvar_t gl_oldlitscaling                    = {"gl_oldlitscaling", "0"};
 cvar_t gl_colorlights                      = {"gl_colorlights", "1"};
 cvar_t gl_squareparticles                  = {"gl_squareparticles", "0", 0, OnSquareParticleChange};
 cvar_t gl_part_explosions                  = {"gl_part_explosions", "0"}; // 1
+cvar_t gl_part_bloodtrails                 = {"gl_part_bloodtrails", "1"}; // 1 was the default behaviour before this became a cvar
 cvar_t gl_part_trails                      = {"gl_part_trails", "0"}; // 1
 cvar_t gl_part_tracer1_color               = {"gl_part_tracer1_color", "0 124 0", CVAR_COLOR};
 cvar_t gl_part_tracer2_color               = {"gl_part_tracer2_color", "255 77 0", CVAR_COLOR};
@@ -236,6 +246,8 @@ cvar_t gl_outline_color_enemy              = {"gl_outline_color_enemy", ""};
 cvar_t gl_smoothmodels                     = {"gl_smoothmodels", "1"};
 
 cvar_t gl_vbo_clientmemory                 = {"gl_vbo_clientmemory", "0", CVAR_LATCH_GFX };
+
+cvar_t r_remove_collinear_vertices         = {"r_remove_collinear_vertices", "0", 0, OnRemoveCollinearVerticesChanged};
 
 //Returns true if the box is completely outside the frustom
 qbool R_CullBox(vec3_t mins, vec3_t maxs)
@@ -619,6 +631,7 @@ void R_Init(void)
 
 	Cvar_SetCurrentGroup(CVAR_GROUP_PARTICLES);
 	Cvar_Register(&gl_part_explosions);
+	Cvar_Register(&gl_part_bloodtrails);
 	Cvar_Register(&gl_part_trails);
 	Cvar_Register(&gl_part_tracer1_color);
 	Cvar_Register(&gl_part_tracer1_size);
@@ -747,6 +760,8 @@ void R_Init(void)
 	Cvar_Register(&cl_mvinset_size_y);
 	Cvar_Register(&cl_mvinset_top);
 	Cvar_Register(&cl_mvinset_right);
+
+	Cvar_Register(&r_remove_collinear_vertices);
 
 	Cvar_ResetCurrentGroup();
 

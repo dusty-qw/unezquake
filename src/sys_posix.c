@@ -102,8 +102,8 @@ void Sys_Quit(void)
 void Sys_Init(void)
 {
 #ifdef __APPLE__
-	extern void init_url_handler( void );
-	init_url_handler();
+	extern void init_macos_extras(void);
+	init_macos_extras();
 #endif
 	Cvar_Register(&sys_highpriority);
 	Cvar_Register(&sys_fontsdir);
@@ -480,14 +480,14 @@ char *Sys_fullpath(char *absPath, const char *relPath, int maxLength)
 {
     // too small buffer, copy in tmp[] and then look is enough space in output buffer aka absPath
     if (maxLength-1 < PATH_MAX)	{
-			 char tmp[PATH_MAX+1];
-			 if (realpath(relPath, tmp) && absPath && strlen(tmp) < maxLength+1) {
-					strlcpy(absPath, tmp, maxLength+1);
-          return absPath;
-			 }
-
-       return NULL;
+		char tmp[PATH_MAX+1];
+		if (realpath(relPath, tmp) && absPath && strlen(tmp) < maxLength) {
+			strlcpy(absPath, tmp, maxLength);
+			return absPath;
 		}
+
+		return NULL;
+	}
 
     return realpath(relPath, absPath);
 }
@@ -682,13 +682,16 @@ int Sys_Script (const char *path, const char *args)
 
 DL_t Sys_DLOpen(const char *path)
 {
-	return dlopen(path,
+	DL_t ret = dlopen(path,
 #ifdef __OpenBSD__
 	              DL_LAZY
 #else
 	              RTLD_NOW
 #endif
 	             );
+	if (!ret)
+		Con_DPrintf("Sys_DLOpen: %s\n", dlerror());
+	return ret;
 }
 
 qbool Sys_DLClose(DL_t dl)
@@ -831,7 +834,6 @@ void Sys_RegisterQWURLProtocol_f(void)
 int Sys_SetPriority(int priority)
 {
 	int ret, i=0;
-	int which = PRIO_PROCESS;
 
 	switch (priority) {
 		case 1:
@@ -859,7 +861,7 @@ void OnChange_sys_highpriority (cvar_t *var, char *s, qbool *cancel)
 	//do not attempt to change priority if cvar is unset
 	if (s[0] == '\0') return;
 
-	int ok, priority, ret;
+	int priority, ret;
 	char *desc;
 
 	priority = Q_atoi(s);
