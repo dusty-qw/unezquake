@@ -533,6 +533,7 @@ set(common_hud
         ${SOURCE_DIR}/hud_groups.c
         ${SOURCE_DIR}/hud_guns.c
         ${SOURCE_DIR}/hud_health.c
+        ${SOURCE_DIR}/hud_inlay.c
         ${SOURCE_DIR}/hud_items.c
         ${SOURCE_DIR}/hud_net.c
         ${SOURCE_DIR}/hud_performance.c

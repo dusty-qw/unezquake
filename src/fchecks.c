@@ -272,7 +272,6 @@ static qbool FChecks_CheckFRulesetRequest (const char *s)
 	char *fServer;
 	const char *features;
 	char *emptystring = "";
-	const char *ruleset = Rulesets_Ruleset();
 	char shorthash[50];
 	char versionwithhash[50];
 	size_t name_len = strlen(cl.players[cl.playernum].name);

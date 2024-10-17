@@ -72,11 +72,13 @@ cvar_t teaminlay_interval = { "teaminlay_interval", "1" }; // Frequency of sendi
 
 qbool Inlay_Parse_Message(char* msg, int player_slot)
 {
+    char* p;
+
     // Ensure there are at least 4 commas for the sections.
     // Expecting: <armor>,<health>,<weapon>,<powerups>,<location>,<msg>
     const int expected = 5;
     int commas = 0;
-    for (char* p = msg; *p; ++p) {
+    for (p = msg; *p; ++p) {
         if (*p == ',') {
             commas++;
             if (commas == expected) {
@@ -161,13 +163,14 @@ qbool Inlay_Handle_Message(char *s, int flags, int offset)
 
 qbool Inlay_Should_Hide_Due_To_Recent_Overlay_Update(void)
 {
+    int i;
     // If the inlay setting is `1` (auto) we will attempt to disable
     // inlay if we're receiving overlay updates. Players can always
     // set `/teaminlay 2` to always force inlay on.
     extern ti_player_t ti_clients[MAX_CLIENTS];
     if (teaminlay.integer == 1) {
         double recentTime = r_refdef2.time - 3;
-        for (int i = 0; i < MAX_CLIENTS; ++i) {
+        for (i = 0; i < MAX_CLIENTS; ++i) {
             if (ti_clients[i].time > recentTime)
                 return true;
         }
@@ -354,6 +357,8 @@ static int SCR_HudDrawInlayPlayer(inlay_player_t *player, float x, int y, int ma
 // This is the current client deciding to draw the inlay based on current info.
 void SCR_Draw_Inlay(void)
 {
+    int i;
+
     // Do not display inlay unless it is enabled and we are in a teamplay mode.
     if (!cl.teamplay || !scr_teaminlay.integer)
         return;
@@ -395,7 +400,7 @@ void SCR_Draw_Inlay(void)
     // Determine what we need for this update.
     int slots[MAX_CLIENTS];
     int slots_len = 0;
-    for (int i = 0; i < MAX_CLIENTS; ++i) {
+    for (i = 0; i < MAX_CLIENTS; ++i) {
         // Skip players that haven't updated in a while.
         if (!inlay_clients[i].time || ((inlay_clients[i].time + TI_TIMEOUT) < r_refdef2.time))
             continue;
@@ -442,7 +447,7 @@ void SCR_Draw_Inlay(void)
     Draw_AlphaRectangleRGB(x, y, w, h * FONTWIDTH, 0, true, RGBAVECT_TO_COLOR(col));            
 
     // Draw player info lines..
-    for (int i = 0; i < slots_len; ++i) {
+    for (i = 0; i < slots_len; ++i) {
         int slot = slots[i];
         SCR_HudDrawInlayPlayer(&inlay_clients[slot], x, y, max_name_length, max_loc_length, false, scale, scr_teaminlay_proportional.integer);
         y += FONTWIDTH * scale;
@@ -451,7 +456,9 @@ void SCR_Draw_Inlay(void)
 
 void Inlay_GameStart(void)
 {
-    for (int i = 0; i < MAX_CLIENTS; ++i) {
+    int i;
+
+    for (i = 0; i < MAX_CLIENTS; ++i) {
         // Skip players that haven't updated in a while.
         inlay_player_t* player = &inlay_clients[i];
         if (!player->time || ((player->time + TI_TIMEOUT) < r_refdef2.time))
