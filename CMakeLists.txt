@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(ezquake C)
+project(unezquake C)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     enable_language(OBJC)
@@ -140,7 +140,7 @@ endif()
 
 # Place special CMake targets in separate VS/Xcode folder
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
-set_property(GLOBAL PROPERTY VS_STARTUP_PROJECT "ezquake")
+set_property(GLOBAL PROPERTY VS_STARTUP_PROJECT "unezquake")
 
 set(SOURCE_DIR ${PROJECT_SOURCE_DIR}/src)
 
@@ -777,8 +777,8 @@ set_source_files_properties(${macos_icon} PROPERTIES MACOSX_PACKAGE_LOCATION Res
 # Windows icon, and exe metadata
 set(windows_icon "${CMAKE_CURRENT_BINARY_DIR}/ezQuake.rc")
 set(EZQUAKE_RESOURCE_AUTHOR "QW-Group")
-set(EZQUAKE_RESOURCE_NAME "ezQuake")
-set(EZQUAKE_RESOURCE_DESCRIPTION "ezQuake - a QuakeWorld client")
+set(EZQUAKE_RESOURCE_NAME "unezQuake")
+set(EZQUAKE_RESOURCE_DESCRIPTION "unezQuake - a QuakeWorld client")
 set(EZQUAKE_RESOURCE_ICON "${PROJECT_SOURCE_DIR}/ezquake.ico")
 set(EZQUAKE_RESOURCE_VERSION "${version_major},${version_minor},${version_patch},${version_build}")
 set(EZQUAKE_RESOURCE_COMMIT "${version_commit}")
@@ -792,7 +792,7 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     set(TARGET_TYPE MACOSX_BUNDLE)
 endif()
 
-add_executable(ezquake ${TARGET_TYPE}
+add_executable(unezquake ${TARGET_TYPE}
         ${main}
         ${sys}
         ${central}
@@ -812,11 +812,11 @@ add_executable(ezquake ${TARGET_TYPE}
         $<IF:$<PLATFORM_ID:Windows>,${windows_icon},>
 )
 
-target_include_directories(ezquake PRIVATE
+target_include_directories(unezquake PRIVATE
         ${SOURCE_DIR}/qwprot/src
 )
 
-target_compile_definitions(ezquake PRIVATE
+target_compile_definitions(unezquake PRIVATE
         BUILDSTRING="${CMAKE_SYSTEM_NAME}"
         CPUSTRING="${CMAKE_SYSTEM_PROCESSOR}"
 
@@ -845,7 +845,7 @@ target_compile_definitions(ezquake PRIVATE
         PCRE2_CODE_UNIT_WIDTH=8
 )
 
-target_link_libraries(ezquake PRIVATE
+target_link_libraries(unezquake PRIVATE
         $<$<BOOL:${RENDERER_MODERN_OPENGL}>:shaders_modern>
         $<$<BOOL:${RENDERER_CLASSIC_OPENGL}>:shaders_classic>
         documentation
@@ -879,28 +879,28 @@ target_link_libraries(ezquake PRIVATE
 )
 
 if(MATH)
-    target_link_libraries(ezquake PRIVATE ${MATH})
+    target_link_libraries(unezquake PRIVATE ${MATH})
 endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-    string(TOLOWER "ezQuake" EXECUTABLE_NAME)
+    string(TOLOWER "unezQuake" EXECUTABLE_NAME)
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
-    string(TOLOWER "ezquake" EXECUTABLE_NAME)
+    string(TOLOWER "unezquake" EXECUTABLE_NAME)
 else()
-    string(TOLOWER "ezquake-${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}" EXECUTABLE_NAME)
+    string(TOLOWER "unezquake-${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}" EXECUTABLE_NAME)
 endif()
 
-set_target_properties(ezquake PROPERTIES OUTPUT_NAME ${EXECUTABLE_NAME})
+set_target_properties(unezquake PROPERTIES OUTPUT_NAME ${EXECUTABLE_NAME})
 
 # Make executable easy to find in project root, strip if release (macOS does this on its own).
 # If CMake was invoked with an installation prefix, don't override with project root.
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     set(INSTALL_DESTINATION "${PROJECT_SOURCE_DIR}" CACHE PATH "Installation Directory" FORCE)
 
-    install(TARGETS ezquake DESTINATION ${INSTALL_DESTINATION})
+    install(TARGETS unezquake DESTINATION ${INSTALL_DESTINATION})
 
     add_custom_command(
-        TARGET ezquake POST_BUILD
+        TARGET unezquake POST_BUILD
         COMMAND ${CMAKE_COMMAND} --install ${CMAKE_BINARY_DIR} $<$<CONFIG:Release>:--strip> --config $<CONFIG>
     )
 endif()
@@ -908,52 +908,52 @@ endif()
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     get_target_property(version git_version GIT_DESCRIBE)
 
-    set_target_properties(ezquake PROPERTIES
-            XCODE_ATTRIBUTE_PRODUCT_NAME                            "ezQuake"
-            XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER               "com.ezquake.ezQuake"
+    set_target_properties(unezquake PROPERTIES
+            XCODE_ATTRIBUTE_PRODUCT_NAME                            "unezQuake"
+            XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER               "com.unezquake.unezQuake"
             XCODE_ATTRIBUTE_MARKETING_VERSION                       "${version}"
             XCODE_ATTRIBUTE_CURRENT_PROJECT_VERSION                 "${version}"
             XCODE_ATTRIBUTE_LLVM_LTO                                $<IF:$<OR:$<CONFIG:Debug>,$<NOT:$<BOOL:${ENABLE_LTO}>>>,NO,Monolithic>
             XCODE_ATTRIBUTE_GCC_OPTIMIZATION_LEVEL                  $<IF:$<CONFIG:Debug>,0,3>
             XCODE_ATTRIBUTE_DEAD_CODE_STRIPPING                     YES
             XCODE_ATTRIBUTE_GENERATE_INFOPLIST_FILE                 YES
-            XCODE_ATTRIBUTE_INFOPLIST_KEY_CFBundleDisplayName       "ezQuake"
+            XCODE_ATTRIBUTE_INFOPLIST_KEY_CFBundleDisplayName       "unezQuake"
             XCODE_ATTRIBUTE_INFOPLIST_KEY_LSApplicationCategoryType "public.app-category.action-games"
             XCODE_ATTRIBUTE_INFOPLIST_KEY_NSHumanReadableCopyright  "GNU General Public License, version 2"
             MACOSX_BUNDLE_ICON_FILE                                 "ezquake"
     )
 
     if(ENABLE_SANDBOX)
-        set_target_properties(ezquake PROPERTIES
+        set_target_properties(unezquake PROPERTIES
                 XCODE_ATTRIBUTE_ENABLE_APP_SANDBOX                 YES
                 XCODE_ATTRIBUTE_ENABLE_HARDENED_RUNTIME            YES
                 XCODE_ATTRIBUTE_CODE_SIGN_INJECT_BASE_ENTITLEMENTS YES
-                XCODE_ATTRIBUTE_CODE_SIGN_ENTITLEMENTS             "misc/install/ezquake.entitlements.plist"
+                XCODE_ATTRIBUTE_CODE_SIGN_ENTITLEMENTS             "misc/install/unezquake.entitlements.plist"
         )
     endif()
 
     add_custom_command(
-            TARGET ezquake POST_BUILD
+            TARGET unezquake POST_BUILD
             COMMAND /usr/libexec/PlistBuddy
             -c "Add :NSHighResolutionCapable bool YES"
-            "$<TARGET_FILE_DIR:ezquake>/../Info.plist"
+            "$<TARGET_FILE_DIR:unezquake>/../Info.plist"
     )
 
     # qw:// protocol support
     add_custom_command(
-            TARGET ezquake POST_BUILD
+            TARGET unezquake POST_BUILD
             COMMAND /usr/libexec/PlistBuddy
             -c "Add :CFBundleURLTypes array"
             -c "Add :CFBundleURLTypes:0 dict"
             -c "Add :CFBundleURLTypes:0:CFBundleURLName string QW"
             -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array"
             -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string qw"
-            "$<TARGET_FILE_DIR:ezquake>/../Info.plist"
+            "$<TARGET_FILE_DIR:unezquake>/../Info.plist"
     )
 
     # .mvd/.qwd/.dem file type support
     add_custom_command(
-            TARGET ezquake POST_BUILD
+            TARGET unezquake POST_BUILD
             COMMAND /usr/libexec/PlistBuddy
             -c "Add :CFBundleDocumentTypes array"
             -c "Add :CFBundleDocumentTypes:0 dict"
@@ -964,6 +964,6 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
             -c "Add :CFBundleDocumentTypes:0:CFBundleTypeExtensions: string mvd"
             -c "Add :CFBundleDocumentTypes:0:CFBundleTypeExtensions: string qwd"
             -c "Add :CFBundleDocumentTypes:0:CFBundleTypeExtensions: string dem"
-            "$<TARGET_FILE_DIR:ezquake>/../Info.plist"
+            "$<TARGET_FILE_DIR:unezquake>/../Info.plist"
     )
 endif()
