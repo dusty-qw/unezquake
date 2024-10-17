@@ -33,6 +33,7 @@ jobs:
           configurePreset: mingw64-${{ matrix.platform }}-cross
           buildPreset: mingw64-${{ matrix.platform }}-cross-release
 
+          
     - name: Create checksum
       run: |
            md5sum unezquake.exe > unezquake.md5
