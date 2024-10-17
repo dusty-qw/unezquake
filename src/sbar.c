@@ -1647,7 +1647,7 @@ static void Sbar_DeathmatchOverlay(int start)
 				formatstr = tmp;
 				
 				// truncate name to specified width
-				snprintf(tracked, sizeof(tracked), tr->name);
+				snprintf(tracked, sizeof(tracked), "%s", tr->name);
 				tracked[bound(1, spectrack_maxname, sizeof(tracked)-1)] = '\0';
 				
 				fstart = strstr(formatstr, "%n"); // check format string for "%n"

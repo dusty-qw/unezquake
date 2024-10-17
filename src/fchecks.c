@@ -281,7 +281,7 @@ static qbool FChecks_CheckFRulesetRequest (const char *s)
 		return false;
 
 	// truncate build hash to 5 characters
-	snprintf(shorthash, sizeof(shorthash), VersionHash());
+	snprintf(shorthash, sizeof(shorthash), "%s", VersionHash());
 	shorthash[5] = '\0';
 	snprintf(versionwithhash, sizeof(versionwithhash), "unez&c06a%s-%s&r", VERSION_NUMBER, shorthash);
 
