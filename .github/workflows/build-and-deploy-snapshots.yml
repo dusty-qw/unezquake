@@ -2,7 +2,7 @@ name: build and deploy snapshots
 on: [push]
 jobs:
   windows-build:
-    if: github.repository == 'QW-Group/ezquake-source'
+    #if: github.repository == 'QW-Group/ezquake-source'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -35,7 +35,7 @@ jobs:
 
     - name: Create checksum
       run: |
-           md5sum ezquake.exe > ezquake.md5
+           md5sum unezquake.exe > unezquake.md5
 
     - name: Setup SSH
       env:
@@ -56,14 +56,14 @@ jobs:
       run: |
            mkdir -p upload/snapshots/windows/${{ matrix.platform }}/${{ matrix.config }}
            mkdir -p upload/snapshots/latest/windows/${{ matrix.platform }}/${{ matrix.config }}
-           cp ezquake.exe upload/snapshots/windows/${{ matrix.platform }}/${{ matrix.config }}/${{ env.DATE }}_${GITHUB_SHA::7}_ezquake.exe
-           cp ezquake.md5 upload/snapshots/windows/${{ matrix.platform }}/${{ matrix.config }}/${{ env.DATE }}_${GITHUB_SHA::7}_ezquake.md5
-           cp ezquake.exe upload/snapshots/latest/windows/${{ matrix.platform }}/${{ matrix.config }}/ezquake.exe
-           cp ezquake.md5 upload/snapshots/latest/windows/${{ matrix.platform }}/${{ matrix.config }}/ezquake.md5
+           cp unezquake.exe upload/snapshots/windows/${{ matrix.platform }}/${{ matrix.config }}/${{ env.DATE }}_${GITHUB_SHA::7}_unezquake.exe
+           cp unezquake.md5 upload/snapshots/windows/${{ matrix.platform }}/${{ matrix.config }}/${{ env.DATE }}_${GITHUB_SHA::7}_unezquake.md5
+           cp unezquake.exe upload/snapshots/latest/windows/${{ matrix.platform }}/${{ matrix.config }}/unezquake.exe
+           cp unezquake.md5 upload/snapshots/latest/windows/${{ matrix.platform }}/${{ matrix.config }}/unezquake.md5
            sftp -rp -o 'StrictHostKeyChecking no' -o 'UserKnownHostsFile /dev/null' -P ${{ secrets.SFTP_PORT }} ${{ secrets.SFTP_USERNAME }}@${{ secrets.SFTP_HOST }}:/snapshots <<< $'put -rp upload/snapshots/*'
 
   linux-build:
-    if: github.repository == 'QW-Group/ezquake-source'
+    #if: github.repository == 'QW-Group/ezquake-source'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -93,7 +93,7 @@ jobs:
 
     - name: Create checksum
       run: |
-           md5sum ezQuake-${{ matrix.platform }}.AppImage > ezQuake-${{ matrix.platform }}.AppImage.md5
+           md5sum unezQuake-${{ matrix.platform }}.AppImage > unezQuake-${{ matrix.platform }}.AppImage.md5
 
     - name: Setup SSH
       env:
@@ -114,8 +114,8 @@ jobs:
       run: |
            mkdir -p upload/snapshots/linux/${{ matrix.platform }}
            mkdir -p upload/snapshots/latest/linux/${{ matrix.platform }}
-           cp ezQuake-${{ matrix.platform }}.AppImage upload/snapshots/linux/${{ matrix.platform }}/${{ env.DATE }}_${GITHUB_SHA::7}_ezQuake-${{ matrix.platform }}.AppImage
-           cp ezQuake-${{ matrix.platform }}.AppImage.md5 upload/snapshots/linux/${{ matrix.platform }}/${{ env.DATE }}_${GITHUB_SHA::7}_ezQuake-${{ matrix.platform }}.AppImage.md5
-           cp ezQuake-${{ matrix.platform }}.AppImage upload/snapshots/latest/linux/${{ matrix.platform }}/ezQuake-${{ matrix.platform }}.AppImage
-           cp ezQuake-${{ matrix.platform }}.AppImage.md5 upload/snapshots/latest/linux/${{ matrix.platform }}/ezQuake-${{ matrix.platform }}.AppImage.md5
+           cp unezQuake-${{ matrix.platform }}.AppImage upload/snapshots/linux/${{ matrix.platform }}/${{ env.DATE }}_${GITHUB_SHA::7}_unezQuake-${{ matrix.platform }}.AppImage
+           cp unezQuake-${{ matrix.platform }}.AppImage.md5 upload/snapshots/linux/${{ matrix.platform }}/${{ env.DATE }}_${GITHUB_SHA::7}_unezQuake-${{ matrix.platform }}.AppImage.md5
+           cp unezQuake-${{ matrix.platform }}.AppImage upload/snapshots/latest/linux/${{ matrix.platform }}/unezQuake-${{ matrix.platform }}.AppImage
+           cp unezQuake-${{ matrix.platform }}.AppImage.md5 upload/snapshots/latest/linux/${{ matrix.platform }}/unezQuake-${{ matrix.platform }}.AppImage.md5
            sftp -rp -o 'StrictHostKeyChecking no' -o 'UserKnownHostsFile /dev/null' -P ${{ secrets.SFTP_PORT }} ${{ secrets.SFTP_USERNAME }}@${{ secrets.SFTP_HOST }}:/snapshots <<< $'put -rp upload/snapshots/*'
