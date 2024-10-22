@@ -136,4 +136,4 @@ step "Compiling sources (this might take a while, please wait)..."
 cmake --build build-dynamic --config Release
 
 printf "\n${GREEN}Build completed successfully.${NC}\n"
-printf "Copy ${YELLOW}ezquake-${CPU}${NC} into your quake directory.\n\n"
+printf "Copy ${YELLOW}unezquake-${CPU}${NC} into your quake directory.\n\n"
