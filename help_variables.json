@@ -19194,6 +19194,12 @@
       "group-id": "5",
       "type": "boolean"
     },
+    "scr_scoreboard_scale": {
+      "default": "1",
+      "desc": "Adjusts the size of the scoreboard.",
+      "group-id": "40",
+      "type": "float"
+    },
     "scr_scoreboard_showflagstats": {
       "default": "0",
       "desc": "This setting has no effect on TeamFortress which automatically enables flag stats",
