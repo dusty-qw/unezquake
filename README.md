@@ -17,8 +17,7 @@ unezQuake has all of the latest ezQake features, plus:
  * `cl_safeswitch_order "7 5 2 1"` - sets custom weapon order for cl_safeswitch (default is `""`)
  * `hud_[element]_border x` - sets a border of "x" thickness around any hud element  
  * `hud_[element]_border_color "R G B A"` - set color of border
- * `scr_teaminfo_show_mega` - see teammates' health in a different color if they have > 100 hp
- * `scr_teaminfo_mega_color` - change color of health value if > 100 hp
+ * `scr_teaminfo_mega_color` - change color of health in teamoverlay value if > 100 hp
 
 ## Support
 

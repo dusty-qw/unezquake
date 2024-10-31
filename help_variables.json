@@ -19472,6 +19472,12 @@
         }
       ]
     },
+    "scr_teaminfo_mega_color": {
+      "default": "9cf",
+      "desc": "Sets the color of teammate health when greater than 100.",
+      "group-id": "40",
+      "type": "string"
+    },
     "scr_teaminfo_name_width": {
       "default": "6",
       "desc": "Sets name width in scr_teaminfo.",
