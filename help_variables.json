@@ -1043,6 +1043,12 @@
       "group-id": "9",
       "type": "float"
     },
+    "cl_autohop": {
+      "default": "0",
+      "desc": "When enabled, player will hop automatically when holding down jump button.",
+      "group-id": "8",
+      "type": "boolean"
+    },
     "cl_autoshownick": {
       "default": "0",
       "desc": "Enable / disable automatically triggering shownick on teammates if they are in your crosshairs. Needs 'teammate' in tp_point list.",

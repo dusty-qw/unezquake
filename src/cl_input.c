@@ -27,6 +27,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 static void IN_AttackUp_CommonHide(void);
 void IN_SafeSwitch(void);
 
+cvar_t cl_autohop = { "cl_autohop", "0", 0, Rulesets_OnChange_cl_autohop };
 cvar_t cl_anglespeedkey = { "cl_anglespeedkey","1.5" };
 cvar_t cl_backspeed = { "cl_backspeed","400" };
 cvar_t cl_c2spps = { "cl_c2spps","0" };
@@ -95,7 +96,7 @@ state bit 2 is edge triggered on the down to up transition
 kbutton_t in_mlook, in_klook;
 kbutton_t in_left, in_right, in_forward, in_back;
 kbutton_t in_lookup, in_lookdown, in_moveleft, in_moveright;
-kbutton_t in_strafe, in_speed, in_use, in_jump, in_pogo, in_attack, in_attack2;
+kbutton_t in_strafe, in_speed, in_use, in_jump, in_autohop, in_attack, in_attack2;
 kbutton_t in_up, in_down;
 
 int in_impulse;
@@ -444,45 +445,30 @@ static qbool IN_ShouldJumpBeMoveUp(void)
 
 void IN_JumpDown(void)
 {
+	kbutton_t *jumporautohop = cl_autohop.integer ? &in_autohop : &in_jump;
 	qbool up = IN_ShouldJumpBeMoveUp();
-	KeyDown(up ? &in_up : &in_jump);
+	KeyDown(up ? &in_up : jumporautohop);
+
+	if (cl_autohop.integer)
+	{
+		if (!up)
+			in_autohop.state |= 8; // Pogo: ON
+		else
+			in_autohop.state &= ~8; // Pogo: OFF
+	}
 }
 
 void IN_JumpUp(void)
 {
-	if (cl_smartjump.value)
-		KeyUp(&in_up);
-	KeyUp(&in_jump);
-}
-
-void IN_PogoDown(void)
-{
-	if (Rulesets_RestrictPogo()) {
-		Com_Printf("+pogo is disallowed in current ruleset.\n");
-		return;
-	}
-
-	qbool up = IN_ShouldJumpBeMoveUp();
-	KeyDown(up ? &in_up : &in_pogo);
-
-	if (!up)
-		in_pogo.state |= 8; // Pogo: ON
-	else
-		in_pogo.state &= ~8; // Pogo: OFF
-}
-
-void IN_PogoUp(void)
-{
-	if (Rulesets_RestrictPogo()) {
-		Com_Printf("-pogo is disallowed in current ruleset.\n");
-		return;
-	}
+	kbutton_t *jumporautohop = cl_autohop.integer ? &in_autohop : &in_jump;
 
 	if (cl_smartjump.value)
 		KeyUp(&in_up);
 
-	KeyUp(&in_pogo);
-	in_pogo.state &= ~8; // Pogo: OFF
+	KeyUp(jumporautohop);
+
+	if (cl_autohop.integer)
+		in_autohop.state &= ~8; // Pogo: OFF
 }
 
 // called within 'impulse' or 'weapon' commands, remembers it's first 10 (MAXWEAPONS) arguments
@@ -1046,12 +1032,12 @@ void CL_FinishMove(usercmd_t* cmd)
 		cmd->buttons |= 2;
 	in_jump.state &= ~2;
 
-	if (in_pogo.state & 1) {
-		if (in_pogo.state & 8 || cl.onground)
+	if (in_autohop.state & 1) {
+		if (in_autohop.state & 8 || cl.onground)
 			cmd->buttons |= BUTTON_JUMP;
-		in_pogo.state ^= 8; // Toggle Pogo state.
+		in_autohop.state ^= 8; // Toggle Pogo state.
 	}
-	in_pogo.state &= ~2;
+	in_autohop.state &= ~2;
 
 	if (in_use.state & 3)
 		cmd->buttons |= 4;
@@ -1345,8 +1331,6 @@ void CL_InitInput(void)
 	Cmd_AddCommand("-use", IN_UseUp);
 	Cmd_AddCommand("+jump", IN_JumpDown);
 	Cmd_AddCommand("-jump", IN_JumpUp);
-	Cmd_AddCommand("+pogo", IN_PogoDown);
-	Cmd_AddCommand("-pogo", IN_PogoUp);
 	Cmd_AddCommand("impulse", IN_Impulse);
 	Cmd_AddCommand("weapon", IN_Weapon);
 	Cmd_AddCommand("+klook", IN_KLookDown);
@@ -1372,6 +1356,7 @@ void CL_InitInput(void)
 	Cvar_Register(&cl_movespeedkey);
 	Cvar_Register(&cl_yawspeed);
 	Cvar_Register(&cl_pitchspeed);
+	Cvar_Register(&cl_autohop);
 	Cvar_Register(&cl_anglespeedkey);
 	Cvar_Register(&cl_socd);
 	Cvar_Register(&cl_easyaircontrol);
