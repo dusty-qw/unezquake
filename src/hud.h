@@ -80,6 +80,7 @@ typedef struct hud_s
     cvar_t* frame;                      // Frame cvar.
     cvar_t* frame_color;                // Frame color cvar.
     byte    frame_color_cache[4];       // Cache for parsed frame color.
+    qbool   frame_hide;                 // Toggle whether frame should be displayed or not.
 
     cvar_t* border;                     // Border cvar
     cvar_t* border_color;                // Border color cvar.
