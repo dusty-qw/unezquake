@@ -30,7 +30,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: windows-multi-x64
-        path: unezquake.exe
+        path: build-msbuild-x64/Release/unezquake.exe
 
   macos-build:
     runs-on: macos-latest
@@ -100,7 +100,7 @@ jobs:
                 lipo -create -output unezQuake.app/Contents/MacOS/unezQuake \
                     artifacts/x64/unezQuake.app/Contents/MacOS/unezQuake \
                     artifacts/arm64/unezQuake.app/Contents/MacOS/unezQuake
-                codesign --force --sign - --entitlements misc/install/unezQuake.entitlements.plist --options runtime --timestamp unezQuake.app
+                codesign --force --sign - --entitlements dist/macOS/unezquake.entitlements.plist --options runtime --timestamp unezQuake.app
                 zip -r unezQuake.zip unezQuake.app
 
           - name: Delete macOS arch specific builds

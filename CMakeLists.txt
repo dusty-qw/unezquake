@@ -771,7 +771,7 @@ get_target_property(version_build git_version REVISION)
 get_target_property(version_commit git_version COMMIT)
 
 # macOS icon
-set(macos_icon "${PROJECT_SOURCE_DIR}/misc/install/ezquake.icns")
+set(macos_icon "${PROJECT_SOURCE_DIR}/dist/macOS/ezquake.icns")
 set_source_files_properties(${macos_icon} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
 
 # Windows icon, and exe metadata
@@ -779,10 +779,10 @@ set(windows_icon "${CMAKE_CURRENT_BINARY_DIR}/ezQuake.rc")
 set(EZQUAKE_RESOURCE_AUTHOR "QW-Group")
 set(EZQUAKE_RESOURCE_NAME "unezQuake")
 set(EZQUAKE_RESOURCE_DESCRIPTION "unezQuake - a QuakeWorld client")
-set(EZQUAKE_RESOURCE_ICON "${PROJECT_SOURCE_DIR}/ezquake.ico")
+set(EZQUAKE_RESOURCE_ICON "${PROJECT_SOURCE_DIR}/dist/windows/ezquake.ico")
 set(EZQUAKE_RESOURCE_VERSION "${version_major},${version_minor},${version_patch},${version_build}")
 set(EZQUAKE_RESOURCE_COMMIT "${version_commit}")
-configure_file("${PROJECT_SOURCE_DIR}/ezQuake.rc.in" ${windows_icon} @ONLY)
+configure_file("${PROJECT_SOURCE_DIR}/dist/windows/ezQuake.rc.in" ${windows_icon} @ONLY)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     # Mark the executable as a non-console application
@@ -892,19 +892,6 @@ endif()
 
 set_target_properties(unezquake PROPERTIES OUTPUT_NAME ${EXECUTABLE_NAME})
 
-# Make executable easy to find in project root, strip if release (macOS does this on its own).
-# If CMake was invoked with an installation prefix, don't override with project root.
-if(NOT CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-    set(INSTALL_DESTINATION "${PROJECT_SOURCE_DIR}" CACHE PATH "Installation Directory" FORCE)
-
-    install(TARGETS unezquake DESTINATION ${INSTALL_DESTINATION})
-
-    add_custom_command(
-        TARGET unezquake POST_BUILD
-        COMMAND ${CMAKE_COMMAND} --install ${CMAKE_BINARY_DIR} $<$<CONFIG:Release>:--strip> --config $<CONFIG>
-    )
-endif()
-
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     get_target_property(version git_version GIT_DESCRIBE)
 
@@ -920,50 +907,17 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
             XCODE_ATTRIBUTE_INFOPLIST_KEY_CFBundleDisplayName       "unezQuake"
             XCODE_ATTRIBUTE_INFOPLIST_KEY_LSApplicationCategoryType "public.app-category.action-games"
             XCODE_ATTRIBUTE_INFOPLIST_KEY_NSHumanReadableCopyright  "GNU General Public License, version 2"
-            MACOSX_BUNDLE_ICON_FILE                                 "ezquake"
+            XCODE_ATTRIBUTE_INFOPLIST_FILE                          "${PROJECT_SOURCE_DIR}/dist/macOS/MacOSXBundleInfo.plist.in"
     )
 
     if(ENABLE_SANDBOX)
-        set_target_properties(unezquake PROPERTIES
-                XCODE_ATTRIBUTE_ENABLE_APP_SANDBOX                 YES
-                XCODE_ATTRIBUTE_ENABLE_HARDENED_RUNTIME            YES
-                XCODE_ATTRIBUTE_CODE_SIGN_INJECT_BASE_ENTITLEMENTS YES
-                XCODE_ATTRIBUTE_CODE_SIGN_ENTITLEMENTS             "misc/install/unezquake.entitlements.plist"
+        set_target_properties(ezquake PROPERTIES
+                XCODE_ATTRIBUTE_ENABLE_APP_SANDBOX                                         YES
+                XCODE_ATTRIBUTE_ENABLE_HARDENED_RUNTIME                                    YES
+                XCODE_ATTRIBUTE_CODE_SIGN_INJECT_BASE_ENTITLEMENTS[variant=Debug]          YES
+                XCODE_ATTRIBUTE_CODE_SIGN_INJECT_BASE_ENTITLEMENTS[variant=RelWithDebInfo] YES
+                XCODE_ATTRIBUTE_CODE_SIGN_INJECT_BASE_ENTITLEMENTS[variant=Release]        NO
+                XCODE_ATTRIBUTE_CODE_SIGN_ENTITLEMENTS "dist/macOS/unezquake.entitlements.plist"
         )
     endif()
-
-    add_custom_command(
-            TARGET unezquake POST_BUILD
-            COMMAND /usr/libexec/PlistBuddy
-            -c "Add :NSHighResolutionCapable bool YES"
-            "$<TARGET_FILE_DIR:unezquake>/../Info.plist"
-    )
-
-    # qw:// protocol support
-    add_custom_command(
-            TARGET unezquake POST_BUILD
-            COMMAND /usr/libexec/PlistBuddy
-            -c "Add :CFBundleURLTypes array"
-            -c "Add :CFBundleURLTypes:0 dict"
-            -c "Add :CFBundleURLTypes:0:CFBundleURLName string QW"
-            -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array"
-            -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string qw"
-            "$<TARGET_FILE_DIR:unezquake>/../Info.plist"
-    )
-
-    # .mvd/.qwd/.dem file type support
-    add_custom_command(
-            TARGET unezquake POST_BUILD
-            COMMAND /usr/libexec/PlistBuddy
-            -c "Add :CFBundleDocumentTypes array"
-            -c "Add :CFBundleDocumentTypes:0 dict"
-            -c "Add :CFBundleDocumentTypes:0:CFBundleTypeName string \"Quake demo\""
-            -c "Add :CFBundleDocumentTypes:0:CFBundleTypeRole string Viewer"
-            -c "Add :CFBundleDocumentTypes:0:CFBundleTypeIconFile string ezquake.icns"
-            -c "Add :CFBundleDocumentTypes:0:CFBundleTypeExtensions array"
-            -c "Add :CFBundleDocumentTypes:0:CFBundleTypeExtensions: string mvd"
-            -c "Add :CFBundleDocumentTypes:0:CFBundleTypeExtensions: string qwd"
-            -c "Add :CFBundleDocumentTypes:0:CFBundleTypeExtensions: string dem"
-            "$<TARGET_FILE_DIR:unezquake>/../Info.plist"
-    )
 endif()

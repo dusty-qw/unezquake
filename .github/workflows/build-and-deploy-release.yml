@@ -25,7 +25,13 @@ jobs:
 
     - name: Create checksum
       run: |
+        cp build-msbuild-*/Release/unezquake.exe .
         md5sum unezquake.exe > unezquake.md5
+
+    - name: Invoke msys
+      uses: msys2/setup-msys2@v2
+      with:
+          install: openssh
 
     - name: Setup SSH
       env:
