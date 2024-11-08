@@ -44,7 +44,8 @@ typedef enum {
 	rs_thunderdome,
 	rs_qcon,
 	rs_modern2020,
-	rs_mtfl
+	rs_mtfl,
+	rs_smackdrive
 } ruleset_t;
 
 const char* Rulesets_Ruleset(void);

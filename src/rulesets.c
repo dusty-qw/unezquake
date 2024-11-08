@@ -57,7 +57,7 @@ qbool RuleSets_DisallowExternalTexture(struct model_s *mod)
 		case MOD_EYES:
 			return true;
 		case MOD_BACKPACK:
-			return rulesetDef.ruleset == rs_smackdown || rulesetDef.ruleset == rs_qcon;
+			return rulesetDef.ruleset == rs_smackdown || rulesetDef.ruleset == rs_qcon || rulesetDef.ruleset == rs_smackdrive;
 		default:
 			return false;
 	}
@@ -74,7 +74,7 @@ qbool RuleSets_DisallowSimpleTexture(model_t* mod)
 
 		case MOD_BACKPACK:
 			// Now allowed in Thunderdome...
-			return rulesetDef.ruleset == rs_smackdown || rulesetDef.ruleset == rs_qcon;
+			return rulesetDef.ruleset == rs_smackdown || rulesetDef.ruleset == rs_qcon || rulesetDef.ruleset == rs_smackdrive;
 
 		default:
 			return false; // replacement always allowed
@@ -94,10 +94,10 @@ qbool RuleSets_DisallowModelOutline(struct model_s *mod)
 		case MOD_THUNDERBOLT:
 			return true;
 		case MOD_BACKPACK:
-			return !cls.demoplayback && (rulesetDef.ruleset == rs_qcon || rulesetDef.ruleset == rs_smackdown);
+			return !cls.demoplayback && (rulesetDef.ruleset == rs_qcon || rulesetDef.ruleset == rs_smackdown || rulesetDef.ruleset == rs_smackdrive);
 		default:
 			// return to just rs_qcon once backface outlining tested
-//			return !cls.demoplayback && (rulesetDef.ruleset == rs_qcon || rulesetDef.ruleset == rs_smackdown);
+//			return !cls.demoplayback && (rulesetDef.ruleset == rs_qcon || rulesetDef.ruleset == rs_smackdown || rulesetDef.ruleset == rs_smackdrive);
 			return !cls.demoplayback && (rulesetDef.ruleset == rs_qcon);
 	}
 }
@@ -108,6 +108,7 @@ float RuleSets_ModelOutlineScale(void) {
 	extern cvar_t gl_outline_scale_model;
 	switch(rulesetDef.ruleset) {
 		case rs_smackdown:
+		case rs_smackdrive:
 		case rs_qcon:
 			return bound(0.0f, gl_outline_scale_model.value, 1.0f);
 		default:
@@ -130,6 +131,7 @@ qbool Rulesets_AllowTimerefresh(void)
 {
 	switch(rulesetDef.ruleset) {
 		case rs_smackdown:
+		case rs_smackdrive:
 		case rs_thunderdome:
 		case rs_modern2020:
 		case rs_qcon:
@@ -144,6 +146,7 @@ qbool Rulesets_AllowNoShadows(void)
 	switch(rulesetDef.ruleset) {
 		case rs_mtfl:
 		case rs_smackdown:
+		case rs_smackdrive:
 		case rs_thunderdome:
 		case rs_modern2020:
 		case rs_qcon:
@@ -216,6 +219,7 @@ qbool Rulesets_RestrictTCL(void)
 {
 	switch(rulesetDef.ruleset) {
 		case rs_smackdown:
+		case rs_smackdrive:
 		case rs_thunderdome:
 		case rs_modern2020:
 		case rs_qcon:
@@ -239,6 +243,8 @@ const char *Rulesets_Ruleset(void)
 			return "qcon";
 		case rs_modern2020:
 			return "modern2020";
+		case rs_smackdrive:
+			return "smackdrive";
 		default:
 			return "default";
 	}
@@ -546,6 +552,7 @@ qbool Ruleset_BlockHudPicChange(void)
 	switch (rulesetDef.ruleset) {
 	case rs_qcon:
 	case rs_smackdown:
+	case rs_smackdrive:
 	case rs_thunderdome:
 	case rs_modern2020:
 		return cls.state != ca_disconnected && !(cl.standby || cl.spectator || cls.demoplayback);
