@@ -51,7 +51,7 @@ static cvar_t cl_bobhead  = { "cl_bobhead",  "0"   };
 
 cvar_t	cl_rollspeed = {"cl_rollspeed", "200"};
 cvar_t	cl_rollangle = {"cl_rollangle", "0"};
-cvar_t	cl_rollalpha = {"cl_rollalpha", "20"};
+cvar_t	cl_rollalpha = {"cl_rollalpha", "20", 0, Rulesets_OnChange_cl_rollalpha};
 cvar_t	v_kicktime = {"v_kicktime", "0.0"};
 cvar_t	v_kickroll = {"v_kickroll", "0.0"};
 cvar_t	v_kickpitch = {"v_kickpitch", "0.0"};
