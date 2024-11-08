@@ -504,6 +504,20 @@ void Rulesets_OnChange_cl_fakeshaft(cvar_t *var, char *value, qbool *cancel)
 	}
 }
 
+void Rulesets_OnChange_cl_rollalpha(cvar_t *var, char *value, qbool *cancel)
+{
+	float fval = Q_atof(value); // this is used to check value validity
+
+	if (!cl.spectator && cls.state != ca_disconnected) {
+		if (fval == 20)
+			Cbuf_AddText(va("say rollalpha: %s\n", "disabled"));
+		else if (fval == 0)
+			Cbuf_AddText(va("say rollalpha: %s\n", "enabled"));
+		else
+			Cbuf_AddText(va("say rollalpha: %s\n", value));
+	}
+}
+
 void Rulesets_OnChange_tp_triggers(cvar_t *var, char *value, qbool *cancel)
 {
 	int ival = Q_atoi(value);	// this is used in the code
