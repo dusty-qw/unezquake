@@ -46,6 +46,7 @@ cvar_t cl_chasecam = {"cl_chasecam", "1"};		// "through the eyes" view
 vec3_t cam_viewangles;
 double cam_lastviewtime;
 
+void CL_Track (int trackview);
 void CL_TrackMV1_f(void);
 void CL_TrackMV2_f(void);
 void CL_TrackMV3_f(void);
@@ -384,6 +385,12 @@ void Cam_Track(usercmd_t *cmd)
 	{
 		Cam_CheckHighTarget(); 
 	}
+
+	if (!cls.mvdplayback && !cl_hightrack.value) {
+	//	if (cl.ideal_track != cl.spec_track && cls.realtime - last_lock > 0.1) {
+			Cam_Lock(cl.ideal_track);
+	//	}
+	}
 	
 	if (!cl.autocam || cls.state != ca_active)
 	{
@@ -616,7 +623,7 @@ void Cam_Reset(void)
 {
 	cl.autocam = CAM_NONE;
 	cl.spec_track = 0;
-	cl.ideal_track = 0;
+	//cl.ideal_track = 0;
 	cl.spec_locked = false;
 }
 
