@@ -304,7 +304,7 @@ static void DumpAliases(FILE *f)
 
 	fprintf(f, "unaliasall\n");
 	for (count = maxlen = 0, a = cmd_alias;	(count < (sizeof(sorted_aliases) / sizeof(*sorted_aliases))) && a; a = a->next) {
-		if (!(a->flags & (ALIAS_SERVER|ALIAS_TEMP))) {
+		if (!(a->flags & (ALIAS_SERVER|ALIAS_TEMP|ALIAS_SYSTEM))) {
 			maxlen = max(maxlen, strlen(a->name));
 			count++;
 		}

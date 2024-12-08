@@ -191,6 +191,7 @@ void Cmd_AddLegacyCommand (char *oldname, char *newname);
 #define ALIAS_SERVER			2
 #define ALIAS_TEMP				4
 #define	ALIAS_HAS_PARAMETERS	8
+#define ALIAS_SYSTEM 	16
 
 typedef struct cmd_alias_s {
 	struct cmd_alias_s	*hash_next;
