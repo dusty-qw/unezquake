@@ -18,28 +18,28 @@ jobs:
           - os: windows-latest
             configurePreset: msbuild-x64
             buildPreset: msbuild-x64-release
-            name: ezQuake-windows-x64
-            artifact: "ezquake.exe"
+            name: unezQuake-windows-x64
+            artifact: "unezquake.exe"
             container: null
           - os: macos-latest
             configurePreset: macos-arm64
             buildPreset: macos-arm64-release
-            name: ezQuake-macOS-arm64
-            artifact: "ezQuake.zip"
+            name: unezQuake-macOS-arm64
+            artifact: "unezQuake.zip"
             packages: ["autoconf", "automake", "libtool"]
             container: null
           - os: macos-latest
             configurePreset: macos-x64
             buildPreset: macos-x64-release
-            name: ezQuake-macOS-x64
-            artifact: "ezQuake.zip"
+            name: unezQuake-macOS-x64
+            artifact: "unezQuake.zip"
             packages: ["autoconf", "automake", "libtool"]
             container: null
           - os: ubuntu-latest
             configurePreset: dynamic
             buildPreset: dynamic-release
-            name: ezQuake-linux-x86_64
-            artifact: "ezQuake-x86_64.AppImage"
+            name: unezQuake-linux-x86_64
+            artifact: "unezQuake-x86_64.AppImage"
             cflags: "-march=nehalem"
             packages: ["build-essential", "ca-certificates", "cmake", "curl", "file", "git", "libcurl4-openssl-dev", "libexpat1-dev", "libfreetype-dev", "libfuse2", "libjansson-dev", "libjpeg-dev", "libminizip-dev", "libpcre2-dev", "libpng-dev", "libsdl2-2.0-0", "libsdl2-dev", "libsndfile1-dev", "libspeex-dev", "libspeexdsp-dev", "ninja-build", "unzip"]
             container:
@@ -105,16 +105,19 @@ jobs:
       env:
         CFLAGS: ${{ matrix.cflags }}
 
+
+    - name: Make script executable
+      run: chmod +x ./misc/appimage/appimage-manual_creation.sh
     - name: Generate Linux AppImage
       run: |
-        export EXECUTABLE=$(echo build-${{ matrix.configurePreset }}/Release/ezquake*)
+        export EXECUTABLE=$(echo build-${{ matrix.configurePreset }}/Release/unezquake*)
         ./misc/appimage/appimage-manual_creation.sh
-        mv ezQuake-x86_64.AppImage build-${{ matrix.configurePreset }}/Release/
+        mv unezQuake-x86_64.AppImage build-${{ matrix.configurePreset }}/Release/
       if: matrix.os == 'ubuntu-latest'
 
     - name: Preserve macOS executable bit
       run: |
-        zip -r -9 ezQuake.zip ezQuake.app
+        zip -r -9 unezQuake.zip unezQuake.app
       working-directory: build-${{ matrix.configurePreset }}/Release
       if: matrix.os == 'macos-latest'
 
@@ -129,7 +132,7 @@ jobs:
   macos-universal:
     needs: build
 
-    name: "ezQuake-macOS-universal"
+    name: "unezQuake-macOS-universal"
     runs-on: macos-latest
 
     steps:
@@ -139,37 +142,37 @@ jobs:
     - name: Download ARM64 Build
       uses: actions/download-artifact@v4
       with:
-        name: ezQuake-macOS-arm64
+        name: unezQuake-macOS-arm64
         path: artifacts/arm64
 
     - name: Download Intel Build
       uses: actions/download-artifact@v4
       with:
-        name: ezQuake-macOS-x64
+        name: unezQuake-macOS-x64
         path: artifacts/x64
 
     - name: Create Universal Binary
       run: |
-        (cd artifacts/x64 && unzip -qq ezQuake.zip) && (cd artifacts/arm64 && unzip -qq ezQuake.zip)
-        cp -r artifacts/arm64/ezQuake.app .
-        lipo -create -output ezQuake.app/Contents/MacOS/ezQuake \
-            artifacts/x64/ezQuake.app/Contents/MacOS/ezQuake \
-            artifacts/arm64/ezQuake.app/Contents/MacOS/ezQuake
-        codesign --force --sign - --entitlements dist/macOS/ezquake.entitlements.plist --options runtime --timestamp ezQuake.app
-        zip -r ezQuake-macOS-universal.zip ezQuake.app
+        (cd artifacts/x64 && unzip -qq unezQuake.zip) && (cd artifacts/arm64 && unzip -qq unezQuake.zip)
+        cp -r artifacts/arm64/unezQuake.app .
+        lipo -create -output unezQuake.app/Contents/MacOS/unezQuake \
+            artifacts/x64/unezQuake.app/Contents/MacOS/unezQuake \
+            artifacts/arm64/unezQuake.app/Contents/MacOS/unezQuake
+        codesign --force --sign - --entitlements dist/macOS/unezquake.entitlements.plist --options runtime --timestamp unezQuake.app
+        zip -r unezQuake-macOS-universal.zip unezQuake.app
 
     - name: Delete macOS arch specific builds
       uses: geekyeggo/delete-artifact@v5
       with:
         name: |
-          ezQuake-macOS-arm64
-          ezQuake-macOS-x64
+          unezQuake-macOS-arm64
+          unezQuake-macOS-x64
 
     - name: Upload Build Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ezQuake-macOS-universal
-        path: ezQuake-macOS-universal.zip
+        name: unezQuake-macOS-universal
+        path: unezQuake-macOS-universal.zip
         compression-level: 9
 
   upload:
@@ -185,7 +188,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          path: ezquake
+          path: unezquake
           submodules: true
           # To get correct revision when generating version.json for source release tarball
           fetch-depth: 0
@@ -195,7 +198,7 @@ jobs:
         run: |
           RELEASE_DATE=$(git log -1 --format=%cI "${{ github.ref_name }}")
           echo "RELEASE_DATE=$RELEASE_DATE" >> $GITHUB_ENV
-        working-directory: ezquake
+        working-directory: unezquake
         if: github.event_name == 'release'
 
       - name: Collect GitHub release artifacts
@@ -225,7 +228,7 @@ jobs:
 
           # Generate source release with submodule, version.json etc
           (
-            cd "${GITHUB_WORKSPACE}/ezquake"
+            cd "${GITHUB_WORKSPACE}/unezquake"
             dist/gen-release.sh
             mv *.tar.gz "${dist_dir}/"
           )

@@ -916,7 +916,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     )
 
     if(ENABLE_SANDBOX)
-        set_target_properties(ezquake PROPERTIES
+        set_target_properties(unezquake PROPERTIES
                 XCODE_ATTRIBUTE_ENABLE_APP_SANDBOX                                         YES
                 XCODE_ATTRIBUTE_ENABLE_HARDENED_RUNTIME                                    YES
                 XCODE_ATTRIBUTE_CODE_SIGN_INJECT_BASE_ENTITLEMENTS[variant=Debug]          YES
