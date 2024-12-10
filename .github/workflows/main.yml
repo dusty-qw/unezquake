@@ -105,6 +105,9 @@ jobs:
       env:
         CFLAGS: ${{ matrix.cflags }}
 
+
+    - name: Make script executable
+      run: chmod +x ./misc/appimage/appimage-manual_creation.sh
     - name: Generate Linux AppImage
       run: |
         export EXECUTABLE=$(echo build-${{ matrix.configurePreset }}/Release/unezquake*)
