@@ -294,6 +294,8 @@ cvar_t cl_allow_remote_commands = {
 	OnChange_allow_remote_commands
 };
 
+cvar_t cl_allow_downloads = { "cl_allow_downloads", "0" };
+
 /// persistent client state
 clientPersistent_t	cls;
 
@@ -2002,6 +2004,7 @@ static void CL_InitLocal(void)
 
 	// remote command execution restrictions
 	Cvar_Register(&cl_allow_remote_commands);
+	Cvar_Register(&cl_allow_downloads);
 
 	snprintf(st, sizeof(st), "ezQuake %i", REVISION);
 
