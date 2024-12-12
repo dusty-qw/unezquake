@@ -1037,6 +1037,21 @@
         }
       ]
     },
+    "cl_allow_downloads": {
+      "default": "0",
+      "group-id": "9",
+      "type": "boolean",
+      "values": [
+        {
+          "description": "Don't allow downloads.",
+          "name": "0"
+        },
+        {
+          "description": "Allow downloads.",
+          "name": "1"
+        }
+      ]
+    },
     "cl_allow_remote_commands": {
       "default": "bf,changing,cmd ack,cmd new,cmd pext,cmd prespawn,cmd snap,cmd spawn,color,fullserverinfo,infoset,ktx_infoset,ktx_sinfoset,nextul,on_enter,on_enter_ctf,on_enter_ffa,on_spec_enter,on_spec_enter_ctf,on_spec_enter_ffa,packet,play,reconnect,say,sinfoset,skin,skins,team",
       "desc": "This variable controls which aliases and commands a remote server is allowed to execute on the client. Input a comma-separated list of commands to toggle access. The default values are adapted for KTX use.",

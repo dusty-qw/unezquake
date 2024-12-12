@@ -480,6 +480,13 @@ qbool CL_Download_Accept(const char *filename);
 // Returns true if the file exists, otherwise it attempts to start a download from the server.
 qbool CL_CheckOrDownloadFile(char *filename)
 {
+	extern cvar_t cl_allow_downloads;
+
+	if (!cl_allow_downloads.integer)
+	{
+		return true;
+	}
+
 	if (!CL_Download_Accept(filename))
 	{
 		return true;
