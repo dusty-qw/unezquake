@@ -653,6 +653,14 @@ void CL_Download_f (void){
 	char ondiskname[sizeof(cls.downloadname)]; // hack, save file to "right" place
 	extern char *CL_DemoDirectory(void);
 
+	extern cvar_t cl_allow_downloads;
+
+	if (!cl_allow_downloads.integer)
+	{
+		Com_Printf ("This command has been disabled for security reasons. Set cl_allow_downloads to 1 if you want to enable downloads.\n");
+		return;
+	}
+
 	if (cls.state == ca_disconnected) {
 		Com_Printf ("Must be connected.\n");
 		return;
