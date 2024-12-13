@@ -237,9 +237,6 @@ const char* FChecks_RulesetAdditionString(void)
 	// enemy skin forcing enabled
 	APPENDFEATURE((enemyforceskins.integer)," &cc80eskins&r");
 
-	// cl_socd (previously cl_iDrive) - strafing aid
-	APPENDFEATURE((cl_socd.integer)," &cc80socd&r");
-
 	// inlay enabled
 	APPENDFEATURE((scr_teaminlay.integer)," &cc80inlay&r");
 
