@@ -1634,6 +1634,10 @@ void CL_LinkPacketEntities(void)
 			ent.r_modelcolor[2] = ((float) state->colourmod[2] * 8.0f) / 256.0f;
 			ent.renderfx |= RF_FORCECOLOURMOD;
 		}
+		else
+		{
+			ent.renderfx &= ~RF_FORCECOLOURMOD;
+		}
 #endif
 
 		if (ent.model->flags & EF_ROTATE)
