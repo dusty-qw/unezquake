@@ -316,7 +316,7 @@ static void DumpAliases(FILE *f)
 	}
 
 	for (i = 0, a = cmd_alias; i < count; a = a->next) {
-		if (!(a->flags & (ALIAS_SERVER|ALIAS_TEMP)))
+		if (!(a->flags & (ALIAS_SERVER|ALIAS_TEMP|ALIAS_SYSTEM)))
 			sorted_aliases[i++] = a;
 	}
 
@@ -565,7 +565,7 @@ static void DeleteUserAliases(void)
 	for (a = cmd_alias; a; a = next) {
 		next = a->next;
 
-		if (!(a->flags & (ALIAS_SERVER|ALIAS_TEMP)))
+		if (!(a->flags & (ALIAS_SERVER|ALIAS_TEMP|ALIAS_SYSTEM)))
 			Cmd_DeleteAlias(a->name);
 	}
 }

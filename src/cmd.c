@@ -923,12 +923,11 @@ void Cmd_UnAliasAll_f (void)
 			}
 		}
 	} else {
-		for (a = cmd_alias; a ; a = next) {
+		for (a = cmd_alias; a; a = next) {
 			next = a->next;
 			if ((a->flags & ALIAS_SYSTEM) == 0) {
 				Cmd_DeleteAlias(a->name);
 			}
-
 		}
 	}
 }
