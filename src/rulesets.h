@@ -83,7 +83,7 @@ void Rulesets_OnChange_cl_autohop(cvar_t *var, char *value, qbool *cancel);
 void Rulesets_OnChange_cl_hud(cvar_t *var, char *value, qbool *cancel);
 void Rulesets_OnChange_inlay(cvar_t *var, char *value, qbool *cancel);
 void Rulesets_OnChange_cl_rollalpha(cvar_t *var, char *value, qbool *cancel);
-void Rulesets_OnChange_tp_triggers (cvar_t *var, char *value, qbool *cancel);
+void Rulesets_OnChange_allow_triggers (cvar_t *var, char *value, qbool *cancel);
 
 qbool Rulesets_ToggleWhenFlashed(void);
 qbool Rulesets_FullbrightModel(struct model_s* model);

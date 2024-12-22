@@ -24,9 +24,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "tp_triggers.h"
 #include "utils.h"
 
+cvar_t allow_triggers = {"allow_triggers", "0", 0, Rulesets_OnChange_allow_triggers};
 cvar_t tp_msgtriggers = {"tp_msgtriggers", "1"};
 cvar_t tp_soundtrigger = {"tp_soundtrigger", "~"};
-cvar_t tp_triggers = {"tp_triggers", "1", 0, Rulesets_OnChange_tp_triggers};
+cvar_t tp_triggers = {"tp_triggers", "1"};
 cvar_t tp_forceTriggers = {"tp_forceTriggers", "0"};
 // re-triggers stuff
 cvar_t re_sub[10] = {{"re_trigger_match_0", "", CVAR_ROM},
@@ -898,6 +899,7 @@ void TP_InitTriggers (void)
 	InitInternalTriggers();
 
 	Cvar_SetCurrentGroup(CVAR_GROUP_COMMUNICATION);
+	Cvar_Register (&allow_triggers);
 	Cvar_Register (&tp_msgtriggers);
 	Cvar_Register (&tp_soundtrigger);
 	Cvar_Register (&tp_triggers);

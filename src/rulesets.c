@@ -23,6 +23,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "rulesets.h"
 #include "input.h"
 
+extern cvar_t allow_triggers;
+
 /* FIXME: Figure out a nicer way to do all this */
 
 typedef struct rulesetDef_s {
@@ -175,7 +177,7 @@ float Rulesets_MaxFPS(void)
 
 qbool Rulesets_RestrictTriggers(void)
 {
-	return rulesetDef.restrictTriggers;
+	return !allow_triggers.integer;
 }
 
 qbool Rulesets_RestrictSound(const char* name)
@@ -518,7 +520,7 @@ void Rulesets_OnChange_cl_rollalpha(cvar_t *var, char *value, qbool *cancel)
 	}
 }
 
-void Rulesets_OnChange_tp_triggers(cvar_t *var, char *value, qbool *cancel)
+void Rulesets_OnChange_allow_triggers(cvar_t *var, char *value, qbool *cancel)
 {
 	int ival = Q_atoi(value);	// this is used in the code
 	float fval = Q_atof(value); // this is used to check value validity
