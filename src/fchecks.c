@@ -47,7 +47,7 @@ extern cvar_t cl_delay_packet;
 extern cvar_t r_fullbrightSkins;
 extern cvar_t cl_fakeshaft;
 extern cvar_t cl_socd;
-extern cvar_t tp_triggers;
+extern cvar_t allow_triggers;
 extern cvar_t cl_hud;
 extern cvar_t scr_teaminlay;
 extern cvar_t cl_autohop;
@@ -243,8 +243,8 @@ const char* FChecks_RulesetAdditionString(void)
 	// cl_hud enabled
 	APPENDFEATURE((cl_hud.integer)," &cc80cl_hud&r");
 
-	// tp_triggers
-	APPENDFEATURE((tp_triggers.integer)," &cc80triggers&r");
+	// allow_triggers
+	APPENDFEATURE((allow_triggers.integer)," &cc80triggers&r");
 
 	// cl_rollalpha
 	APPENDFEATURE((cl_rollalpha.integer != 20)," &cc80rollalpha&r");
