@@ -5351,7 +5351,7 @@
     },
     "gl_outline_scale_model": {
       "default": "1",
-      "desc": "Determines the scale of model outlines. Allows values 0 to 1 for rulesets smackdown, smackdrive and qcon, and 0 to 5 for other rulesets.",
+      "desc": "Determines the scale of model outlines. Allows values 0 to 1.",
       "group-id": "35",
       "remarks": "Requires vid_renderer 1",
       "type": "float"
