@@ -114,7 +114,7 @@ float RuleSets_ModelOutlineScale(void) {
 		case rs_qcon:
 			return bound(0.0f, gl_outline_scale_model.value, 1.0f);
 		default:
-			return bound(0.0f, gl_outline_scale_model.value, 5.0f);
+			return bound(0.0f, gl_outline_scale_model.value, 1.0f);
 	}
 }
 
