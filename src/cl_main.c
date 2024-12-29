@@ -290,8 +290,8 @@ cvar_t cl_debug_weapon_view     = { "cl_debug_weapon_view", "0" };
 
 // The following aliases and commands are required to allow KTX to work properly.
 #define KTX	"bf,changing,cmd ack,cmd new,cmd pext,cmd prespawn,cmd snap,cmd spawn,color,fullserverinfo," \
-		"infoset,ktx_infoset,ktx_sinfoset,nextul,on_enter,on_enter_ctf,on_enter_ffa,on_spec_enter,"  \
-		"on_spec_enter_ctf,on_spec_enter_ffa,packet,play,reconnect,say,sinfoset,skin,skins,team"
+		"infoset,ktx_infoset,ktx_sinfoset,nextul,on_connect,on_enter,on_enter_ctf,on_enter_ffa,on_matchend,on_matchstart,on_spec_enter,"  \
+		"on_spec_enter_ctf,on_spec_enter_ffa,packet,play,reconnect,say,sinfoset,skin,skins,team,track"
 
 static void KTX_Init_f(void);
 
@@ -3305,7 +3305,7 @@ static void KTX_Init_f(void)
 	Cbuf_AddTextEx(&cbuf_main, "systemalias ksound5 cmd ksound5\n");
 	Cbuf_AddTextEx(&cbuf_main, "systemalias ksound6 cmd ksound6\n");
 	Cbuf_AddTextEx(&cbuf_main, "systemalias kuinfo cmd kuinfo %0\n");
-	Cbuf_AddTextEx(&cbuf_main, "systemalias lastscores cmd lastscores %0\n");
+	Cbuf_AddTextEx(&cbuf_main, "systemalias lastscores cmd lastscoresktx %0\n");
 	Cbuf_AddTextEx(&cbuf_main, "systemalias laststats cmd laststats\n");
 	Cbuf_AddTextEx(&cbuf_main, "systemalias lgcmode cmd lgcmode\n");
 	Cbuf_AddTextEx(&cbuf_main, "systemalias list cmd list\n");
