@@ -864,7 +864,7 @@ void CL_BaseMove(usercmd_t* cmd)
 						s2 = 0;
 					else if (cl_socd.integer == 2)
 						s1 = 0;	// Prioritize moveleft
-					else
+					else if (cl_socd.integer == 3)
 						s2 = 0;	// Prioritize moveright	
 				}
 				if (in_right.downtime < in_left.downtime) {
@@ -872,13 +872,21 @@ void CL_BaseMove(usercmd_t* cmd)
 						s1 = 0;
 					else if (cl_socd.integer == 2)
 						s1 = 0; // Prioritize moveleft
-					else
+					else if (cl_socd.integer == 3)
 						s2 = 0;	// Prioritize moveright
 				}
 			}
 
 			cmd->sidemove += sidespeed * s1;
 			cmd->sidemove -= sidespeed * s2;
+
+			if ( (cl_socd.integer == 4) && !(s1 && s2) && (s1 || s2) && cls.sidemove_prev) {
+				if (cls.sidemove_prev != (cmd->sidemove > 0) - (cmd->sidemove < 0)) {
+					cmd->sidemove -= sidespeed * s1;
+					cmd->sidemove += sidespeed * s2;
+				}
+			}
+
 		}
 
 		s1 = CL_KeyState(&in_moveright, false);
@@ -890,7 +898,7 @@ void CL_BaseMove(usercmd_t* cmd)
 					s2 = 0;
 				else if (cl_socd.integer == 2)
 					s1 = 0;	// Prioritize moveleft
-				else
+				else if (cl_socd.integer == 3)
 					s2 = 0;	// Prioritize moveright	
 			}
 			if (in_moveright.downtime < in_moveleft.downtime){
@@ -898,13 +906,21 @@ void CL_BaseMove(usercmd_t* cmd)
 					s1 = 0;
 				else if (cl_socd.integer == 2)
 					s1 = 0;	// Prioritize moveleft
-				else
+				else if (cl_socd.integer == 3)
 					s2 = 0;	// Prioritize moveright	
 			}
 		}
 
 		cmd->sidemove += sidespeed * s1;
 		cmd->sidemove -= sidespeed * s2;
+		
+		if ( (cl_socd.integer == 4) && !(s1 && s2) && (s1 || s2) && cls.sidemove_prev) {
+			if (cls.sidemove_prev != (cmd->sidemove > 0) - (cmd->sidemove < 0)) {
+				cmd->sidemove -= sidespeed * s1;
+				cmd->sidemove += sidespeed * s2;
+			}
+		}
+		cls.sidemove_prev = (cmd->sidemove > 0) - (cmd->sidemove < 0);
 
 		s1 = CL_KeyState(&in_up, false);
 		s2 = CL_KeyState(&in_down, false);

@@ -575,6 +575,8 @@ typedef struct
 
 	// authenticating via web server
 	char        auth_logintoken[128];
+
+	int			sidemove_prev;
 } clientPersistent_t;
 
 extern clientPersistent_t	cls;
