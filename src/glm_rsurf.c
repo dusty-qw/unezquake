@@ -41,8 +41,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define GLM_DRAWCALL_INCREMENT 8
 
-void GL_StartWaterSurfaceBatch(void);
-
 static GLuint index_count;
 
 typedef struct glm_worldmodel_req_s {
@@ -83,7 +81,7 @@ typedef struct glm_brushmodel_drawcall_s {
 	struct glm_brushmodel_drawcall_s* next;
 } glm_brushmodel_drawcall_t;
 
-static glm_brushmodel_drawcall_t* GL_FlushWorldModelBatch(void);
+static glm_brushmodel_drawcall_t* GL_PrepareWorldModelBatch(glm_brushmodel_drawcall_type type);
 static void GL_SortDrawCalls(glm_brushmodel_drawcall_t* drawcall);
 
 static glm_brushmodel_drawcall_t* drawcalls;
@@ -112,6 +110,7 @@ static void GLM_CheckDrawCallSize(void)
 #define DRAW_DRAWFLAT_TINTED       (1 << 11)
 #define DRAW_DRAWFLAT_BRIGHT       (1 << 12)
 #define DRAW_ALPHATESTED           (1 << 13)
+#define DRAW_SKYWIND               (1 << 14)
 
 static int material_samplers_max;
 static int TEXTURE_UNIT_MATERIAL; // Must always be the first non-standard texture unit
@@ -134,6 +133,7 @@ static qbool GLM_CompileDrawWorldProgramImpl(r_program_id program_id, qbool alph
 	qbool luma_textures = gl_lumatextures.integer && r_refdef2.allow_lumas;
 	qbool skybox = r_skyboxloaded && !r_fastsky.integer;
 	qbool skydome = !skybox && !r_fastsky.integer && R_TextureReferenceIsValid(solidskytexture);
+	qbool skywind = skybox && Skywind_Active();
 
 	int drawworld_desiredOptions =
 		(detail_textures ? DRAW_DETAIL_TEXTURES : 0) |
@@ -148,7 +148,8 @@ static qbool GLM_CompileDrawWorldProgramImpl(r_program_id program_id, qbool alph
 		(r_drawflat.integer == 1 || r_drawflat.integer == 3 ? DRAW_FLATWALLS : 0) |
 		(gl_textureless.integer ? DRAW_TEXTURELESS : 0) |
 		((gl_outline.integer & 2) ? DRAW_GEOMETRY : 0) |
-		(alpha_test ? DRAW_ALPHATESTED : 0);
+		(alpha_test ? DRAW_ALPHATESTED : 0) |
+		(skywind ? DRAW_SKYWIND : 0);
 
 	if (R_ProgramRecompileNeeded(program_id, drawworld_desiredOptions)) {
 		static char included_definitions[2048];
@@ -192,7 +193,11 @@ static qbool GLM_CompileDrawWorldProgramImpl(r_program_id program_id, qbool alph
 			TEXTURE_UNIT_SKYBOX = samplers++;
 
 			strlcat(included_definitions, "#define DRAW_SKYBOX\n", sizeof(included_definitions));
+			if (skywind) {
+				strlcat(included_definitions, "#define DRAW_SKYWIND\n", sizeof(included_definitions));
+			}
 			strlcat(included_definitions, va("#define SAMPLER_SKYBOX_TEXTURE %d\n", TEXTURE_UNIT_SKYBOX), sizeof(included_definitions));
+
 		}
 		else if (skydome) {
 			TEXTURE_UNIT_SKYDOME_TEXTURE = samplers++;
@@ -322,7 +327,7 @@ static qbool GLM_AssignTexture(int texture_num, texture_t* texture)
 
 	if (sampler < 0) {
 		if (drawcall->material_samplers >= material_samplers_max) {
-			drawcall = GL_FlushWorldModelBatch();
+			drawcall = GL_PrepareWorldModelBatch(drawcall->type);
 		}
 
 		sampler = drawcall->material_samplers++;
@@ -382,6 +387,8 @@ static glm_worldmodel_req_t* GLM_NextBatchRequest(model_t* model, float alpha, i
 	glm_brushmodel_drawcall_t* drawcall = &drawcalls[current_drawcall];
 	float mvMatrix[16];
 
+	glm_brushmodel_drawcall_type desired_type = alpha == 0.0f ? opaque_world : alpha_surfaces;
+
 	R_GetModelviewMatrix(mvMatrix);
 
 	// If user has switched off caustics (or no texture), ignore
@@ -389,8 +396,13 @@ static glm_worldmodel_req_t* GLM_NextBatchRequest(model_t* model, float alpha, i
 		caustics &= ((R_ProgramCustomOptions(r_program_brushmodel) & DRAW_CAUSTIC_TEXTURES) == DRAW_CAUSTIC_TEXTURES);
 	}
 
-	// See if previous batch has same texture & matrix, if so just continue
-	if (drawcall->batch_count) {
+	if (drawcall->type != desired_type) {
+		drawcall = GL_PrepareWorldModelBatch(desired_type);
+	}
+	else if (drawcall->batch_count && drawcall->type == opaque_world) {
+		// See if previous request has same texture & matrix, if so just continue
+		// as long as drawcall is not alpha as such requests must be drawn in the
+		// predetermined order.
 		req = &drawcall->worldmodel_requests[drawcall->batch_count - 1];
 
 		if (allow_duplicate && model == req->model && req->samplerMappingCount == num_textures && req->firstTexture == first_texture && drawcall->batch_count < MAX_WORLDMODEL_BATCH && isAlphaTested == req->isAlphaTested) {
@@ -429,7 +441,7 @@ static glm_worldmodel_req_t* GLM_NextBatchRequest(model_t* model, float alpha, i
 	}
 
 	if (drawcall->sampler_mappings >= MAX_SAMPLER_MAPPINGS || drawcall->batch_count >= MAX_WORLDMODEL_BATCH) {
-		drawcall = GL_FlushWorldModelBatch();
+		drawcall = GL_PrepareWorldModelBatch(drawcall->type);
 	}
 
 	req = &drawcall->worldmodel_requests[drawcall->batch_count];
@@ -474,7 +486,6 @@ void GLM_DrawWaterSurfaces(void)
 	// Waterchain has list of alpha-blended surfaces
 	R_TraceEnterNamedRegion(__func__);
 
-	GL_StartWaterSurfaceBatch();
 	for (surf = waterchain; surf; surf = surf->texturechain) {
 		glpoly_t* poly;
 		texture_t* tex = R_TextureAnimation(NULL, surf->texinfo->texture);
@@ -579,27 +590,25 @@ qbool GLM_CompileSimple3dProgram(void)
 	return R_ProgramReady(r_program_simple3d) && GLM_CompilePostProcessVAO();
 }
 
-static glm_brushmodel_drawcall_t* GL_FlushWorldModelBatch(void)
+static glm_brushmodel_drawcall_t* GL_PrepareWorldModelBatch(glm_brushmodel_drawcall_type type)
 {
-	const glm_brushmodel_drawcall_t* prev;
+	glm_brushmodel_drawcall_t* prev = &drawcalls[current_drawcall];
 	glm_brushmodel_drawcall_t* current;
-	int last = current_drawcall++;
+
+	if (prev->batch_count == 0)	{
+		prev->type = type;
+		return prev;
+	}
+
+	current_drawcall++;
 
 	GLM_CheckDrawCallSize();
 
-	prev = &drawcalls[last];
 	current = &drawcalls[current_drawcall];
 
 	memset(current, 0, sizeof(*current));
-	current->type = prev->type;
+	current->type = type;
 	return current;
-}
-
-void GL_StartWaterSurfaceBatch(void)
-{
-	GL_FlushWorldModelBatch();
-
-	drawcalls[current_drawcall].type = alpha_surfaces;
 }
 
 void GLM_PrepareWorldModelBatch(void)
@@ -651,31 +660,24 @@ void GLM_PrepareWorldModelBatch(void)
 static void GLM_DrawWorldExecuteCalls(glm_brushmodel_drawcall_t* drawcall, uintptr_t offset, int begin, int count)
 {
 	int i;
-	int prevSampler = -1;
-	const qbool batch = false;
 	qbool prev_alphaTested = false;
 
 	for (i = begin; i < begin + count; ++i) {
 		glm_worldmodel_req_t* req = &drawcall->worldmodel_requests[i];
-		int sampler = req->nonDynamicSampler;
 		int batchCount = 1;
 
-		if (prevSampler != sampler || req->isAlphaTested != prev_alphaTested) {
+		if (req->isAlphaTested != prev_alphaTested) {
 			if (req->isAlphaTested) {
 				R_ProgramUse(r_program_brushmodel_alphatested);
-				R_ProgramUniform1i(r_program_uniform_brushmodel_alphatested_sampler, prevSampler = sampler);
 			}
 			else {
 				R_ProgramUse(r_program_brushmodel);
-				R_ProgramUniform1i(r_program_uniform_brushmodel_sampler, prevSampler = sampler);
 			}
 			prev_alphaTested = req->isAlphaTested;
 		}
 
-		if (batch) {
-			while (i + batchCount < begin + count && drawcall->worldmodel_requests[i + batchCount].nonDynamicSampler == sampler && drawcall->worldmodel_requests[i + batchCount].isAlphaTested == req->isAlphaTested) {
-				++batchCount;
-			}
+		while (i + batchCount < begin + count && drawcall->worldmodel_requests[i + batchCount].isAlphaTested == req->isAlphaTested) {
+			++batchCount;
 		}
 
 		if (batchCount == 1) {
@@ -690,8 +692,7 @@ static void GLM_DrawWorldExecuteCalls(glm_brushmodel_drawcall_t* drawcall, uintp
 			);
 		}
 		else {
-			GL_MultiDrawElementsIndirect(GL_TRIANGLE_STRIP, GL_UNSIGNED_INT, (void*)(offset + sizeof(drawcall->worldmodel_requests[0]) * i), batchCount, sizeof(drawcall->worldmodel_requests[0]));
-
+			GL_MultiDrawElementsIndirect(GL_TRIANGLE_STRIP, GL_UNSIGNED_INT, (void*)(offset + (i - begin) * sizeof(drawcall->worldmodel_requests[0])), batchCount, sizeof(drawcall->worldmodel_requests[0]));
 			i += batchCount - 1;
 		}
 	}
@@ -762,12 +763,12 @@ void GLM_DrawBrushModel(entity_t* ent, qbool polygonOffset, qbool caustics)
 	glm_worldmodel_req_t* req = NULL;
 	model_t* model = ent->model;
 
-	if (GLM_DuplicatePreviousRequest(model, 1.0f, model->last_texture_chained - model->first_texture_chained + 1, model->first_texture_chained, polygonOffset, caustics)) {
+	if (GLM_DuplicatePreviousRequest(model, ent->alpha, model->last_texture_chained - model->first_texture_chained + 1, model->first_texture_chained, polygonOffset, caustics)) {
 		return;
 	}
 
 	if (model->drawflat_chain) {
-		req = GLM_NextBatchRequest(model, 1.0f, 0, 0, false, false, false, false);
+		req = GLM_NextBatchRequest(model, ent->alpha, 0, 0, false, false, false, false);
 
 		req = GLM_DrawFlatChain(req, model->drawflat_chain);
 
@@ -785,10 +786,10 @@ void GLM_DrawBrushModel(entity_t* ent, qbool polygonOffset, qbool caustics)
 			continue;
 		}
 
-		req = GLM_NextBatchRequest(model, 1.0f, 1, i, polygonOffset, caustics, false, tex->isAlphaTested);
+		req = GLM_NextBatchRequest(model, ent->alpha, 1, i, polygonOffset, caustics, false, tex->isAlphaTested);
 		tex = R_TextureAnimation(ent, tex);
 		if (!GLM_AssignTexture(i, tex)) {
-			req = GLM_NextBatchRequest(model, 1.0f, 1, i, polygonOffset, caustics, false, tex->isAlphaTested);
+			req = GLM_NextBatchRequest(model, ent->alpha, 1, i, polygonOffset, caustics, false, tex->isAlphaTested);
 			GLM_AssignTexture(i, tex);
 		}
 
@@ -839,15 +840,19 @@ static void GL_SortDrawCalls(glm_brushmodel_drawcall_t* drawcall)
 		}
 	}
 
-	qsort(drawcall->worldmodel_requests, drawcall->batch_count, sizeof(drawcall->worldmodel_requests[0]), GL_DrawCallComparison);
+	// Translucent bmodels are put into requests based on their distance from view and sorting here will break that order.
+	if (drawcall->type == opaque_world) {
+		qsort(drawcall->worldmodel_requests, drawcall->batch_count, sizeof(drawcall->worldmodel_requests[0]), GL_DrawCallComparison);
+	}
 
 	for (i = 0; i < drawcall->batch_count; ++i) {
 		glm_worldmodel_req_t* thisReq = &drawcall->worldmodel_requests[i];
 
-		drawcall->calls[i].alpha = thisReq->alpha;
+		drawcall->calls[i].alpha = thisReq->alpha == 0.0f ? 1.0f : thisReq->alpha;
 		drawcall->calls[i].flags = thisReq->flags;
 		memcpy(drawcall->calls[i].modelMatrix, thisReq->mvMatrix, sizeof(drawcall->calls[i].modelMatrix));
 		drawcall->calls[i].samplerBase = thisReq->samplerMappingBase;
+		drawcall->calls[i].sampler = thisReq->nonDynamicSampler;
 		thisReq->baseInstance = i;
 	}
 }

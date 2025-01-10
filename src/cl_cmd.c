@@ -631,9 +631,8 @@ qbool CL_Download_Accept(const char *filename)
 		return false;
 	}
 
-	const char *tmp = strrchr(filename, '.');
-	if (tmp != NULL && (!strcasecmp(tmp, ".dll") || !strcasecmp(tmp, ".so"))) {
-		Com_Printf("Warning: Non-allowed file \"%s\" skipped\n", filename);
+	if (!CL_IsDownloadableFileExtension(filename)) {
+		Com_Printf("Warning: Non-allowed file \"%s\" skipped. Add \"%s\" to cl_allow_downloads to allow the file to be downloaded\n", filename, COM_FileExtension(filename));
 		return false;
 	}
 
