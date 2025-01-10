@@ -169,6 +169,7 @@ cvar_t r_floorcolor                        = {"r_floorcolor", "50 100 150", CVAR
 cvar_t gl_textureless                      = {"gl_textureless", "0", 0, OnChange_r_drawflat}; //Qrack
 cvar_t r_farclip                           = {"r_farclip", "8192", CVAR_RULESET_MAX | CVAR_RULESET_MIN, NULL, 8192.0f, R_MAXIMUM_FARCLIP, R_MINIMUM_FARCLIP }; // previous default was 4096. 8192 helps some TF players in big maps
 cvar_t r_skyname                           = {"r_skyname", "", 0, OnChange_r_skyname};
+cvar_t r_skywind                           = {"r_skywind", "1"};
 cvar_t gl_detail                           = {"gl_detail","0"};
 cvar_t gl_brush_polygonoffset              = {"gl_brush_polygonoffset", "2.0"}; // This is the one to adjust if you notice flicker on lift @ e1m1 for instance, for z-fighting
 cvar_t gl_brush_polygonoffset_factor       = {"gl_brush_polygonoffset_factor", "0.05"};
@@ -602,7 +603,7 @@ static void R_SetupGL(void)
 
 void R_Init(void)
 {
-	Cmd_AddCommand("loadsky", R_LoadSky_f);
+	R_SkyRegisterCvars();
 	Cmd_AddCommand("timerefresh", R_TimeRefresh_f);
 #ifndef CLIENTONLY
 	Cmd_AddCommand("dev_pointfile", R_ReadPointFile_f);
@@ -654,6 +655,7 @@ void R_Init(void)
 
 	Cvar_SetCurrentGroup(CVAR_GROUP_TURB);
 	Cvar_Register(&r_skyname);
+	Cvar_Register(&r_skywind);
 	Cvar_Register(&r_fastsky);
 	Cvar_Register(&r_skycolor);
 	Cvar_Register(&r_fastturb);
@@ -895,9 +897,6 @@ void R_RenderView(void)
 	// Adds 3d effects (particles, lights, chat icons etc)
 	R_Render3DEffects();
 
-	// Draws transparent world surfaces
-	renderer.DrawWaterSurfaces();
-
 	// Render billboards
 	renderer.Draw3DSpritesInline();
 
@@ -1062,7 +1061,7 @@ static void R_DrawEntitiesOnList(visentlist_t *vislist, visentlist_entrytype_t t
 {
 	int i;
 
-	if (r_drawentities.integer && vislist->typecount[type] >= 0) {
+	if (r_drawentities.integer && vislist->typecount[type] > 0) {
 		for (i = 0; i < vislist->count; i++) {
 			visentity_t* todraw = &vislist->list[i];
 
@@ -1141,6 +1140,10 @@ static void R_DrawEntities(void)
 	R_Sprite3DInitialiseBatch(SPRITE3D_ENTITIES, r_state_sprites_textured, null_texture_reference, 0, r_primitive_triangle_strip);
 	qsort(cl_visents.list, cl_visents.count, sizeof(cl_visents.list[0]), R_DrawEntitiesSorter);
 	for (ent_type = 0; ent_type < visent_max; ++ent_type) {
+		if (ent_type == visent_alpha) {
+			// Transluscent before translucent entities, but after opaque ones.
+			renderer.DrawWaterSurfaces();
+		}
 		R_DrawEntitiesOnList(&cl_visents, ent_type);
 	}
 	if (R_UseModernOpenGL() || R_UseVulkan()) {

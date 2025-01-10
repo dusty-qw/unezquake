@@ -1037,6 +1037,27 @@
         }
       ]
     },
+    "cl_allow_downloads": {
+      "default": "bsp,lmp,loc,mdl,mvd,pcx,spr,wad,wav",
+      "desc": "This variable controls which file extensions a client/server can download/upload from/to the server/client.",
+      "group-id": "9",
+      "type": "string"
+    },
+    "cl_allow_uploads": {
+      "default": "0",
+      "group-id": "9",
+      "type": "boolean",
+      "values": [
+        {
+          "description": "Don't allow uploads.",
+          "name": "0"
+        },
+        {
+          "description": "Allow uploads.",
+          "name": "1"
+        }
+      ]
+    },
     "cl_anglespeedkey": {
       "default": "1.5",
       "desc": "This variable sets multiplier by which your \"cl_yawspeed\" (how fast you turn) is multiplied when running (+speed).",
@@ -2644,6 +2665,12 @@
           "name": "true"
         }
       ]
+    },
+    "cl_remote_capabilities": {
+      "default": "alias,bf,changing,cmd,color,download,exec,fullserverinfo,impulse,infoset,ktx_infoset,ktx_sinfoset,nextul,on_enter,on_enter_ctf,on_enter_ffa,on_spec_enter,on_spec_enter_ctf,on_spec_enter_ffa,packet,play,rate,reconnect,say,sinfoset,skin,skins,team,tempalias,track,wait,+attack,-attack",
+      "desc": "This variable controls which commands and variables a server is allowed to execute or set on the client. Input a comma-separated list of commands and variables to toggle access. The default values are adapted for KTX use.",
+      "group-id": "9",
+      "type": "string"
     },
     "cl_restrictions": {
       "default": "0",
@@ -4810,25 +4837,16 @@
     },
     "gl_coronas": {
       "default": "0",
-      "desc": "Adds coronas to some effects:\n\n - Explosions: Basically just a bright flash since the default explosions didn't feel powerful enough.\n - Muzzleflashes.\n - Lightning.\n - Fire: Torches have glows.\n - Rocket Lights.",
+      "desc": "Adds coronas to some effects:\n\n - Explosions: Basically just a bright flash since the default explosions didn't feel powerful enough.\n - Weapon impacts (optional, see gl_particle_*).\n - Muzzleflashes.\n - Lightning bolts.\n - Fire: Torches have glows.\n - Rocket Lights.",
       "group-id": "15",
       "type": "float"
     },
     "gl_coronas_tele": {
       "default": "0",
-      "desc": "Allows you to turn on/off blue light when spawning.",
+      "desc": "Adds a blue glow to spawn/teleport effects.",
       "group-id": "15",
-      "type": "boolean",
-      "values": [
-        {
-          "description": "Spawn coronas off.",
-          "name": "false"
-        },
-        {
-          "description": "Spawn coronas on.",
-          "name": "true"
-        }
-      ]
+      "remarks": "Requires gl_coronas 1.",
+      "type": "boolean"
     },
     "gl_cshiftpercent": {
       "default": "100",
@@ -5088,8 +5106,9 @@
     },
     "gl_lightning": {
       "default": "0",
-      "desc": "Toggles particle lightning beams.\nMay be restricted by rulesets.",
+      "desc": "Toggles particle lightning beams. Glow is controlled by gl_coronas.",
       "group-id": "35",
+      "remarks": "Restricted in rulesets qcon and smackdown/drive (glow effect remains).",
       "type": "boolean"
     },
     "gl_lightning_color": {
@@ -16780,6 +16799,13 @@
       "remarks": "Specifying a value will disable loading of skyboxes specified by the map.\nSkyboxes should be placed in 'env' or 'gfx/env' folders",
       "type": "string"
     },
+    "r_skywind": {
+      "default": "1",
+      "desc": "Sets the scale factor of skybox animation if above 0, and skybox has an animation configuration.",
+      "group-id": "51",
+      "remarks": "Specifying a value above 1.0 will increase the pace of the configured animation.",
+      "type": "float"
+    },
     "r_slimecolor": {
       "default": "10 60 10",
       "desc": "Changes color of slime when r_fastturb set to 1.",
@@ -19925,17 +19951,8 @@
     "showturtle": {
       "default": "0",
       "group-id": "40",
-      "type": "boolean",
-      "values": [
-        {
-          "description": "Never display the turtle icon.",
-          "name": "false"
-        },
-        {
-          "description": "Display the turtle icon when your frame rate drops below 10.",
-          "name": "true"
-        }
-      ]
+      "type": "float",
+      "desc": "Sets the value at which the turtle icon will be displayed. For example, if showturtle is set to 70, the turtle will appear when the FPS drops to 70 or below."
     },
     "skill": {
       "default": "1",

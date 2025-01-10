@@ -36,7 +36,11 @@ typedef struct uniform_block_frame_constants_s {
 	float skySpeedscale;
 	float skySpeedscale2;
 	float r_farclip_unused;                  // NO LONGER USED, replace
-	float waterAlpha;
+	float padding;
+
+	// animated skybox
+	vec3_t windDir;
+	float  windPhase;
 
 	// drawflat toggles (combine into bitfield?)
 	int r_drawflat;
@@ -60,8 +64,6 @@ typedef struct uniform_block_frame_constants_s {
 	// [4-byte break]
 	int r_width;
 	int r_height;
-	float r_inv_width;
-	float r_inv_height;
 	float r_zFar;
 	float r_zNear;
 
@@ -75,6 +77,8 @@ typedef struct uniform_block_frame_constants_s {
 	// camangles [0]
 
 	float camangles[3]; // [1] [2]
+	float r_inv_width;
+	float r_inv_height;
 } uniform_block_frame_constants_t;
 
 #define MAX_WORLDMODEL_BATCH     64
@@ -93,7 +97,7 @@ typedef struct uniform_block_world_calldata_s {
 	float alpha;
 	int samplerBase;
 	int flags;
-	int padding;
+	int sampler;
 } uniform_block_world_calldata_t;
 
 typedef struct uniform_block_sprite_s {

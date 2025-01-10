@@ -10,7 +10,7 @@ layout(binding=SAMPLER_DETAIL_TEXTURE) uniform sampler2D detailTex;
 #ifdef DRAW_CAUSTIC_TEXTURES
 layout(binding=SAMPLER_CAUSTIC_TEXTURE) uniform sampler2D causticsTex;
 #endif
-#ifdef DRAW_SKYBOX
+#if defined(DRAW_SKYBOX)
 layout(binding=SAMPLER_SKYBOX_TEXTURE) uniform samplerCube skyTex;
 #elif defined(DRAW_SKYDOME)
 layout(binding=SAMPLER_SKYDOME_TEXTURE) uniform sampler2D skyDomeTex;
@@ -36,7 +36,6 @@ in vec3 LumaCoord;
 #endif
 in vec3 FlatColor;
 in flat int Flags;
-uniform int SamplerNumber;
 in vec3 Direction;
 #ifdef DRAW_GEOMETRY
 in vec3 Normal;
@@ -45,6 +44,8 @@ in vec4 UnClipped;
 
 in float mix_floor;
 in float mix_wall;
+in float alpha;
+in flat int SamplerNumber;
 
 layout(location=0) out vec4 frag_colour;
 #ifdef DRAW_GEOMETRY
@@ -139,28 +140,28 @@ void main()
 	if ((Flags & EZQ_SURFACE_ALPHATEST) == EZQ_SURFACE_ALPHATEST && texColor.a < 0.5) {
 		discard;
 	}
+#endif
 	// Avoid black artifacts at border between texture and transparency visible in fog
 	texColor = vec4(texColor.rgb, 1.0);
-#endif
 
 	turbType = Flags & EZQ_SURFACE_TYPE;
 	if (turbType != 0) {
 		// Turb surface
 		if (turbType != TEXTURE_TURB_SKY && r_fastturb != 0) {
 			if (turbType == TEXTURE_TURB_WATER) {
-				frag_colour = r_watercolor * waterAlpha;
+				frag_colour = r_watercolor * alpha;
 			}
 			else if (turbType == TEXTURE_TURB_SLIME) {
-				frag_colour = r_slimecolor * waterAlpha;
+				frag_colour = r_slimecolor * alpha;
 			}
 			else if (turbType == TEXTURE_TURB_LAVA) {
-				frag_colour = r_lavacolor * waterAlpha;
+				frag_colour = r_lavacolor * alpha;
 			}
 			else if (turbType == TEXTURE_TURB_TELE) {
-				frag_colour = r_telecolor * waterAlpha;
+				frag_colour = r_telecolor * alpha;
 			}
 			else {
-				frag_colour = vec4(FlatColor * waterAlpha, waterAlpha);
+				frag_colour = vec4(FlatColor * alpha, alpha);
 			}
 #ifdef DRAW_FOG
 			frag_colour = applyFog(frag_colour, gl_FragCoord.z / gl_FragCoord.w);
@@ -169,6 +170,20 @@ void main()
 		else if (turbType == TEXTURE_TURB_SKY) {
 #if defined(DRAW_SKYBOX)
 			frag_colour = texture(skyTex, Direction);
+#if defined(DRAW_SKYWIND)
+			float t1 = skyWind.w;
+			float t2 = fract(t1) - 0.5;
+			float blend = abs(t1 * 2.0);
+			vec3 dir = normalize(Direction);
+			vec4 layer1 = texture(skyTex, dir + t1 * skyWind.xyz);
+			vec4 layer2 = texture(skyTex, dir + t2 * skyWind.xyz);
+			layer1.a *= 1.0 - blend;
+			layer2.a *= blend;
+			layer1.rgb *= layer1.a;
+			layer2.rgb *= layer2.a;
+			vec4 combined = layer1 + layer2;
+			frag_colour = vec4(frag_colour.rgb * (1.0 - combined.a) + combined.rgb, 1);
+#endif
 #elif defined(DRAW_SKYDOME)
 			const float len = 3.09375;
 			// Flatten it out
@@ -186,7 +201,7 @@ void main()
 #endif
 		}
 		else {
-			frag_colour = texColor * waterAlpha;
+			frag_colour = texColor * alpha;
 			if ((Flags & EZQ_SURFACE_LIT_TURB) > 0) {
 				frag_colour = vec4(lmColor.rgb, 1) * frag_colour;
 			}
@@ -218,11 +233,11 @@ void main()
 		texColor = vec4(mix(texColor.rgb, texColor.rgb + lumaColor.rgb, min(1, Flags & EZQ_SURFACE_HAS_LUMA)), texColor.a);
 #endif
 		texColor = applyColorTinting(texColor);
-		frag_colour = vec4(lmColor.rgb, 1) * texColor;
+		frag_colour = vec4(lmColor.rgb * alpha, alpha) * texColor;
 #if defined(DRAW_LUMA_TEXTURES) && defined(DRAW_LUMA_TEXTURES_FB)
 		lumaColor = applyColorTinting(lumaColor);
 		frag_colour = vec4(mix(frag_colour.rgb, frag_colour.rgb + lumaColor.rgb, min(1, Flags & EZQ_SURFACE_HAS_LUMA)), frag_colour.a);
-		frag_colour = vec4(mix(frag_colour.rgb, lumaColor.rgb, min(1, Flags & EZQ_SURFACE_HAS_FB) * lumaColor.a), frag_colour.a);
+		frag_colour = vec4(mix(frag_colour.rgb, lumaColor.rgb * alpha, min(1, Flags & EZQ_SURFACE_HAS_FB) * lumaColor.a), frag_colour.a);
 #elif !defined(DRAW_LUMA_TEXTURES) && defined(DRAW_LUMA_TEXTURES_FB)
 		// GL_DECAL
 		lumaColor = applyColorTinting(lumaColor);
