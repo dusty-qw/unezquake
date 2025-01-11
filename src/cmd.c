@@ -59,8 +59,8 @@ cvar_t cl_warnexec = {"cl_warnexec", "1"};
 cvar_t cl_curlybraces = {"cl_curlybraces", "0"};
 
 #define REMOTE_CAPABILITIES "alias,bf,changing,cmd,color,download,exec,fullserverinfo,impulse," \
-				"infoset,ktx_infoset,ktx_sinfoset,nextul,on_enter," \
-				"on_enter_ctf,on_enter_ffa,on_spec_enter,on_spec_enter_ctf," \
+				"infoset,ktx_infoset,ktx_sinfoset,nextul,on_connect,on_enter," \
+				"on_enter_ctf,on_enter_ffa,on_matchend,on_matchstart,on_spec_enter,on_spec_enter_ctf," \
 				"on_spec_enter_ffa,packet,play,rate,reconnect,say,sinfoset,skin," \
 				"skins,team,tempalias,track,wait,+attack,-attack"
 static void OnChange_remote_capabilities(cvar_t *var, char *string, qbool *cancel);
