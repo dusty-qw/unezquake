@@ -39,6 +39,7 @@ static cvar_t scr_autoid_scale                     = { "scr_autoid_scale", "1" }
 static cvar_t scr_autoid_ingame					   = { "scr_autoid_ingame", "0" };
 static cvar_t scr_autoid_ingame_namelength         = { "scr_autoid_ingame_namelength", "6" };
 static cvar_t scr_autoid_ingame_weapon         	   = { "scr_autoid_ingame_weapon", "1" };
+static cvar_t scr_autoid_ingame_armor_health	   = { "scr_autoid_ingame_armor_health", "1"};
 static cvar_t scr_autoid_yoffset		           = { "scr_autoid_yoffset", "0" };
 static cvar_t scr_autoid_proportional              = { "scr_autoid_proportional", "0" };
 
@@ -491,7 +492,9 @@ void SCR_DrawAutoID(void)
 					name[scr_autoid_ingame_namelength.integer] = 0;
 				}
 				snprintf(tmp, sizeof(tmp), "%s %s", Player_StripNameColor(name), scr_autoid_ingame_weapon.integer ? weap_white_stripped : "");
-                Draw_SString(x - Draw_StringLengthColors(armor_health_str, -1, 0.5 * scale, proportional), y - AUTOID_HEALTHBAR_OFFSET_Y * scale, armor_health_str, scale, proportional);
+				if (scr_autoid_ingame_armor_health.integer) {
+					Draw_SString(x - Draw_StringLengthColors(armor_health_str, -1, 0.5 * scale, proportional), y - AUTOID_HEALTHBAR_OFFSET_Y * scale, armor_health_str, scale, proportional);
+				}
                 Draw_SString(x - Draw_StringLengthColors(tmp, -1, 0.5 * scale, proportional), y - yoffset * scale, tmp, scale, proportional);
 			}
 			else {	// demos, qtv, spectating
@@ -525,6 +528,7 @@ void SCR_RegisterAutoIDCvars(void)
 		Cvar_Register(&scr_autoid_ingame);
 		Cvar_Register(&scr_autoid_ingame_namelength);
 		Cvar_Register(&scr_autoid_ingame_weapon);
+		Cvar_Register(&scr_autoid_ingame_armor_health);
 		Cvar_Register(&scr_autoid_yoffset);
 		Cvar_Register(&scr_autoid_healthbar_bg_color);
 		Cvar_Register(&scr_autoid_healthbar_normal_color);

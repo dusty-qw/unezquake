@@ -8,6 +8,7 @@ unezQuake has all of the latest ezQake features, plus:
  * `scr_autoid_ingame` - see autoID for teammates while playing
     * `scr_autoid_ingame_namelength`
     * `scr_autoid_ingame_weapon`
+    * `scr_autoid_ingame_armor_health`
  * `scr_scoreboard_showtracking` - see who spectators are following in the scoreboard (experimental)
     * `scr_scoreboard_showtracking_format`
     * `scr_scoreboard_showtracking_namewidth`
