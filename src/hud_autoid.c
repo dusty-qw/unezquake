@@ -460,7 +460,8 @@ void SCR_DrawAutoID(void)
 			else if (currentlyplaying && ismyteam) {	// in-game stuff here
 				char *weap_str = "";
 				char weap_white_stripped[32];
-				
+				char armor_health_str[32];
+                char *aclr = "";
 				// Skip if not getting player updates, such as if teamoverlay is disabled
 				if (ti_cl->time && (ti_cl->time + TI_TIMEOUT >= r_refdef2.time)) {
 					if ((ti_cl->items & IT_ROCKET_LAUNCHER) && (ti_cl->items & IT_LIGHTNING))
@@ -469,7 +470,19 @@ void SCR_DrawAutoID(void)
 						weap_str = tp_name_lg.string;
 					else if (ti_cl->items & IT_ROCKET_LAUNCHER)
 						weap_str = tp_name_rl.string;
-				}
+                    
+                    if (ti_cl->items & IT_ARMOR3) {
+                        aclr = "&cf00";
+                    }
+                    else if (ti_cl->items & IT_ARMOR2) {
+                        aclr = "&cff0";
+                    }
+                    else if (ti_cl->items & IT_ARMOR1) {
+                        aclr = "&c0f0";
+                    }
+
+			        snprintf(armor_health_str, sizeof(armor_health_str), "%s%d/%s%s%d", aclr, ti_cl->armor, "&c", (ti_cl->health < 25 ? "f00" : (ti_cl->health > 100 ? "9cf" : "fff")), ti_cl->health);
+                }
 
 				Util_SkipChars(weap_str, "{}", weap_white_stripped, 32); // hide curly brackets
 
@@ -477,9 +490,9 @@ void SCR_DrawAutoID(void)
 				if (scr_autoid_ingame_namelength.integer >= 1 && scr_autoid_ingame_namelength.integer < MAX_SCOREBOARDNAME) {
 					name[scr_autoid_ingame_namelength.integer] = 0;
 				}
-
 				snprintf(tmp, sizeof(tmp), "%s %s", Player_StripNameColor(name), scr_autoid_ingame_weapon.integer ? weap_white_stripped : "");
-				Draw_SString(x - Draw_StringLengthColors(tmp, -1, 0.5 * scale, proportional), y - yoffset * scale, tmp, scale, proportional);
+                Draw_SString(x - Draw_StringLengthColors(armor_health_str, -1, 0.5 * scale, proportional), y - AUTOID_HEALTHBAR_OFFSET_Y * scale, armor_health_str, scale, proportional);
+                Draw_SString(x - Draw_StringLengthColors(tmp, -1, 0.5 * scale, proportional), y - yoffset * scale, tmp, scale, proportional);
 			}
 			else {	// demos, qtv, spectating
 				if (scr_autoid_namelength.integer >= 1 && scr_autoid_namelength.integer < MAX_SCOREBOARDNAME) {
