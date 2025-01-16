@@ -96,6 +96,9 @@ if [ $SKIP_DEPS -eq 0 ];then
 		manjaro)
 			install_check_arch
 			;;
+		archcraft)
+			install_check_arch
+			;;
 		void)
 			install_check_void
 			;;
