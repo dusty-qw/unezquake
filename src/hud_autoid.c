@@ -482,7 +482,7 @@ void SCR_DrawAutoID(void)
                         aclr = "&c0f0";
                     }
 
-			        snprintf(armor_health_str, sizeof(armor_health_str), "%s%d/%s%s%d", aclr, ti_cl->armor, "&c", (ti_cl->health < 25 ? "f00" : (ti_cl->health > 100 ? "9cf" : "fff")), ti_cl->health);
+			        snprintf(armor_health_str, sizeof(armor_health_str), "%s%d&cfff/%s%s%d", aclr, ti_cl->armor, "&c", (ti_cl->health < 25 ? "f00" : (ti_cl->health > 100 ? "9cf" : "fff")), ti_cl->health);
                 }
 
 				Util_SkipChars(weap_str, "{}", weap_white_stripped, 32); // hide curly brackets
