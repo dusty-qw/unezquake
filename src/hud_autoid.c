@@ -483,6 +483,10 @@ void SCR_DrawAutoID(void)
                     }
 
 			        snprintf(armor_health_str, sizeof(armor_health_str), "%s%d&cfff/%s%s%d", aclr, ti_cl->armor, "&c", (ti_cl->health < 25 ? "f00" : (ti_cl->health > 100 ? "9cf" : "fff")), ti_cl->health);
+					// only draw if overlay is enabled, causes corrupted text otherwise
+					if (scr_autoid_ingame_armor_health.integer) {
+						Draw_SString(x - Draw_StringLengthColors(armor_health_str, -1, 0.5 * scale, proportional), y - AUTOID_HEALTHBAR_OFFSET_Y * scale, armor_health_str, scale, proportional);
+					}
                 }
 
 				Util_SkipChars(weap_str, "{}", weap_white_stripped, 32); // hide curly brackets
@@ -492,9 +496,6 @@ void SCR_DrawAutoID(void)
 					name[scr_autoid_ingame_namelength.integer] = 0;
 				}
 				snprintf(tmp, sizeof(tmp), "%s %s", Player_StripNameColor(name), scr_autoid_ingame_weapon.integer ? weap_white_stripped : "");
-				if (scr_autoid_ingame_armor_health.integer) {
-					Draw_SString(x - Draw_StringLengthColors(armor_health_str, -1, 0.5 * scale, proportional), y - AUTOID_HEALTHBAR_OFFSET_Y * scale, armor_health_str, scale, proportional);
-				}
                 Draw_SString(x - Draw_StringLengthColors(tmp, -1, 0.5 * scale, proportional), y - yoffset * scale, tmp, scale, proportional);
 			}
 			else {	// demos, qtv, spectating
