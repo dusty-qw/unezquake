@@ -172,9 +172,11 @@ static qbool is_monster (int modelindex)
 	return false;
 }
 
-void CL_ClearScene(void)
-{
-	memset(cl_visents.list, 0, sizeof(cl_visents.list));
+void CL_ClearScene(void) {
+	if (cl_visents.count > 0)
+	{
+		memset(cl_visents.list, 0, sizeof(cl_visents.list[0]) * cl_visents.count);
+	}
 	memset(cl_visents.typecount, 0, sizeof(cl_visents.typecount));
 	cl_visents.count = 0;
 }
@@ -517,8 +519,16 @@ void CL_ParseDelta (entity_state_t *from, entity_state_t *to, int bits) {
 #endif
 
 	to->flags = bits;
-	if (bits & U_MODEL)
+	if (bits & U_MODEL) {
 		to->modelindex = MSG_ReadByte();
+#ifdef FTE_PEXT_MODELDBL
+		if (morebits & U_FTE_MODELDBL) {
+			to->modelindex += 256;
+		}
+	} else if (morebits & U_FTE_MODELDBL) {
+		to->modelindex = MSG_ReadShort();
+#endif
+	}
 
 	if (bits & U_FRAME)
 		to->frame = MSG_ReadByte ();
@@ -596,11 +606,6 @@ void CL_ParseDelta (entity_state_t *from, entity_state_t *to, int bits) {
 #ifdef FTE_PEXT_ENTITYDBL2
 	if (morebits & U_FTE_ENTITYDBL2) {
 		to->number += 1024;
-	}
-#endif
-#ifdef FTE_PEXT_MODELDBL
-	if (morebits & U_FTE_MODELDBL) {
-		to->modelindex += 256;
 	}
 #endif
 #endif
@@ -2125,14 +2130,6 @@ void CL_ParsePlayerinfo (void)
 		if (flags & PF_TRANS_Z && cls.fteprotocolextensions & FTE_PEXT_TRANS)
 			state->alpha = MSG_ReadByte();
 #endif
-#ifdef FTE_PEXT_COLOURMOD
-		if (flags & PF_COLOURMOD && cls.fteprotocolextensions & FTE_PEXT_COLOURMOD)
-		{
-			state->colourmod[0] = MSG_ReadByte();
-			state->colourmod[1] = MSG_ReadByte();
-			state->colourmod[2] = MSG_ReadByte();
-		}
-#endif
 
 		if (cl.z_ext & Z_EXT_PM_TYPE)
 		{
@@ -2198,7 +2195,29 @@ guess_pm_type:
 			// Write out here - generally packets are copied, but flags for userdelta were changed
 			//   in protocol 27 - we always write out in new format
 			MSG_WriteByte(&cls.demomessage, num);
+#if defined(FTE_PEXT_TRANS)
+			if (cls.fteprotocolextensions & FTE_PEXT_TRANS)
+			{
+				if (flags & 0xff0000)
+				{
+					flags |= PF_EXTRA_PFS;
+				}
+				MSG_WriteShort (&cls.demomessage, flags & 0xffff);
+				if (flags & PF_EXTRA_PFS)
+				{
+					MSG_WriteByte(&cls.demomessage, (flags & 0xff0000) >> 16);
+				}
+			}
+			else
+			{
+				// Without PEXT_TRANS there's no PF_EXTRA_PFS, move
+				// PF_ONGROUND and PF_SOLID to their expected offsets.
+				MSG_WriteShort (&cls.demomessage, flags & 0x3fff | (flags & 0xc00000) >> 8);
+			}
+#else
 			MSG_WriteShort(&cls.demomessage, flags);
+#endif
+
 			if (cls.mvdprotocolextensions1 & MVD_PEXT1_FLOATCOORDS) {
 				MSG_WriteLongCoord(&cls.demomessage, state->origin[0]);
 				MSG_WriteLongCoord(&cls.demomessage, state->origin[1]);
