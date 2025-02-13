@@ -781,6 +781,10 @@ typedef struct {
 		int      stop_frames;       // Accumulated frames with sidemove=0
 		float    last_sidemove;     // Previous frame's sidemove value
 	} safestrafe;
+	
+	// exec_count keeps track of how many /exec calls have been made during a
+	// game, the counter will be reset upon match start.
+	int exec_count;
 } clientState_t;
 
 #define SCORING_SYSTEM_DEFAULT   0
