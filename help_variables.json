@@ -1790,6 +1790,10 @@
         {
           "description": "Absolute Priority: moveright",
           "name": "3"
+        },
+        {
+          "description": "Cancels SOCD",
+          "name": "4"
         }
       ]
     },
