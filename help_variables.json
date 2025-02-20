@@ -651,6 +651,18 @@
         {
           "description": "Blue",
           "name": "13"
+        },
+        {
+          "description": "Orange.",
+          "name": "14"
+        },
+        {
+          "description": "Bright red.",
+          "name": "15"
+        },
+        {
+          "description": "Black.",
+          "name": "16"
         }
       ]
     },
@@ -4314,6 +4326,18 @@
         {
           "description": "Blue",
           "name": "13"
+        },
+        {
+          "description": "Orange.",
+          "name": "14"
+        },
+        {
+          "description": "Bright red.",
+          "name": "15"
+        },
+        {
+          "description": "Black.",
+          "name": "16"
         }
       ]
     },
@@ -4426,6 +4450,18 @@
         {
           "description": "Blue",
           "name": "13"
+        },
+        {
+          "description": "Orange.",
+          "name": "14"
+        },
+        {
+          "description": "Bright red.",
+          "name": "15"
+        },
+        {
+          "description": "Black.",
+          "name": "16"
         }
       ]
     },
@@ -18768,6 +18804,10 @@
         {
           "description": "Teamfrags in teamplay mode.",
           "name": "2"
+        },
+        {
+          "description": "Teamfrags in teamplay mode, individual frags hidden.",
+          "name": "3"
         }
       ]
     },
@@ -19163,6 +19203,22 @@
         }
       ]
     },
+    "scr_scoreboard_classic": {
+      "default": "0",
+      "desc": "Toggle between the classic and modern look in the scoreboard.",
+      "group-id": "47",
+      "type": "boolean",
+      "values": [
+        {
+          "description": "Disable the classic look.",
+          "name": "false"
+        },
+        {
+          "description": "Enable the classic look.",
+          "name": "true"
+        }
+      ]
+    },
     "scr_scoreboard_drawtitle": {
       "default": "1",
       "group-id": "47",
@@ -19213,6 +19269,22 @@
         },
         {
           "description": "When you overwrite team/enemy color it will use only those colors for skins and scoreboard.",
+          "name": "true"
+        }
+      ]
+    },
+    "scr_scoreboard_highlightself": {
+      "default": "1",
+      "desc": "Toggle the highlighting of your own scores in the scoreboard.",
+      "group-id": "47",
+      "type": "boolean",
+      "values": [
+        {
+          "description": "Disable highlight of your own scores in the scoreboard.",
+          "name": "false"
+        },
+        {
+          "description": "Enable highlight of your own scores in the scoreboard.",
           "name": "true"
         }
       ]
@@ -19285,6 +19357,21 @@
         },
         {
           "description": "Enable flag stats on the scoreboard.",
+          "name": "true"
+        }
+      ]
+    },
+    "scr_scoreboard_showclock": {
+      "default": "0",
+      "group-id": "47",
+      "type": "boolean",
+      "values": [
+        {
+          "description": "Hide the clock on the scoreboard.",
+          "name": "false"
+        },
+        {
+          "description": "Show the clock on the scoreboard.",
           "name": "true"
         }
       ]
@@ -20884,6 +20971,18 @@
         {
           "description": "Blue",
           "name": "13"
+        },
+        {
+          "description": "Orange.",
+          "name": "14"
+        },
+        {
+          "description": "Bright red.",
+          "name": "15"
+        },
+        {
+          "description": "Black.",
+          "name": "16"
         }
       ]
     },
@@ -21037,6 +21136,18 @@
         {
           "description": "Blue",
           "name": "13"
+        },
+        {
+          "description": "Orange.",
+          "name": "14"
+        },
+        {
+          "description": "Bright red.",
+          "name": "15"
+        },
+        {
+          "description": "Black.",
+          "name": "16"
         }
       ]
     },
@@ -21122,6 +21233,18 @@
         {
           "description": "Blue.",
           "name": "13"
+        },
+        {
+          "description": "Orange.",
+          "name": "14"
+        },
+        {
+          "description": "Bright red.",
+          "name": "15"
+        },
+        {
+          "description": "Black.",
+          "name": "16"
         }
       ]
     },
