@@ -38,6 +38,11 @@ typedef struct rulesetDef_s {
 	qbool restrictInlay;
 	qbool restrictPogo;
 	qbool restrictRollAngle;
+	qbool restrictIPC;
+	qbool restrictExec;
+	qbool restrictSetCalc;
+	qbool restrictSetEval;
+	qbool restrictSetEx;
 } rulesetDef_t;
 
 static rulesetDef_t rulesetDef = {
@@ -48,9 +53,14 @@ static rulesetDef_t rulesetDef = {
 	false,         // restrict particles
 	false,         // restrict sound
 	true,          // restrict logging
-	false,		// restrict inlay
-	false,		// retrict pogo
-	true           // restrict rollangle
+	false,			// restrict inlay
+	false,			// retrict pogo
+	true,          // restrict rollangle
+	false,         // restrict IPC
+	false,         // restrict /exec command
+	false,         // restrict /set_calc command
+	false,         // restrict /set_eval command
+	false          // restrict /set_ex command
 };
 
 qbool RuleSets_DisallowExternalTexture(struct model_s *mod)
@@ -215,6 +225,31 @@ qbool Rulesets_RestrictInlay(void)
 qbool Rulesets_RestrictPogo(void)
 {
 	return rulesetDef.restrictPogo;
+}
+
+qbool Rulesets_RestrictIPC(void)
+{
+	return cls.state == ca_active && !cl.spectator && !cls.demoplayback && !cl.standby && rulesetDef.restrictIPC;
+}
+
+qbool Rulesets_RestrictExec(void)
+{
+	return cls.state == ca_active && !cl.spectator && !cls.demoplayback && !cl.standby && rulesetDef.restrictExec;
+}
+
+qbool Rulesets_RestrictSetCalc(void)
+{
+	return cls.state == ca_active && !cl.spectator && !cls.demoplayback && !cl.standby && rulesetDef.restrictSetCalc;
+}
+
+qbool Rulesets_RestrictSetEval(void)
+{
+	return cls.state == ca_active && !cl.spectator && !cls.demoplayback && !cl.standby && rulesetDef.restrictSetEval;
+}
+
+qbool Rulesets_RestrictSetEx(void)
+{
+	return cls.state == ca_active && !cl.spectator && !cls.demoplayback && !cl.standby && rulesetDef.restrictSetEx;
 }
 
 qbool Rulesets_RestrictTCL(void)
