@@ -502,7 +502,7 @@ char *Macro_DateIso(void) {
 	time (&t);
 	if (!(ptm = localtime (&t)))
 		return "#bad date#";
-	strftime (macro_buf, sizeof(macro_buf) - 1, "%Y-%m-%d_%H-%M-%S", ptm);
+	strftime (macro_buf, sizeof(macro_buf) - 1, "%Y-%m-%d_%H-%M", ptm);
 	return macro_buf;
 }
 
@@ -1961,13 +1961,8 @@ void TP_ColorForcing (cvar_t *topcolor, cvar_t *bottomcolor)
 		bottom = atoi(Cmd_Argv(2));
 	}
 
-	top &= 15;
-	top = min(13, top);
-	bottom &= 15;
-	bottom = min(13, bottom);
-
-	Cvar_SetValue(topcolor, top);
-	Cvar_SetValue(bottomcolor, bottom);
+	Cvar_SetValue(topcolor, bound(0, top, 16));
+	Cvar_SetValue(bottomcolor, bound(0, bottom, 16));
 
 	TP_RefreshSkins();
 }
