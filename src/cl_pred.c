@@ -28,8 +28,8 @@ cvar_t	cl_nopred_weapon = { "cl_nopred_weapon", "0" };
 cvar_t	cl_predict_weaponsound = { "cl_predict_weaponsound", "1" };
 cvar_t	cl_predict_smoothview = { "cl_predict_smoothview", "1" };
 cvar_t	cl_predict_beam = { "cl_predict_beam", "1" };
-cvar_t	cl_predict_projectiles = { "cl_predict_projectiles", "0" };
-cvar_t	cl_predict_jump = { "cl_predict_jump", "0" };
+cvar_t	cl_predict_projectiles = { "cl_predict_projectiles", "1" };
+cvar_t	cl_predict_jump = { "cl_predict_jump", "1" };
 cvar_t	cl_predict_buffer = { "cl_predict_buffer", "1" };
 
 extern cvar_t cl_independentPhysics;
