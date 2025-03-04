@@ -1903,11 +1903,6 @@ void PM_PlayerWeapon(void)
 
 	pmove.client_time += (float)pmove.cmd.msec / 1000;
 
-	if (pmove.cmd.impulse_pred)
-	{
-		pmove.impulse = pmove.cmd.impulse_pred;
-	}
-
 	if ((pmove.client_time > pmove.attack_finished) && (pmove.current_ammo == 0)
 		&& (pmove.weapon != IT_AXE) && (pmove.weapon != IT_HOOK))
 	{

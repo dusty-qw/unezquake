@@ -1073,11 +1073,9 @@ void CL_FinishMove(usercmd_t* cmd)
 		)
 		) {
 		cmd->impulse = 0;
-		cmd->impulse_pred = 0;
 	}
 	else {
 		cmd->impulse = in_impulse;
-		cmd->impulse_pred = in_impulse;
 	}
 
 	// } shaman RFE 1030281
