@@ -5,6 +5,11 @@ unezQuake is a fork of the ezQuake client that aims to bring more permissive sta
 unezQuake has all of the latest ezQake features, plus:
 
  * `cl_predict_*` - cvars for antilag
+    * `cl_predict_buffer` - how many frames are buffered before prediction is used. `"0"` is the fastest but will result in more errors like phantom rockets
+    * `cl_predict_jump` - controls if your jump sound is predicted
+    * `cl_predict_projectiles` - controls if projectiles are predicted
+    * `cl_predict_smoothview` - values between 0.1 and 2 will attempt to smooth fast position changes from packet loss or knockback
+    * `cl_predict_weaponsound` - controls prediction of weapon sounds
  * `scr_autoid_ingame` - see autoID for teammates while playing
     * `scr_autoid_ingame_namelength`
     * `scr_autoid_ingame_weapon`
