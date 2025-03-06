@@ -124,9 +124,6 @@ cvar_t  cl_pext_weaponprediction = { "cl_pext_weaponprediction", "1" }; // send 
 cvar_t  cl_pext_simpleprojectiles = { "cl_pext_simpleprojectiles", "1" }; // send simple stateless projectiles
 cvar_t  cl_sproj_xerp = { "cl_sproj_xerp", "0" }; // extrapolate projectiles based on ping
 #endif
-#if defined(MVD_PEXT1_SIMPLEPROJECTILE) || defined(MVD_PEXT1_WEAPONPREDICTION)
-cvar_t  cl_predict_knockback = { "cl_predict_knockback", "0" }; // predict knockback
-#endif
 #endif
 #ifdef FTE_PEXT_256PACKETENTITIES
 cvar_t	cl_pext_256packetentities = {"cl_pext_256packetentities", "1"};
@@ -1903,7 +1900,6 @@ static void CL_InitLocal(void)
 #ifdef MVD_PEXT1_SIMPLEPROJECTILE
 	Cvar_Register(&cl_pext_simpleprojectiles);
 	Cvar_Register(&cl_sproj_xerp);
-	Cvar_Register(&cl_predict_knockback);
 #endif
 #endif // PROTOCOL_VERSION_FTE
 #ifdef FTE_PEXT_256PACKETENTITIES
