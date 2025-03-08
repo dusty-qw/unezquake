@@ -33,7 +33,7 @@ typedef struct rulesetDef_s {
 	qbool restrictTriggers;
 	qbool restrictPacket;
 	qbool restrictParticles;
-	qbool restrictSound;
+	qbool restrictPlay;
 	qbool restrictLogging;
 	qbool restrictInlay;
 	qbool restrictPogo;
@@ -190,9 +190,13 @@ qbool Rulesets_RestrictTriggers(void)
 	return !allow_triggers.integer;
 }
 
-qbool Rulesets_RestrictSound(const char* name)
+qbool Rulesets_RestrictPlay(const char* name)
 {
-	if (!rulesetDef.restrictSound) {
+	if (!rulesetDef.restrictPlay) {
+		return false;
+	}
+
+	if (cls.state == ca_active && (cl.spectator || cls.demoplayback || cl.standby)) {
 		return false;
 	}
 
