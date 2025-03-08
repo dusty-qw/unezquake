@@ -46,21 +46,21 @@ typedef struct rulesetDef_s {
 } rulesetDef_t;
 
 static rulesetDef_t rulesetDef = {
-	rs_modern2020, // ruleset
-	77.0,          // maxfps
-	false,         // restrict triggers
-	true,          // restrict /packet command
-	false,         // restrict particles
-	false,         // restrict sound
-	true,          // restrict logging
-	false,		// restrict inlay
-	false,		// retrict pogo
-	true,          // restrict rollangle
-	false,
-	false,
-	false,
-	false,
-	false
+	rs_modern2020, 	// ruleset
+	77.0,			// maxfps
+	false,			// restrict triggers
+	true,			// restrict /packet command
+	false,			// restrict particles
+	true,			// restrict play
+	true,			// restrict logging
+	false,			// restrict inlay
+	false,			// retrict pogo
+	true,			// restrict rollangle
+	true,			// restrict IPC
+	true,			// restrict exec
+	true,			// restrict setCalc
+	true,			// restrict setEval
+	true			// restrict setEx
 };
 
 qbool RuleSets_DisallowExternalTexture(struct model_s *mod)
