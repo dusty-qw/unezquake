@@ -2957,6 +2957,34 @@
         }
       ]
     },
+    "cl_portpingprobe_delay": {
+      "default": "0",
+      "desc": "Specifies the number of milliseconds to sleep between each probe. Defaults to no delay",
+      "group-id": "21",
+      "type": "integer"
+    },
+    "cl_portpingprobe_enable": {
+      "default": "0",
+      "desc": "Toggle whether a port ping probe should be performed when connecting to a server.",
+      "group-id": "21",
+      "type": "boolean",
+      "values": [
+        {
+          "description": "Do not perform a port ping probe before connecting to a server.",
+          "name": "false"
+        },
+        {
+          "description": "Perform a port ping probe before connecting to a server.",
+          "name": "true"
+        }
+      ]
+    },
+    "cl_portpingprobe_probes": {
+      "default": "500",
+      "desc": "Lets you set how many port ping probes that should be performed when connecting to a server. It can be set to a value between 1 and 1000.",
+      "group-id": "21",
+      "type": "integer"
+    },
     "cl_useproxy": {
       "default": "0",
       "desc": "This toggles whether Qizmo should be used (if detected) to a server. When enabled the server browser will use an existing connection to a Qizmo when connecting another server by using the ezQuake Server Browser.",
@@ -15411,6 +15439,26 @@
       "group-id": "38",
       "type": "string"
     },
+    "qtv_event_msglevel": {
+      "default": "1",
+      "desc": "Controls the visibility of QTV event messages, allowing them to be enabled, disabled, or hidden during an active match.",
+      "group-id": "38",
+      "type": "enum",
+      "values": [
+        {
+          "description": "Disables QTV event messages.",
+          "name": "0"
+        },
+        {
+          "description": "Enables QTV event messages.",
+          "name": "1"
+        },
+        {
+          "description": "Hides QTV event messages when a match has started.",
+          "name": "2"
+        }
+      ]
+    },
     "qtv_gamechatprefix": {
       "default": "$[{QTV>game}$] ",
       "desc": "String that will be added at the beginning of all messages send from QTV to the server where the broadcasted game is being played.",
@@ -15795,6 +15843,22 @@
         },
         {
           "description": "Fully opaque.",
+          "name": "1"
+        }
+      ]
+    },
+    "r_drawviewmodel_invisible": {
+      "default": "0",
+      "desc": "This command controls whether or not to draw the weapon when invisible. It needs to be used in conjunction with r_drawviewmodel > 0.",
+      "group-id": "54",
+      "type": "boolean",
+      "values": [
+        {
+          "description": "Don't display the weapon when invisible.",
+          "name": "0"
+        },
+        {
+          "description": "Display the weapon when invisible.",
           "name": "1"
         }
       ]
@@ -19512,6 +19576,26 @@
         }
       ]
     },
+    "scr_scoreboard_showqtvusers": {
+      "default": "0",
+      "group-id": "47",
+      "type": "boolean",
+      "values": [
+        {
+          "description": "Disable QTV users in the scoreboard.",
+          "name": "false"
+        },
+        {
+          "description": "Enable QTV users in the scoreboard.",
+          "name": "true"
+        }
+      ]
+    },
+    "scr_scoreboard_qtv_name": {
+      "desc": "This variable will change what qtv users are called in the scoreboard.\nWhen teamplay is not on, this variable is cut to 4 characters.\n&cRGB values are not accepted.",
+      "group-id": "47",
+      "type": "string"
+    },
     "scr_scoreboard_spectator_name": {
       "desc": "This variable will change what spectators are called in the scoreboard.\nWhen teamplay is not on, this variable is cut to 4 characters.\n&cRGB values are not accepted.",
       "group-id": "47",
@@ -19667,16 +19751,20 @@
           "name": "0"
         },
         {
-          "description": "Displays teammates' armor always in white.",
+          "description": "Displays teammates' armor in white, prefixed by the icon of the armor they have.",
           "name": "1"
         },
         {
-          "description": "Displays teammates' armor in white with the icon of the armor they have next to it.",
+          "description": "Displays teammates' armor in white.",
           "name": "2"
         },
         {
           "description": "Displays teammates' armor in the color of the armor they have.",
           "name": "3"
+        },
+        {
+          "description": "Displays teammates' armor in white, prefixed by g|y|r depending on type.",
+          "name": "4"
         }
       ]
     },
