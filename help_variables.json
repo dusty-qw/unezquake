@@ -2853,6 +2853,34 @@
         }
       ]
     },
+    "cl_portpingprobe_delay": {
+      "default": "0",
+      "desc": "Specifies the number of milliseconds to sleep between each probe. Defaults to no delay",
+      "group-id": "21",
+      "type": "integer"
+    },
+    "cl_portpingprobe_enable": {
+      "default": "0",
+      "desc": "Toggle whether a port ping probe should be performed when connecting to a server.",
+      "group-id": "21",
+      "type": "boolean",
+      "values": [
+        {
+          "description": "Do not perform a port ping probe before connecting to a server.",
+          "name": "false"
+        },
+        {
+          "description": "Perform a port ping probe before connecting to a server.",
+          "name": "true"
+        }
+      ]
+    },
+    "cl_portpingprobe_probes": {
+      "default": "500",
+      "desc": "Lets you set how many port ping probes that should be performed when connecting to a server. It can be set to a value between 1 and 1000.",
+      "group-id": "21",
+      "type": "integer"
+    },
     "cl_useproxy": {
       "default": "0",
       "desc": "This toggles whether Qizmo should be used (if detected) to a server. When enabled the server browser will use an existing connection to a Qizmo when connecting another server by using the ezQuake Server Browser.",
@@ -11610,6 +11638,84 @@
       "group-id": "19",
       "type": "boolean"
     },
+    "hud_scoremapname_align_x": {
+      "desc": "Sets horizontal align of scoremapname.",
+      "group-id": "19",
+      "type": "string"
+    },
+    "hud_scoremapname_align_y": {
+      "desc": "Sets vertical align of scoremapname.",
+      "group-id": "19",
+      "type": "string"
+    },
+    "hud_scoremapname_frame": {
+      "desc": "Sets frame visibility and style for scoremapname.",
+      "group-id": "19",
+      "type": "float"
+    },
+    "hud_scoremapname_frame_color": {
+      "desc": "Defines the color of the background of the scoremapname HUD element. See HUD manual for more info.",
+      "group-id": "19",
+      "type": "string"
+    },
+    "hud_scoremapname_item_opacity": {
+      "group-id": "19",
+      "type": "float"
+    },
+    "hud_scoremapname_order": {
+      "desc": "This defines the order of drawing the HUD elements. That means you can change will be drawn on top of other elements. See HUD manual for more info.",
+      "group-id": "19",
+      "type": "integer"
+    },
+    "hud_scoremapname_place": {
+      "desc": "Sets relative positioning for scoremapname.",
+      "group-id": "19",
+      "type": "string"
+    },
+    "hud_scoremapname_pos_x": {
+      "desc": "Sets horizontal position of scoremapname.",
+      "group-id": "19",
+      "type": "float"
+    },
+    "hud_scoremapname_pos_y": {
+      "desc": "Sets vertical position of scoremapname.",
+      "group-id": "19",
+      "type": "float"
+    },
+    "hud_scoremapname_proportional": {
+      "desc": "Toggles whether the scoremapname uses charset chars or TTF chars",
+      "group-id": "19",
+      "type": "boolean"
+    },
+    "hud_scoremapname_scale": {
+      "desc": "Scale of the scoremapname HUD element.",
+      "group-id": "19",
+      "type": "float"
+    },
+    "hud_scoremapname_style": {
+      "desc": "Style of the scoremapname HUD element.",
+      "group-id": "19",
+      "type": "enum",
+      "values": [
+        {
+          "description": "Full name, example: The Abandoned Base (dm3)",
+          "name": "0"
+        },
+        {
+          "description": "Level name, example: The Abandoned Base",
+          "name": "1"
+        },
+        {
+          "description": "Map name, example: dm3",
+          "name": "2"
+        }
+      ]
+    },
+    "hud_scoremapname_show": {
+      "desc": "Toggles whether the scoremapname is displayed. It is only displayed when the scoreboard is open.",
+      "group-id": "19",
+      "type": "boolean"
+    },
     "hud_sigil1_align_x": {
       "desc": "Sets horizontal align of sigil 1 icon (rune)",
       "group-id": "19",
@@ -15229,6 +15335,26 @@
       "group-id": "38",
       "type": "string"
     },
+    "qtv_event_msglevel": {
+      "default": "1",
+      "desc": "Controls the visibility of QTV event messages, allowing them to be enabled, disabled, or hidden during an active match.",
+      "group-id": "38",
+      "type": "enum",
+      "values": [
+        {
+          "description": "Disables QTV event messages.",
+          "name": "0"
+        },
+        {
+          "description": "Enables QTV event messages.",
+          "name": "1"
+        },
+        {
+          "description": "Hides QTV event messages when a match has started.",
+          "name": "2"
+        }
+      ]
+    },
     "qtv_gamechatprefix": {
       "default": "$[{QTV>game}$] ",
       "desc": "String that will be added at the beginning of all messages send from QTV to the server where the broadcasted game is being played.",
@@ -15613,6 +15739,22 @@
         },
         {
           "description": "Fully opaque.",
+          "name": "1"
+        }
+      ]
+    },
+    "r_drawviewmodel_invisible": {
+      "default": "0",
+      "desc": "This command controls whether or not to draw the weapon when invisible. It needs to be used in conjunction with r_drawviewmodel > 0.",
+      "group-id": "54",
+      "type": "boolean",
+      "values": [
+        {
+          "description": "Don't display the weapon when invisible.",
+          "name": "0"
+        },
+        {
+          "description": "Display the weapon when invisible.",
           "name": "1"
         }
       ]
@@ -19103,15 +19245,19 @@
       "default": "0",
       "desc": "Toggle between the classic and modern look in the scoreboard.",
       "group-id": "47",
-      "type": "boolean",
+      "type": "enum",
       "values": [
         {
           "description": "Disable the classic look.",
-          "name": "false"
+          "name": "0"
         },
         {
           "description": "Enable the classic look.",
-          "name": "true"
+          "name": "1"
+        },
+        {
+          "description": "Enable the true classic look, which was available in qwcl 1.50 and 1.55",
+          "name": "2"
         }
       ]
     },
@@ -19272,6 +19418,29 @@
         }
       ]
     },
+    "scr_scoreboard_showmapname": {
+      "default": "0",
+      "group-id": "47",
+      "type": "enum",
+      "values": [
+        {
+          "description": "Don't display the level name",
+          "name": "0"
+        },
+        {
+          "description": "Full name, example: The Abandoned Base (dm3)",
+          "name": "1"
+        },
+        {
+          "description": "Level name, example: The Abandoned Base",
+          "name": "2"
+        },
+        {
+          "description": "Map name, example: dm3",
+          "name": "3"
+        }
+      ]
+    },
     "scr_scoreboard_showfrags": {
       "default": "1",
       "group-id": "47",
@@ -19302,6 +19471,26 @@
           "name": "true"
         }
       ]
+    },
+    "scr_scoreboard_showqtvusers": {
+      "default": "0",
+      "group-id": "47",
+      "type": "boolean",
+      "values": [
+        {
+          "description": "Disable QTV users in the scoreboard.",
+          "name": "false"
+        },
+        {
+          "description": "Enable QTV users in the scoreboard.",
+          "name": "true"
+        }
+      ]
+    },
+    "scr_scoreboard_qtv_name": {
+      "desc": "This variable will change what qtv users are called in the scoreboard.\nWhen teamplay is not on, this variable is cut to 4 characters.\n&cRGB values are not accepted.",
+      "group-id": "47",
+      "type": "string"
     },
     "scr_scoreboard_spectator_name": {
       "desc": "This variable will change what spectators are called in the scoreboard.\nWhen teamplay is not on, this variable is cut to 4 characters.\n&cRGB values are not accepted.",
@@ -19458,16 +19647,20 @@
           "name": "0"
         },
         {
-          "description": "Displays teammates' armor always in white.",
+          "description": "Displays teammates' armor in white, prefixed by the icon of the armor they have.",
           "name": "1"
         },
         {
-          "description": "Displays teammates' armor in white with the icon of the armor they have next to it.",
+          "description": "Displays teammates' armor in white.",
           "name": "2"
         },
         {
           "description": "Displays teammates' armor in the color of the armor they have.",
           "name": "3"
+        },
+        {
+          "description": "Displays teammates' armor in white, prefixed by g|y|r depending on type.",
+          "name": "4"
         }
       ]
     },
