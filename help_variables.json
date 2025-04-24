@@ -2881,6 +2881,12 @@
       "group-id": "21",
       "type": "integer"
     },
+    "cl_portpingprobe_port_probes": {
+      "default": "1",
+      "desc": "Lets you set how many times each port should be probed when connecting to a server. It can be set to a value between 1 and 5.",
+      "group-id": "21",
+      "type": "integer"
+    },
     "cl_useproxy": {
       "default": "0",
       "desc": "This toggles whether Qizmo should be used (if detected) to a server. When enabled the server browser will use an existing connection to a Qizmo when connecting another server by using the ezQuake Server Browser.",
@@ -3154,8 +3160,18 @@
         {
           "description": "Fixed: ezQuake",
           "name": "2"
+        },
+        {
+          "description": "Format: ezQuake <version> or <number of players>/<max players> <delim> <map>",
+          "name": "3"
         }
       ]
+    },
+    "cl_window_caption_delimiter": {
+      "default": " | ",
+      "desc": "Delimiter between <number of players>/<max players> and <map> when using cl_window_caption 3.",
+      "group-id": "40",
+      "type": "string"
     },
     "cl_www_address": {
       "default": "https://badplace.eu/",
@@ -6367,6 +6383,16 @@
       "group-id": "19",
       "type": "float"
     },
+    "hud_ammo1_text_color_low": {
+      "desc": "Text color when low on shells (only used with style 1 or 3, format: 0-255 0-255 0-255)",
+      "group-id": "19",
+      "type": "string"
+    },
+    "hud_ammo1_text_color_normal": {
+      "desc": "Text color when shell count is normal (only used with style 1 or 3, format: 0-255 0-255 0-255)",
+      "group-id": "19",
+      "type": "string"
+    },
     "hud_ammo2_align": {
       "desc": "Sets align of number of nails.",
       "group-id": "19",
@@ -6435,6 +6461,16 @@
       "desc": "Switches graphical style of number of nails.",
       "group-id": "19",
       "type": "float"
+    },
+    "hud_ammo2_text_color_low": {
+      "desc": "Text color when low on nails (only used with style 1 or 3, format: 0-255 0-255 0-255)",
+      "group-id": "19",
+      "type": "string"
+    },
+    "hud_ammo2_text_color_normal": {
+      "desc": "Text color when nail count is normal (only used with style 1 or 3, format: 0-255 0-255 0-255)",
+      "group-id": "19",
+      "type": "string"
     },
     "hud_ammo3_align": {
       "desc": "Sets align of number of rockets.",
@@ -6505,6 +6541,16 @@
       "group-id": "19",
       "type": "float"
     },
+    "hud_ammo3_text_color_low": {
+      "desc": "Text color when low on rockets (only used with style 1 or 3, format: 0-255 0-255 0-255)",
+      "group-id": "19",
+      "type": "string"
+    },
+    "hud_ammo3_text_color_normal": {
+      "desc": "Text color when rocket count is normal (only used with style 1 or 3, format: 0-255 0-255 0-255)",
+      "group-id": "19",
+      "type": "string"
+    },
     "hud_ammo4_align": {
       "desc": "Sets align of number of cells.",
       "group-id": "19",
@@ -6573,6 +6619,16 @@
       "desc": "Switches graphical style of number of cells.",
       "group-id": "19",
       "type": "float"
+    },
+    "hud_ammo4_text_color_low": {
+      "desc": "Text color when low on cells (only used with style 1 or 3, format: 0-255 0-255 0-255)",
+      "group-id": "19",
+      "type": "string"
+    },
+    "hud_ammo4_text_color_normal": {
+      "desc": "Text color when cell count is normal (only used with style 1 or 3, format: 0-255 0-255 0-255)",
+      "group-id": "19",
+      "type": "string"
     },
     "hud_ammo_align": {
       "desc": "Sets align of current ammo value.",
