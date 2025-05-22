@@ -2676,6 +2676,7 @@ static wchar* CL_ColorizeFragMessage (const wchar *source, cfrags_format *cff)
 	return dest_buf;
 }
 
+extern cvar_t con_highlight_broadcast, con_highlight_broadcast_mark;
 extern cvar_t con_highlight, con_highlight_mark, name;
 extern cvar_t cl_showFragsMessages;
 extern cvar_t scr_coloredfrags;
@@ -2692,7 +2693,6 @@ static void FlushString (const wchar *s, int level, qbool team, int offset)
 	char *f; 
 
 	wchar zomfg[4096]; // FIXME
-
 	cfrags_format cff = {0, 0, 0, 0, 0, 0, false}; // Stats_ParsePrint stuff
 
 	// During gametime, use notify for team messages only
@@ -2703,9 +2703,35 @@ static void FlushString (const wchar *s, int level, qbool team, int offset)
 	f = strstr (s0, name.string);
 	CL_SearchForReTriggers (s0, 1<<level); // re_triggers, s0 not modified
 
-	// Highlighting on && nickname found && it's not our own text (nickname not close to the beginning)
-	if (con_highlight.value && f && ((f - s0) > 1)) 
+	// Broadcast messages always begin with the '>' (0x8d) character. They
+	// should also contain a ':', and the golden '[' and ']'. If these are
+	// present, we can be reasonably sure it's a broadcast message and apply
+	// any specific highlight options that might be set.
+	if ((int)con_highlight_broadcast.value &&
+		(unsigned char)s0[0] == 0x8d && strchr(s0, ':') != NULL &&
+		strchr(s0, 0x10) != NULL && strchr(s0, 0x11) != NULL)
 	{
+		switch ((int)(con_highlight_broadcast.value))
+		{
+			case 1:
+				mark = "";
+				text = s;
+				break;
+			case 2:
+				mark = con_highlight_broadcast_mark.string;
+				text = (level == PRINT_CHAT) ? (const wchar *) TP_ParseWhiteText (s, team, offset) : s;
+				break;
+			default:
+			case 3:
+				mark = con_highlight_broadcast_mark.string;
+				text = s;
+				break;
+		}
+	}
+	else if (con_highlight.value && f && ((f - s0) > 1))
+	{
+		// Highlighting on && nickname found && it's not our own text
+		// (nickname not close to the beginning)
 		switch ((int)(con_highlight.value)) 
 		{
 			case 1:
