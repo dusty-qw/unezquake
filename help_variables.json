@@ -3541,6 +3541,43 @@
         }
       ]
     },
+    "con_highlight_broadcast": {
+      "default": "0",
+      "desc": "Console highlighting mode. Will highlight a line in the console which contains a broadcast message.",
+      "group-id": "5",
+      "remarks": "See con_highlight_broadcast_mark.",
+      "type": "enum",
+      "values": [
+        {
+          "description": "No highlighting",
+          "name": "0"
+        },
+        {
+          "description": "Highlighted line will be all white.",
+          "name": "1"
+        },
+        {
+          "description": "Highlighted line will start with the text given in con_highlight_broadcast_mark",
+          "name": "2"
+        },
+        {
+          "description": "Both 1 and 2: highlighted line will be white and start with special text",
+          "name": "3"
+        }
+      ]
+    },
+    "con_highlight_broadcast_mark": {
+      "default": "",
+      "desc": "Specifies the text that will be used to highlight lines with con_highlight_broadcast 2 and 3.",
+      "group-id": "5",
+      "type": "string",
+      "values": [
+        {
+          "description": "This text will be used on the beginning of the highlighted line",
+          "name": "*"
+        }
+      ]
+    },
     "con_mm2_only": {
       "default": "0",
       "desc": "If set, notification area is limited to mm2 (/say_team) messages.",
