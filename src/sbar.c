@@ -158,7 +158,7 @@ cvar_t	scr_scoreboard_showclock      = {"scr_scoreboard_showclock", "0"};
 cvar_t	scr_scoreboard_showmapname    = {"scr_scoreboard_showmapname", "0"};
 
 static void OnChange_scr_scoreboard_showqtvusers(cvar_t *old_value, char *new_value, qbool*);
-cvar_t scr_scoreboard_showqtvusers = {"scr_scoreboard_showqtvusers", "1", 0, OnChange_scr_scoreboard_showqtvusers};
+cvar_t scr_scoreboard_showqtvusers = {"scr_scoreboard_showqtvusers", "0", 0, OnChange_scr_scoreboard_showqtvusers};
 cvar_t scr_scoreboard_qtv_name = {"scr_scoreboard_qtv_name", "\xF1\xF4\xF6"};
 
 // VFrags: only draw the frags for the first player when using mvinset
