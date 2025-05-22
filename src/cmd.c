@@ -88,6 +88,7 @@ static void OnChange_remote_capabilities(cvar_t *var, char *string, qbool *cance
 	if (cls.state != ca_disconnected)
 	{
 		Com_Printf("You cannot change remote capabilities unless you are disconnected\n");
+		*cancel = true;
 		return;
 	}
 
