@@ -57,7 +57,7 @@ filelist_t skins_filelist;
 
 static float SliderPos(float min, float max, float val) { return (val-min)/(max-min); }
 
-static const char* colors[14] = { "White", "Brown", "Lavender", "Khaki", "Red", "Lt Brown", "Peach", "Lt Peach", "Purple", "Dk Purple", "Tan", "Green", "Yellow", "Blue" };
+static const char* colors[17] = { "White", "Brown", "Lavender", "Khaki", "Red", "Light Brown", "Peach", "Light Peach", "Purple", "Dark Purple", "Tan", "Green", "Yellow", "Blue", "Orange", "Bright Red", "Black"};
 #define COLORNAME(x) colors[bound(0, ((int) x), sizeof(colors) / sizeof(char*) - 1)]
 
 char* SettingColorName(int color)
@@ -180,7 +180,7 @@ static int Enum_Find_ValueCode(setting* set)
 
 	for (i = 0; i <= set->max; i++)
 	{
-		if (!strcmp(VARSVAL(set->cvar), ENUM_VALUE(set, i)))
+		if (!strcasecmp(VARSVAL(set->cvar), ENUM_VALUE(set, i)))
 			return i;
 	}
 	return ENUM_ITEM_NOT_FOUND;
