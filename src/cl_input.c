@@ -1118,6 +1118,61 @@ void CL_SendClientCommand(qbool reliable, char* format, ...)
 
 int cmdtime_msec = 0;
 
+void CL_ApplySafestrafe(usercmd_t *cmd)
+{
+	int required_frames = movevars.safestrafe;
+	if (required_frames <= 0)
+		return;
+	
+	float current_move = cmd->sidemove;
+	
+	// Handle pending stop frames
+	if (cl.safestrafe.pending_frames > 0) {
+		cmd->sidemove = 0;
+		cl.safestrafe.pending_frames--;
+		cl.safestrafe.stop_frames++;
+		cl.safestrafe.last_sidemove = 0;
+		return;
+	}
+	
+	// Determine directions
+	int current_dir = (current_move > 0) - (current_move < 0);
+	int previous_dir = (cl.safestrafe.last_sidemove > 0) - 
+	                   (cl.safestrafe.last_sidemove < 0);
+	
+	// Check for direction change
+	if (current_dir != 0 && previous_dir != 0 && 
+	    current_dir != previous_dir) {
+		// Direct direction change - enforce stop frames
+		cl.safestrafe.pending_frames = required_frames;
+		cl.safestrafe.pending_direction = current_move;
+		cl.safestrafe.stop_frames = 1;
+		cmd->sidemove = 0;
+	}
+	else if (current_dir != 0 && previous_dir == 0) {
+		// Starting movement after stop
+		if (cl.safestrafe.stop_frames < required_frames) {
+			// Not enough stop frames
+			cl.safestrafe.pending_frames = 
+				required_frames - cl.safestrafe.stop_frames;
+			cl.safestrafe.pending_direction = current_move;
+			cl.safestrafe.stop_frames++;
+			cmd->sidemove = 0;
+		}
+		else {
+			// Enough stop frames - allow movement
+			cl.safestrafe.stop_frames = 0;
+		}
+	}
+	else if (current_dir == 0) {
+		// Currently stopped
+		cl.safestrafe.stop_frames++;
+	}
+	
+	// Update last move
+	cl.safestrafe.last_sidemove = cmd->sidemove;
+}
+
 void CL_SendCmd(void)
 {
 	sizebuf_t buf;
@@ -1168,6 +1223,10 @@ void CL_SendCmd(void)
 
 	if (cl_easyaircontrol.value && !(cl.onground) && !(cl.waterlevel >= 2) && cl.standby)
 		CL_EasyAirControl(cmd);
+
+	// Apply safestrafe if enabled on server
+	if (movevars.safestrafe > 0 && !cl.spectator)
+		CL_ApplySafestrafe(cmd);
 
 	CL_FinishMove(cmd);
 	cmdtime_msec += cmd->msec;
