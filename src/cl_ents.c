@@ -32,6 +32,7 @@ void TP_ParsePlayerInfo(player_state_t *, player_state_t *, player_info_t *info)
 extern cvar_t cl_predict_players, cl_solid_players, cl_rocket2grenade;
 extern cvar_t cl_predict_half;
 extern cvar_t cl_model_bobbing;		
+extern cvar_t cl_model_height;
 extern cvar_t cl_nolerp, cl_lerp_monsters, cl_newlerp;
 extern cvar_t r_drawvweps;		
 extern  unsigned int     cl_dlight_active[MAX_DLIGHTS/32];       
@@ -1098,6 +1099,12 @@ void CL_LinkPacketEntities(void)
 			ent.angles[1] = autorotate;
 			if (cl_model_bobbing.value)
 				ent.origin[2] += sin(autorotate / 90 * M_PI) * 5 + 5;
+			else {
+				// Use cl_model_height when bobbing is disabled
+				// Restrict possible model heights to bobbing range
+				float height = bound(0, cl_model_height.value, 10);
+				ent.origin[2] += height;
+			}
 		} 
 		else 
 		{

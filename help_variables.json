@@ -1911,6 +1911,12 @@
       "group-id": "8",
       "type": "boolean"
     },
+    "cl_model_height": {
+      "default": "0",
+      "desc": "Sets height of models. Values from 0 to 10 accepted.",
+      "group-id": "8",
+      "type": "integer"
+    },
     "cl_movespeedkey": {
       "default": "2.0",
       "desc": "This variable is the multiplier for how fast you move when running (+speed) in relation to when walking (-speed).",
