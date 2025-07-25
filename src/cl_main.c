@@ -210,6 +210,7 @@ cvar_t cl_window_caption	= {"cl_window_caption", "1"};
 cvar_t cl_window_caption_delimiter = {"cl_window_caption_delimiter", " | "};
 
 cvar_t cl_model_bobbing		= {"cl_model_bobbing", "1"};
+cvar_t cl_model_height		= {"cl_model_height", "0"};
 cvar_t cl_nolerp			= {"cl_nolerp", "0"}; // 0 is good for indep-phys, 1 is good for old-phys
 
 //this var has effect only if cl_nolerp is 1 and indep-phys enabled
@@ -1851,6 +1852,7 @@ static void CL_InitLocal(void)
 
 	Cvar_SetCurrentGroup(CVAR_GROUP_EYECANDY);
 	Cvar_Register(&cl_model_bobbing);
+	Cvar_Register(&cl_model_height);
 	Cvar_Register(&cl_nolerp);
 	Cvar_Register(&cl_nolerp_on_entity);
 	Cvar_Register(&cl_newlerp);
