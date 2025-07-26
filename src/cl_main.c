@@ -2013,14 +2013,14 @@ static void CL_InitLocal(void)
 	// debugging weapons
 	Cvar_Register(&cl_debug_weapon_view);
 
-	snprintf(st, sizeof(st), "ezQuake %i", REVISION);
+	snprintf(st, sizeof(st), "unezq %i", REVISION);
 
 	if (COM_CheckParm (cmdline_param_client_norjscripts) || COM_CheckParm (cmdline_param_client_noscripts))
 		Cvar_SetValue (&allow_scripts, 0);
 
  	Info_SetValueForStarKey (cls.userinfo, "*client", st, MAX_INFO_STRING);
 
-	snprintf(st, sizeof(st), "ezQuake v%s %s", VERSION_NUMBER, VERSION);
+	snprintf(st, sizeof(st), "unezq v%s %s", VERSION_NUMBER, VERSION);
 	Info_SetValueForStarKey(cls.userinfo, "*ver", st, MAX_INFO_STRING);
 
 	if (COM_CheckParm(cmdline_param_client_noindphys))
