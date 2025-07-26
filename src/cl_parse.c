@@ -1396,8 +1396,23 @@ void CL_ParseServerData (void)
 
 	Com_DPrintf("Serverdata packet received.\n");
 
+	// Save tracking state before clearing
+	int saved_spec_track = cl.spec_track;
+	qbool saved_spec_locked = cl.spec_locked;
+	int saved_autocam = cl.autocam;
+	int saved_ideal_track = cl.ideal_track;
+	qbool was_spectator = cl.spectator;
+
 	// wipe the clientState_t struct
 	CL_ClearState();
+
+	// Restore tracking state if we were spectating
+	if (was_spectator && saved_spec_track >= 0) {
+		cl.spec_track = saved_spec_track;
+		cl.spec_locked = saved_spec_locked;
+		cl.autocam = saved_autocam;
+		cl.ideal_track = saved_ideal_track;
+	}
 
 	// parse protocol version number
 	// allow 2.2 and 2.29 demos to play
@@ -1649,6 +1664,9 @@ void CL_ParseServerData (void)
 #ifdef FTE_PEXT2_VOICECHAT
 	S_Voip_MapChange();
 #endif
+
+	// Initialize auto-retrack for spectators
+	Cam_InitAutoRetrack();
 }
 
 void CL_ParseSoundlist (void)
