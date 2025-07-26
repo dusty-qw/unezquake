@@ -1219,12 +1219,16 @@ void CL_ClearState (void)
 	if (cls.state == ca_active) {
 		int ideal_track = cl.ideal_track;
 		int autocam = cl.autocam;
+		int spec_track = cl.spec_track;
+		qbool spec_locked = cl.spec_locked;
 
 		// Wipe the entire cl structure.
 		memset(&cl, 0, sizeof(cl));
 
 		cl.ideal_track = ideal_track;
 		cl.autocam = autocam;
+		cl.spec_track = spec_track;
+		cl.spec_locked = spec_locked;
 	}
 	else {
 		// Wipe the entire cl structure.

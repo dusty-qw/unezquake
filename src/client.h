@@ -1114,6 +1114,7 @@ void Cam_Track (usercmd_t *cmd);
 void Cam_FinishMove (usercmd_t *cmd);
 void Cam_Reset (void);
 void Cam_SetViewPlayer (void);
+void Cam_InitAutoRetrack (void);
 void CL_InitCam (void);
 void Cam_TryLock (void);
 
