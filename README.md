@@ -15,7 +15,7 @@ unezQuake has all of the latest ezQake features, plus:
     * `scr_scoreboard_showtracking_scale`
     * `scr_scoreboard_showtracking_x`
     * `scr_scoreboard_showtracking_y`
- * `scr_scoreboard_scale` - size the scoreboard. Convenient when using high console resolutions.
+ * `scr_scoreboard_scale` - size the scoreboard. Convenient when using high console resolutions
  * `cl_autohop` - queue jumps automatically when holding +jump
  * `scr_teaminlay` - KTX independent teamoverlay with experimental MM2 enhancements
  * `cl_easyaircontrol` - experimental input handling for controller/joystick (only works in prewar)
@@ -26,6 +26,8 @@ unezQuake has all of the latest ezQake features, plus:
  * `hud_[element]_border x` - sets a border of "x" thickness around any hud element  
     * `hud_[element]_border_color "R G B A"` - set color of border
  * `scr_teaminfo_mega_color` - change color of health in teamoverlay value if > 100 hp
+ * `cl_model_height` - ability to set custom height of models/simpleitems
+ * `auto_retrack` - spectator tracking now persists across map changes
 
 ## Support
 
