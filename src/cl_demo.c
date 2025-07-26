@@ -3785,6 +3785,9 @@ static void CL_StartDemoCommand(void)
 
 	char *real_name;
 	char name[MAX_OSPATH];
+	#ifdef WITH_ZIP
+	char unpacked_path[MAX_OSPATH];
+	#endif
 
 	if (Cmd_Argc() < 2) {
 		return; // internal error
@@ -3805,14 +3808,11 @@ static void CL_StartDemoCommand(void)
 
 	// VFS-FIXME: This will affect playing qwz inside a zip
 	#ifdef WITH_ZIP
-	{
-		//
-		// Unpack the demo if it's zipped or gzipped. And get the path to the unpacked demo file.
-		//
-		char unpacked_path[MAX_OSPATH];
-		if (CL_UnpackAndOpenDemo(Cmd_Argv(1), unpacked_path, sizeof(unpacked_path))) {
-			real_name = unpacked_path;
-		}
+	//
+	// Unpack the demo if it's zipped or gzipped. And get the path to the unpacked demo file.
+	//
+	if (CL_UnpackAndOpenDemo(Cmd_Argv(1), unpacked_path, sizeof(unpacked_path))) {
+		real_name = unpacked_path;
 	}
 	#endif // WITH_ZIP
 

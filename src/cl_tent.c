@@ -1320,9 +1320,6 @@ static void CL_UpdateFakeProjectiles(void)
 		centstate.modelindex = prj->modelindex;
 		centstate.number = prj->dl_key;
 
-		vec3_t sframe_org;
-		VectorCopy(prj->org, sframe_org);
-
 		if (prj->type == 1)
 		{
 			Fproj_Physics_Bounce(prj, cls.frametime);

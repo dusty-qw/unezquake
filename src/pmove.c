@@ -1775,7 +1775,8 @@ void W_Attack(void)
 		pmove.attack_finished = pmove.client_time + 0.5;
 		PM_SoundEffect_Weapon(cl_sfx_ax1, 1, 2);
 
-		float r = fabs((((int)(pmove.client_time * 931.75) << 11) + ((int)(pmove.client_time) >> 6)) % 1000) / 1000;
+		int temp = (((int)(pmove.client_time * 931.75) << 11) + ((int)(pmove.client_time) >> 6)) % 1000;
+		float r = abs(temp) / 1000.0;
 		if (r < 0.25)
 		{
 			pmove.weaponframe = 0;

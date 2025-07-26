@@ -240,6 +240,7 @@ void GL_DrawElementsInstancedBaseVertexBaseInstance(GLenum mode, GLsizei count, 
 qbool GL_DrawElementsBaseVertexAvailable(void);
 
 void GL_BindImageTexture(GLuint unit, texture_ref texture, GLint level, GLboolean layered, GLint layer, GLenum access, GLenum format);
+void GL_EnsureFinished(void);
 GLenum GL_ProcessAllErrors(const char* message);
 
 #ifdef WITH_RENDERING_TRACE
