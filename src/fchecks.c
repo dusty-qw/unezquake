@@ -56,7 +56,7 @@ extern cvar_t cl_rollalpha;
 
 static void FChecks_VersionResponse (void)
 {
-	Cbuf_AddText (va("say {unezQuake &c96f%s&r &c777%s&r " QW_PLATFORM ":" QW_RENDERER "}\n", VERSION_NUMBER, VersionHash()));
+	Cbuf_AddText (va("say {unezQuake &c9f6%s&r &c777%s&r " QW_PLATFORM ":" QW_RENDERER "}\n", VERSION_NUMBER, VersionHash()));
 }
 
 static char *FChecks_FServerResponse_Text(void)
@@ -288,7 +288,7 @@ static qbool FChecks_CheckFRulesetRequest (const char *s)
 	// truncate build hash to 5 characters
 	snprintf(shorthash, sizeof(shorthash), "%s", VersionHash());
 	shorthash[5] = '\0';
-	snprintf(versionwithhash, sizeof(versionwithhash), "unez&c96f%s-%s&r", VERSION_NUMBER, shorthash);
+	snprintf(versionwithhash, sizeof(versionwithhash), "unez&c9f6%s-%s&r", VERSION_NUMBER, shorthash);
 
 	if (Util_F_Match(s, "f_ruleset"))	{
 		features = FChecks_RulesetAdditionString();
