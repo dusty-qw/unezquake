@@ -2558,6 +2558,30 @@
         }
       ]
     },
+    "cl_predict_velocity_scale": {
+      "default": "1",
+      "desc": "Scales player prediction based on velocity to reduce jitter during rapid direction changes. At low speeds (< 320 units/s), prediction time is reduced to minimize overcorrection when players quickly change direction.",
+      "group-id": "21",
+      "type": "integer",
+      "values": [
+        {
+          "description": "Disabled - full prediction at all speeds",
+          "name": "0"
+        },
+        {
+          "description": "Normal",
+          "name": "1"
+        },
+        {
+          "description": "Aggressive",
+          "name": "2"
+        },
+        {
+          "description": "Very aggressive",
+          "name": "3"
+        }
+      ]
+    },
     "cl_proxyaddr": {
       "default": "",
       "desc": "IP address of the proxy server to use while connecting to servers.",
