@@ -2594,13 +2594,35 @@ static void CL_LinkPlayers(void)
 		// Scale prediction based on velocity to reduce jitter at low speeds
 		if (cl_predict_velocity_scale.value) {
 			float speed = 0;
+			float scale_threshold = 320.0f;
+			float scale;
 			int k;
 			for (k = 0; k < 3; k++)
 				speed += fabs(state->velocity[k]);
 			
-			if (speed < 320) {
-				float scale = speed / 320.0f;
-				msec = (int)(msec * scale);
+			// Different scaling modes
+			if (cl_predict_velocity_scale.value == 1) {
+				// Normal scaling
+				if (speed < scale_threshold) {
+					scale = speed / scale_threshold;
+					msec = (int)(msec * scale);
+				}
+			}
+			else if (cl_predict_velocity_scale.value == 2) {
+				// Aggressive scaling
+				if (speed < scale_threshold) {
+					scale = speed / scale_threshold;
+					scale = scale * scale; // More aggressive reduction
+					msec = (int)(msec * scale);
+				}
+			}
+			else if (cl_predict_velocity_scale.value >= 3) {
+				// Very aggressive scaling
+				if (speed < scale_threshold) {
+					scale = speed / scale_threshold;
+					scale = scale * scale * scale; // Very aggressive reduction
+					msec = (int)(msec * scale);
+				}
 			}
 		}
 		if (msec <= 0 || !cl_predict_players.value || cls.mvdplayback) {
@@ -2841,13 +2863,35 @@ void CL_SetUpPlayerPrediction(qbool dopred)
 			// Scale prediction based on velocity to reduce jitter at low speeds
 			if (cl_predict_velocity_scale.value) {
 				float speed = 0;
+				float scale_threshold = 320.0f;
+				float scale;
 				int k;
 				for (k = 0; k < 3; k++)
 					speed += fabs(state->velocity[k]);
 				
-				if (speed < 320) {
-					float scale = speed / 320.0f;
-					msec = (int)(msec * scale);
+				// Different scaling modes
+				if (cl_predict_velocity_scale.value == 1) {
+					// Normal scaling (linear)
+					if (speed < scale_threshold) {
+						scale = speed / scale_threshold;
+						msec = (int)(msec * scale);
+					}
+				}
+				else if (cl_predict_velocity_scale.value == 2) {
+					// Aggressive scaling (quadratic)
+					if (speed < scale_threshold) {
+						scale = speed / scale_threshold;
+						scale = scale * scale; // More aggressive reduction
+						msec = (int)(msec * scale);
+					}
+				}
+				else if (cl_predict_velocity_scale.value >= 3) {
+					// Very aggressive scaling (cubic)
+					if (speed < scale_threshold) {
+						scale = speed / scale_threshold;
+						scale = scale * scale * scale; // Very aggressive reduction
+						msec = (int)(msec * scale);
+					}
 				}
 			}
 			
