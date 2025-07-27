@@ -30,7 +30,7 @@ static int MVD_TranslateFlags(int src);
 void TP_ParsePlayerInfo(player_state_t *, player_state_t *, player_info_t *info);	
 
 extern cvar_t cl_predict_players, cl_solid_players, cl_rocket2grenade;
-extern cvar_t cl_predict_half;
+extern cvar_t cl_predict_half, cl_predict_velocity_scale;
 extern cvar_t cl_model_bobbing;		
 extern cvar_t cl_model_height;
 extern cvar_t cl_nolerp, cl_lerp_monsters, cl_newlerp;
@@ -1963,6 +1963,19 @@ static void CL_LinkPlayers(void)
 
 		// only predict half the move to minimize overruns
 		msec = (cl_predict_half.value ? 500 : 1000) * (cl.paused ? predicted_players[j].paused_sec : (playertime - state->state_time));
+		
+		// Scale prediction based on velocity to reduce jitter at low speeds
+		if (cl_predict_velocity_scale.value) {
+			float speed = 0;
+			int k;
+			for (k = 0; k < 3; k++)
+				speed += fabs(state->velocity[k]);
+			
+			if (speed < 320) {
+				float scale = speed / 320.0f;
+				msec = (int)(msec * scale);
+			}
+		}
 		if (msec <= 0 || !cl_predict_players.value || cls.mvdplayback) {
 			VectorCopy (state->origin, ent.origin);
 			VectorCopy(ent.origin, predicted_players[j].drawn_origin);
@@ -2197,6 +2210,20 @@ void CL_SetUpPlayerPrediction(qbool dopred)
 		else 
 		{
 			msec = (cl_predict_half.value ? 500 : 1000) * (playertime - state->state_time);
+			
+			// Scale prediction based on velocity to reduce jitter at low speeds
+			if (cl_predict_velocity_scale.value) {
+				float speed = 0;
+				int k;
+				for (k = 0; k < 3; k++)
+					speed += fabs(state->velocity[k]);
+				
+				if (speed < 320) {
+					float scale = speed / 320.0f;
+					msec = (int)(msec * scale);
+				}
+			}
+			
 			if (msec <= 0 || !cl_predict_players.value || !dopred || cls.mvdplayback) 
 			{ 
 				VectorCopy (state->origin, pplayer->origin);
