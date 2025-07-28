@@ -30,7 +30,7 @@ static int MVD_TranslateFlags(int src);
 void TP_ParsePlayerInfo(player_state_t *, player_state_t *, player_info_t *info);	
 
 extern cvar_t cl_predict_players, cl_solid_players, cl_rocket2grenade;
-extern cvar_t cl_predict_half, cl_predict_velocity_scale;
+extern cvar_t cl_predict_half, cl_predict_velocity_scale, cl_predict_lerp;
 extern cvar_t cl_model_bobbing;		
 extern cvar_t cl_model_height;
 extern cvar_t cl_nolerp, cl_lerp_monsters, cl_newlerp;
@@ -52,6 +52,12 @@ static struct predicted_player {
 	vec3_t drawn_origin;
 	int msec;
 	float paused_sec;
+	
+	// Lerping data for smooth prediction error correction
+	vec3_t lerp_origin;      // Origin we're lerping from
+	vec3_t lerp_target;      // Target origin after prediction
+	float lerp_start_time;   // When the lerp started
+	qbool lerping;          // Whether we're currently lerping
 } predicted_players[MAX_CLIENTS];
 
 char *cl_modelnames[cl_num_modelindices];
@@ -2003,6 +2009,7 @@ static void CL_LinkPlayers(void)
 			VectorCopy(ent.origin, predicted_players[j].drawn_origin);
 			predicted_players[j].msec = 0;
 			predicted_players[j].drawn = true;
+			predicted_players[j].lerping = false; // No lerping needed for non-predicted players
 		}
 		else {
 			// predict players movement
@@ -2013,8 +2020,71 @@ static void CL_LinkPlayers(void)
 			CL_SetSolidPlayers(j);
 			CL_PredictUsercmd(state, &exact, &state->command);
 			pmove.numphysent = oldphysent;
-			VectorCopy(exact.origin, ent.origin);
-			VectorCopy(exact.origin, predicted_players[j].drawn_origin);
+			
+			// Handle prediction error lerping (but not for local player)
+			if (cl_predict_lerp.value > 0 && j != cl.playernum) {
+				vec3_t prediction_error;
+				float error_distance;
+				
+				// Calculate prediction error
+				VectorSubtract(exact.origin, predicted_players[j].drawn_origin, prediction_error);
+				error_distance = VectorLength(prediction_error);
+				
+				// If error is significant, start or update lerping
+				if (error_distance > 1.0f && predicted_players[j].drawn) {
+					if (predicted_players[j].lerping) {
+						// Already lerping - update the target to the new position
+						// But start from current interpolated position to avoid jumps
+						float lerp_fraction = (cl.time - predicted_players[j].lerp_start_time) / cl_predict_lerp.value;
+						if (lerp_fraction < 1.0f) {
+							// Calculate current interpolated position
+							vec3_t current_pos;
+							current_pos[0] = predicted_players[j].lerp_origin[0] + 
+								(predicted_players[j].lerp_target[0] - predicted_players[j].lerp_origin[0]) * lerp_fraction;
+							current_pos[1] = predicted_players[j].lerp_origin[1] + 
+								(predicted_players[j].lerp_target[1] - predicted_players[j].lerp_origin[1]) * lerp_fraction;
+							current_pos[2] = predicted_players[j].lerp_origin[2] + 
+								(predicted_players[j].lerp_target[2] - predicted_players[j].lerp_origin[2]) * lerp_fraction;
+							VectorCopy(current_pos, predicted_players[j].lerp_origin);
+						} else {
+							VectorCopy(predicted_players[j].lerp_target, predicted_players[j].lerp_origin);
+						}
+					} else {
+						// Start new lerp
+						VectorCopy(predicted_players[j].drawn_origin, predicted_players[j].lerp_origin);
+					}
+					VectorCopy(exact.origin, predicted_players[j].lerp_target);
+					predicted_players[j].lerp_start_time = cl.time;
+					predicted_players[j].lerping = true;
+				}
+				
+				// Apply lerping if active
+				if (predicted_players[j].lerping) {
+					float lerp_fraction = (cl.time - predicted_players[j].lerp_start_time) / cl_predict_lerp.value;
+					
+					if (lerp_fraction >= 1.0f) {
+						// Lerp complete
+						VectorCopy(predicted_players[j].lerp_target, ent.origin);
+						predicted_players[j].lerping = false;
+					} else {
+						// Interpolate position
+						ent.origin[0] = predicted_players[j].lerp_origin[0] + 
+							(predicted_players[j].lerp_target[0] - predicted_players[j].lerp_origin[0]) * lerp_fraction;
+						ent.origin[1] = predicted_players[j].lerp_origin[1] + 
+							(predicted_players[j].lerp_target[1] - predicted_players[j].lerp_origin[1]) * lerp_fraction;
+						ent.origin[2] = predicted_players[j].lerp_origin[2] + 
+							(predicted_players[j].lerp_target[2] - predicted_players[j].lerp_origin[2]) * lerp_fraction;
+					}
+				} else {
+					// No lerping, use predicted position directly
+					VectorCopy(exact.origin, ent.origin);
+				}
+			} else {
+				// Lerping disabled, use predicted position directly
+				VectorCopy(exact.origin, ent.origin);
+			}
+			
+			VectorCopy(ent.origin, predicted_players[j].drawn_origin);
 			predicted_players[j].msec = msec;
 			predicted_players[j].drawn = true;
 		}
