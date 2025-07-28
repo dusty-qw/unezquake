@@ -2558,6 +2558,15 @@
         }
       ]
     },
+    "cl_predict_lerp": {
+      "default": "0.026",
+      "desc": "Controls the time (in seconds) to smoothly interpolate player positions when prediction errors occur. Lower values make corrections snappier, higher values make them smoother. Set to 0 to disable prediction error smoothing.",
+      "group-id": "21",
+      "type": "float",
+      "min-value": 0,
+      "max-value": 0.1,
+      "remarks": "Helps reduce visual 'popping' when player prediction is corrected by server updates. Default of 0.026 (26ms) provides smooth correction over ~1 server frame."
+    },
     "cl_predict_players": {
       "default": "1",
       "desc": "This toggles the prediction for other players' movement. Unless you are having problems this variable should be left at \"1\".",
