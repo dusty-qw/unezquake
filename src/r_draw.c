@@ -881,6 +881,173 @@ void Draw_AlphaCircleFill(float x, float y, float radius, byte color, float alph
 	Draw_AlphaCircle(x, y, radius, 1.0, true, color, alpha);
 }
 
+void Draw_AlphaRoundedRectangleRGB(float x, float y, float w, float h, float radius_tl, float radius_tr, float radius_br, float radius_bl, float thickness, qbool fill, color_t color)
+{
+	// If all radii are 0, just draw a regular rectangle
+	if (radius_tl <= 0 && radius_tr <= 0 && radius_br <= 0 && radius_bl <= 0) {
+		Draw_AlphaRectangleRGB(x, y, w, h, thickness, fill, color);
+		return;
+	}
+
+	// Clamp radii to half the smaller dimension
+	float max_radius = min(w, h) * 0.5f;
+	radius_tl = min(radius_tl, max_radius);
+	radius_tr = min(radius_tr, max_radius);
+	radius_br = min(radius_br, max_radius);
+	radius_bl = min(radius_bl, max_radius);
+
+	// Also ensure that adjacent corners don't overlap
+	if (radius_tl + radius_tr > w) {
+		float scale = w / (radius_tl + radius_tr);
+		radius_tl *= scale;
+		radius_tr *= scale;
+	}
+	if (radius_bl + radius_br > w) {
+		float scale = w / (radius_bl + radius_br);
+		radius_bl *= scale;
+		radius_br *= scale;
+	}
+	if (radius_tl + radius_bl > h) {
+		float scale = h / (radius_tl + radius_bl);
+		radius_tl *= scale;
+		radius_bl *= scale;
+	}
+	if (radius_tr + radius_br > h) {
+		float scale = h / (radius_tr + radius_br);
+		radius_tr *= scale;
+		radius_br *= scale;
+	}
+
+	if (fill) {
+		// Fill the main rectangles
+		float top_rect_x = max(radius_tl, radius_bl);
+		float top_rect_w = w - max(radius_tl, radius_bl) - max(radius_tr, radius_br);
+		float left_rect_y = max(radius_tl, radius_tr);
+		float left_rect_h = h - max(radius_tl, radius_tr) - max(radius_bl, radius_br);
+		
+		// Center rectangle
+		Draw_AlphaFillRGB(x + top_rect_x, y + left_rect_y, top_rect_w, left_rect_h, color);
+		
+		// Top rectangle
+		if (left_rect_y > 0)
+			Draw_AlphaFillRGB(x + radius_tl, y, w - radius_tl - radius_tr, left_rect_y, color);
+		
+		// Bottom rectangle
+		if (left_rect_y + left_rect_h < h)
+			Draw_AlphaFillRGB(x + radius_bl, y + left_rect_y + left_rect_h, w - radius_bl - radius_br, h - left_rect_y - left_rect_h, color);
+		
+		// Left rectangle
+		if (top_rect_x > 0)
+			Draw_AlphaFillRGB(x, y + radius_tl, top_rect_x, h - radius_tl - radius_bl, color);
+		
+		// Right rectangle
+		if (top_rect_x + top_rect_w < w)
+			Draw_AlphaFillRGB(x + top_rect_x + top_rect_w, y + radius_tr, w - top_rect_x - top_rect_w, h - radius_tr - radius_br, color);
+
+		// Fill the corners with pie slices
+		// The pie slice rendering multiplies by overall_alpha but rectangles don't seem to,
+		// so we need to temporarily adjust overall_alpha
+		float saved_alpha = overall_alpha;
+		byte color_bytes[4];
+		COLOR_TO_RGBA(color, color_bytes);
+		
+		// Set overall_alpha to match what the rectangles are using
+		// If rectangles are showing at the correct opacity, we want pie slices to match
+		overall_alpha = (color_bytes[3] / 255.0f);
+		
+		if (radius_tl > 0)
+			Draw_AlphaPieSliceRGB(x + radius_tl, y + radius_tl, radius_tl, 0.5 * M_PI, M_PI, 1, true, color);
+		if (radius_tr > 0)
+			Draw_AlphaPieSliceRGB(x + w - radius_tr, y + radius_tr, radius_tr, 0, 0.5 * M_PI, 1, true, color);
+		if (radius_br > 0)
+			Draw_AlphaPieSliceRGB(x + w - radius_br, y + h - radius_br, radius_br, 1.5 * M_PI, 2 * M_PI, 1, true, color);
+		if (radius_bl > 0)
+			Draw_AlphaPieSliceRGB(x + radius_bl, y + h - radius_bl, radius_bl, M_PI, 1.5 * M_PI, 1, true, color);
+		
+		overall_alpha = saved_alpha;
+	} else {
+		// For outline/border, we need to draw just the curved parts
+		// Since Draw_AlphaPieSliceRGB draws full pie slices with lines to center,
+		// we'll use Draw_AlphaCircleRGB with appropriate angles for each corner
+		
+		// Draw straight lines for the edges
+		Draw_AlphaLineRGB(x + radius_tl, y, x + w - radius_tr, y, thickness, color);
+		Draw_AlphaLineRGB(x + radius_bl, y + h, x + w - radius_br, y + h, thickness, color);
+		Draw_AlphaLineRGB(x, y + radius_tl, x, y + h - radius_bl, thickness, color);
+		Draw_AlphaLineRGB(x + w, y + radius_tr, x + w, y + h - radius_br, thickness, color);
+		
+		// For corners, we'll draw small arc segments
+		// We need to draw many small lines to approximate the curves
+		int segments = 16; // Number of segments per quarter circle
+		int i;
+		
+		// Top-left corner - arc from top to left
+		if (radius_tl > 0) {
+			float x1 = 0, y1 = 0;
+			for (i = 0; i <= segments; i++) {
+				float angle = M_PI * 0.5 + (i * 0.5 * M_PI) / segments;
+				float px = x + radius_tl + radius_tl * cos(angle);
+				float py = y + radius_tl - radius_tl * sin(angle);
+				if (i > 0) {
+					Draw_AlphaLineRGB(x1, y1, px, py, thickness, color);
+				}
+				x1 = px;
+				y1 = py;
+			}
+		}
+		
+		// Top-right corner - arc from right to top
+		if (radius_tr > 0) {
+			float x1 = 0, y1 = 0;
+			for (i = 0; i <= segments; i++) {
+				float angle = (i * 0.5 * M_PI) / segments;
+				float px = x + w - radius_tr + radius_tr * cos(angle);
+				float py = y + radius_tr - radius_tr * sin(angle);
+				if (i > 0) {
+					Draw_AlphaLineRGB(x1, y1, px, py, thickness, color);
+				}
+				x1 = px;
+				y1 = py;
+			}
+		}
+		
+		// Bottom-right corner - arc from bottom to right
+		if (radius_br > 0) {
+			float x1 = 0, y1 = 0;
+			for (i = 0; i <= segments; i++) {
+				float angle = 1.5 * M_PI + (i * 0.5 * M_PI) / segments;
+				float px = x + w - radius_br + radius_br * cos(angle);
+				float py = y + h - radius_br - radius_br * sin(angle);
+				if (i > 0) {
+					Draw_AlphaLineRGB(x1, y1, px, py, thickness, color);
+				}
+				x1 = px;
+				y1 = py;
+			}
+		}
+		
+		// Bottom-left corner - arc from left to bottom  
+		if (radius_bl > 0) {
+			float x1 = 0, y1 = 0;
+			for (i = 0; i <= segments; i++) {
+				float angle = M_PI + (i * 0.5 * M_PI) / segments;
+				float px = x + radius_bl + radius_bl * cos(angle);
+				float py = y + h - radius_bl - radius_bl * sin(angle);
+				if (i > 0) {
+					Draw_AlphaLineRGB(x1, y1, px, py, thickness, color);
+				}
+				x1 = px;
+				y1 = py;
+			}
+		}
+	}
+}
+
+void Draw_AlphaRoundedFillRGB(float x, float y, float w, float h, float radius_tl, float radius_tr, float radius_br, float radius_bl, color_t color)
+{
+	Draw_AlphaRoundedRectangleRGB(x, y, w, h, radius_tl, radius_tr, radius_br, radius_bl, 1, true, color);
+}
+
 //
 // SCALE versions of some functions
 //

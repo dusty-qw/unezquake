@@ -935,6 +935,50 @@ void HUD_DrawFrame(hud_t *hud, int x, int y, int width, int height)
 	{
 		hud->frame_color_cache[3] = (byte)(255 * hud->frame->value);
 
+		// Check if we need to use rounded fill
+		if (hud->border_radius && hud->border_radius->string && hud->border_radius->string[0]) {
+			float radius_tl = 0, radius_tr = 0, radius_br = 0, radius_bl = 0;
+			char radius_buf[256];
+			int num_values = 0;
+			float values[4] = {0, 0, 0, 0};
+			
+			// Parse border radius values
+			strlcpy(radius_buf, hud->border_radius->string, sizeof(radius_buf));
+			char *token = strtok(radius_buf, " ");
+			while (token && num_values < 4) {
+				values[num_values++] = atof(token);
+				token = strtok(NULL, " ");
+			}
+			
+			// Apply CSS-style rules for radius values
+			switch (num_values) {
+				case 1:
+					radius_tl = radius_tr = radius_br = radius_bl = values[0];
+					break;
+				case 2:
+					radius_tl = radius_br = values[0];
+					radius_tr = radius_bl = values[1];
+					break;
+				case 3:
+					radius_tl = values[0];
+					radius_tr = radius_bl = values[1];
+					radius_br = values[2];
+					break;
+				case 4:
+					radius_tl = values[0];
+					radius_tr = values[1];
+					radius_br = values[2];
+					radius_bl = values[3];
+					break;
+			}
+			
+			if (radius_tl > 0 || radius_tr > 0 || radius_br > 0 || radius_bl > 0) {
+				Draw_AlphaRoundedFillRGB(x, y, width, height, radius_tl, radius_tr, radius_br, radius_bl, RGBAVECT_TO_COLOR(hud->frame_color_cache));
+				return;
+			}
+		}
+		
+		// No radius, use regular fill
 		Draw_AlphaFillRGB(x, y, width, height, RGBAVECT_TO_COLOR(hud->frame_color_cache));
 		return;
 	}
@@ -959,6 +1003,11 @@ void HUD_DrawBorder(hud_t *hud, int x, int y, int width, int height)
 	int border = hud->border->integer;
 	char *color_str = hud->border_color->string;
 	color_t color = color_str ? RGBAVECT_TO_COLOR(StringToRGB(color_str)) : RGBA_TO_COLOR(0, 0, 0, 255);
+	float radius_tl = 0, radius_tr = 0, radius_br = 0, radius_bl = 0;
+	char *radius_str;
+	char radius_buf[256];
+	int num_values = 0;
+	float values[4] = {0, 0, 0, 0};
 
 	if (!border)
 	 	return;
@@ -966,10 +1015,57 @@ void HUD_DrawBorder(hud_t *hud, int x, int y, int width, int height)
 	// We want a positive value to draw the border outside of the element, and a negative on the inside.
 	border *= -1; 
 
-	Draw_AlphaFillRGB(x, y, width, border, color); 			// top
-	Draw_AlphaFillRGB(x, y+border, border, height-border, color); 			// left
-	Draw_AlphaFillRGB(x+width-border, y+border, border, height-border, color); 	// right
-	Draw_AlphaFillRGB(x+border, y+height-border, width-(border*2), border, color); 	// bottom
+	// Parse border radius values
+	radius_str = hud->border_radius->string;
+	if (radius_str && radius_str[0]) {
+		// Make a copy so we can tokenize it
+		strlcpy(radius_buf, radius_str, sizeof(radius_buf));
+		
+		// Parse space-separated values
+		char *token = strtok(radius_buf, " ");
+		while (token && num_values < 4) {
+			values[num_values++] = atof(token);
+			token = strtok(NULL, " ");
+		}
+		
+		// Apply CSS-style rules for radius values
+		switch (num_values) {
+			case 1:
+				// All corners
+				radius_tl = radius_tr = radius_br = radius_bl = values[0];
+				break;
+			case 2:
+				// top-left/bottom-right, top-right/bottom-left
+				radius_tl = radius_br = values[0];
+				radius_tr = radius_bl = values[1];
+				break;
+			case 3:
+				// top-left, top-right/bottom-left, bottom-right
+				radius_tl = values[0];
+				radius_tr = radius_bl = values[1];
+				radius_br = values[2];
+				break;
+			case 4:
+				// top-left, top-right, bottom-right, bottom-left (clockwise)
+				radius_tl = values[0];
+				radius_tr = values[1];
+				radius_br = values[2];
+				radius_bl = values[3];
+				break;
+		}
+	}
+
+	// If we have any radius values, use the rounded rectangle function
+	if (radius_tl > 0 || radius_tr > 0 || radius_br > 0 || radius_bl > 0) {
+		// Draw rounded border as an outline
+		Draw_AlphaRoundedRectangleRGB(x, y, width, height, radius_tl, radius_tr, radius_br, radius_bl, abs(border), false, color);
+	} else {
+		// No radius, use the original rectangular borders
+		Draw_AlphaFillRGB(x, y, width, border, color); 			// top
+		Draw_AlphaFillRGB(x, y+border, border, height-border, color); 			// left
+		Draw_AlphaFillRGB(x+width-border, y+border, border, height-border, color); 	// right
+		Draw_AlphaFillRGB(x+border, y+height-border, width-(border*2), border, color); 	// bottom
+	}
 }
 
 //
@@ -1397,6 +1493,14 @@ hud_t * HUD_Register(char *name, char *var_alias, char *description,
 		hud->border_color = HUD_CreateVar(name, "border_color", "0 0 0");
 		hud->border_color->OnChange = HUD_OnChangeBorderColor;
 		hud->params[hud->num_params++] = hud->border_color;
+	}
+
+	//
+	// Border Radius.
+	//
+	{
+		hud->border_radius = HUD_CreateVar(name, "border_radius", "0");
+		hud->params[hud->num_params++] = hud->border_radius;
 	}
 
 	// Draw... if not set, will be measured (unlike ->show) but nothing rendered (assuming it follows standard pattern)

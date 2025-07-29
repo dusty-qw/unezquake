@@ -170,6 +170,8 @@ void Draw_AlphaLine(float x_start, float y_start, float x_end, float y_end, floa
 void Draw_AlphaFill(float x, float y, float w, float h, byte c, float alpha);
 void Draw_AlphaRectangleRGB(float x, float y, float w, float h, float thickness, qbool fill, color_t color);
 void Draw_AlphaFillRGB(float x, float y, float w, float h, color_t color);
+void Draw_AlphaRoundedRectangleRGB(float x, float y, float w, float h, float radius_tl, float radius_tr, float radius_br, float radius_bl, float thickness, qbool fill, color_t color);
+void Draw_AlphaRoundedFillRGB(float x, float y, float w, float h, float radius_tl, float radius_tr, float radius_br, float radius_bl, color_t color);
 
 void Draw_AlphaSubPic(float x, float y, mpic_t *pic, int srcx, int srcy, int width, int height, float alpha);
 void Draw_SAlphaSubPic(float x, float y, mpic_t *pic, int src_x, int src_y, int src_width, int src_height, float scale, float alpha);

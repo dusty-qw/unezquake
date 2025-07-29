@@ -85,6 +85,7 @@ typedef struct hud_s
     cvar_t* border;                     // Border cvar
     cvar_t* border_color;                // Border color cvar.
     byte    border_color_cache[4];       // Cache for parsed border color.
+    cvar_t* border_radius;               // Border radius cvar for rounded corners.
 
 	cvar_t *opacity;					// The overall opacity of the entire HUD element.
 
