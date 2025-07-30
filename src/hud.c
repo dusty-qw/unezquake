@@ -996,6 +996,17 @@ void HUD_DrawFrame(hud_t *hud, int x, int y, int width, int height)
 }
 
 //
+// Draw rectangle outline using lines (no filled rectangles)
+//
+static void Draw_RectangleOutline(float x, float y, float w, float h, float thickness, color_t color)
+{
+	Draw_AlphaLineRGB(x, y, x + w, y, thickness, color);                     // top
+	Draw_AlphaLineRGB(x, y + h, x + w, y + h, thickness, color);             // bottom
+	Draw_AlphaLineRGB(x, y, x, y + h, thickness, color);                     // left
+	Draw_AlphaLineRGB(x + w, y, x + w, y + h, thickness, color);             // right
+}
+
+//
 // Draw border for HUD element.
 //
 void HUD_DrawBorder(hud_t *hud, int x, int y, int width, int height)
@@ -1055,16 +1066,13 @@ void HUD_DrawBorder(hud_t *hud, int x, int y, int width, int height)
 		}
 	}
 
-	// If we have any radius values, use the rounded rectangle function
+	// Check if we have any radius values
 	if (radius_tl > 0 || radius_tr > 0 || radius_br > 0 || radius_bl > 0) {
-		// Draw rounded border as an outline
+		// Use rounded rectangle for corners
 		Draw_AlphaRoundedRectangleRGB(x, y, width, height, radius_tl, radius_tr, radius_br, radius_bl, abs(border), false, color);
 	} else {
-		// No radius, use the original rectangular borders
-		Draw_AlphaFillRGB(x, y, width, border, color); 			// top
-		Draw_AlphaFillRGB(x, y+border, border, height-border, color); 			// left
-		Draw_AlphaFillRGB(x+width-border, y+border, border, height-border, color); 	// right
-		Draw_AlphaFillRGB(x+border, y+height-border, width-(border*2), border, color); 	// bottom
+		// Use simple line-based outline for consistent appearance
+		Draw_RectangleOutline(x, y, width, height, abs(border), color);
 	}
 }
 
