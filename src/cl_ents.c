@@ -54,10 +54,11 @@ static struct predicted_player {
 	float paused_sec;
 	
 	// Lerping data for smooth prediction error correction
-	vec3_t lerp_origin;      // Origin we're lerping from
-	vec3_t lerp_target;      // Target origin after prediction
-	float lerp_start_time;   // When the lerp started
-	qbool lerping;          // Whether we're currently lerping
+	vec3_t lerp_origin;      	// Origin we're lerping from
+	vec3_t lerp_target;      	// Target origin after prediction
+	float lerp_start_time;   	// When the lerp started
+	qbool lerping;				// Whether we're currently lerping
+	float adaptive_lerp_time; 	// Adaptive lerp duration based on error magnitude
 } predicted_players[MAX_CLIENTS];
 
 char *cl_modelnames[cl_num_modelindices];
@@ -2022,7 +2023,7 @@ static void CL_LinkPlayers(void)
 			pmove.numphysent = oldphysent;
 			
 			// Handle prediction error lerping (but not for local player)
-			if (cl_predict_lerp.value > 0 && j != cl.playernum) {
+			if (cl_predict_lerp.value && j != cl.playernum) {
 				vec3_t prediction_error;
 				float error_distance;
 				
@@ -2032,10 +2033,13 @@ static void CL_LinkPlayers(void)
 				
 				// If error is significant, start or update lerping
 				if (error_distance > 1.0f && predicted_players[j].drawn) {
+					// Calculate adaptive lerp time based on error magnitude
+					// Formula: error_units * 13ms, clamped between 39ms and 260ms
+					predicted_players[j].adaptive_lerp_time = bound(0.039f, error_distance * 0.013f, 0.26f);
 					if (predicted_players[j].lerping) {
 						// Already lerping - update the target to the new position
 						// But start from current interpolated position to avoid jumps
-						float lerp_fraction = (cl.time - predicted_players[j].lerp_start_time) / cl_predict_lerp.value;
+						float lerp_fraction = (cl.time - predicted_players[j].lerp_start_time) / predicted_players[j].adaptive_lerp_time;
 						if (lerp_fraction < 1.0f) {
 							// Calculate current interpolated position
 							vec3_t current_pos;
@@ -2060,7 +2064,7 @@ static void CL_LinkPlayers(void)
 				
 				// Apply lerping if active
 				if (predicted_players[j].lerping) {
-					float lerp_fraction = (cl.time - predicted_players[j].lerp_start_time) / cl_predict_lerp.value;
+					float lerp_fraction = (cl.time - predicted_players[j].lerp_start_time) / predicted_players[j].adaptive_lerp_time;
 					
 					if (lerp_fraction >= 1.0f) {
 						// Lerp complete
