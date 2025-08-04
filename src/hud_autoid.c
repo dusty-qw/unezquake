@@ -26,6 +26,7 @@ $Id: cl_screen.c,v 1.156 2007-10-29 00:56:47 qqshka Exp $
 #include "r_matrix.h"
 #include "r_local.h"
 #include "utils.h"
+#include "screen.h"
 
 /*********************************** AUTOID ***********************************/
 
@@ -422,6 +423,8 @@ void SCR_DrawAutoID(void)
 	qbool autoid_ingame = scr_autoid_ingame.integer;
 	qbool currentlyplaying = (!cls.demoplayback && !cl.spectator);
 	qbool ismyteam;
+	static qbool teaminfo_available = false;
+	static double last_teaminfo_check = 0;
 	ti_player_t *ti_cl;
 	extern ti_player_t ti_clients[MAX_CLIENTS];
 	extern cvar_t tp_name_rlg;
@@ -432,6 +435,31 @@ void SCR_DrawAutoID(void)
 
 	if (!scr_autoid.value || (currentlyplaying && !autoid_ingame) || cl.intermission) {
 		return;
+	}
+
+	// Check if teaminfo is available when playing (cached, check every second)
+	if (currentlyplaying && autoid_ingame) {
+		if (r_refdef2.time - last_teaminfo_check > 1.0) {
+			teaminfo_available = false;
+			for (i = 0; i < MAX_CLIENTS; i++) {
+				if (!cl.players[i].name[0] || cl.players[i].spectator) {
+					continue;
+				}
+				if (cl.teamplay && strcmp(cl.players[i].team, cl.players[cl.playernum].team)) {
+					continue; // not on our team
+				}
+				if (ti_clients[i].time && (ti_clients[i].time + TI_TIMEOUT >= r_refdef2.time)) {
+					teaminfo_available = true;
+					break;
+				}
+			}
+			last_teaminfo_check = r_refdef2.time;
+		}
+		
+		// If no teaminfo is available, disable autoid_ingame
+		if (!teaminfo_available) {
+			return;
+		}
 	}
 
 	// Sort autoids to match clients
