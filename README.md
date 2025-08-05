@@ -26,6 +26,8 @@ unezQuake has all of the latest ezQuake features, plus:
  * `cl_safeswitch` - switches to a non-LG weapon when entering water (does not prevent discharge)
     * `cl_safeswitch_order "7 5 2 1"` - set a custom weapon order (default is `""`)
  * `cl_smartspawn` - uses jump to spawn even when pressing +attack
+ * `r_teammateskincolors_enable` - enable custom skin colors for teammates
+    * `r_teammateskincolor[1-6] "R G B substring1 substring2 ..."` - any teammate matching the substrings will be colored accordingly
  * `scr_autoid_ingame` - see autoID for teammates while playing
     * `scr_autoid_ingame_namelength`
     * `scr_autoid_ingame_weapon`
