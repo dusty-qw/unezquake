@@ -17202,6 +17202,65 @@
       "remarks": "See r_skincolormode for more info.",
       "type": "string"
     },
+    "r_teammateskincolors_enable": {
+      "default": "0",
+      "desc": "Enables teammate-specific skin colors based on player name matching.",
+      "group-id": "44",
+      "remarks": "When enabled, allows r_teammateskincolor1-6 to override r_teamskincolor for specific players.",
+      "type": "boolean",
+      "values": [
+        {
+          "description": "Disabled",
+          "name": "0"
+        },
+        {
+          "description": "Enabled",
+          "name": "1"
+        }
+      ]
+    },
+    "r_teammateskincolor1": {
+      "default": "",
+      "desc": "Sets skin color for teammates whose names match specified substrings.",
+      "group-id": "44",
+      "remarks": "Format: \"R G B substring1 substring2 ...\". Example: \"0 255 0 bob alice\" colors Bob and Alice green. Use {name} for exact match. Case-insensitive matching.",
+      "type": "string"
+    },
+    "r_teammateskincolor2": {
+      "default": "",
+      "desc": "Sets skin color for teammates whose names match specified substrings.",
+      "group-id": "44",
+      "remarks": "Format: \"R G B substring1 substring2 ...\". Lower priority than r_teammateskincolor1.",
+      "type": "string"
+    },
+    "r_teammateskincolor3": {
+      "default": "",
+      "desc": "Sets skin color for teammates whose names match specified substrings.",
+      "group-id": "44",
+      "remarks": "Format: \"R G B substring1 substring2 ...\". Lower priority than r_teammateskincolor1-2.",
+      "type": "string"
+    },
+    "r_teammateskincolor4": {
+      "default": "",
+      "desc": "Sets skin color for teammates whose names match specified substrings.",
+      "group-id": "44",
+      "remarks": "Format: \"R G B substring1 substring2 ...\". Lower priority than r_teammateskincolor1-3.",
+      "type": "string"
+    },
+    "r_teammateskincolor5": {
+      "default": "",
+      "desc": "Sets skin color for teammates whose names match specified substrings.",
+      "group-id": "44",
+      "remarks": "Format: \"R G B substring1 substring2 ...\". Lower priority than r_teammateskincolor1-4.",
+      "type": "string"
+    },
+    "r_teammateskincolor6": {
+      "default": "",
+      "desc": "Sets skin color for teammates whose names match specified substrings.",
+      "group-id": "44",
+      "remarks": "Format: \"R G B substring1 substring2 ...\". Lower priority than r_teammateskincolor1-5.",
+      "type": "string"
+    },
     "r_telecolor": {
       "default": "255 60 60",
       "desc": "Changes color of teleport when r_fastturb set to 1.",
