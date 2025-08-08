@@ -147,6 +147,24 @@ void SCR_SetupAutoID(void)
 			continue;
 		}
 
+		// Skip players with no model
+		if (!state->modelindex || !cl.model_precache[state->modelindex]) {
+			continue;
+		}
+
+		// Skip players if camera is too close (viewing through their POV)
+		if (cls.demoplayback) {
+			vec3_t cam_dist;
+			float dist;
+			
+			VectorSubtract(state->origin, r_refdef.vieworg, cam_dist);
+			dist = VectorLength(cam_dist);
+			
+			if (dist < 25.0f) {
+				continue;
+			}
+		}
+
 		if ((state->modelindex == cl_modelindices[mi_player] && ISDEAD(state->frame)) ||
 			state->modelindex == cl_modelindices[mi_h_player]) {
 			continue;
