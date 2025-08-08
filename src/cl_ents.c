@@ -1829,6 +1829,21 @@ static void CL_LinkPlayers(void)
 
 		if (state->messagenum != cl.parsecount)
 			continue;	// not present this frame
+		
+		// Hide player model if camera is inside it (demo playback only)
+		if (cls.demoplayback) {
+			vec3_t cam_dist;
+			float dist;
+			
+			VectorSubtract(state->origin, r_refdef.vieworg, cam_dist);
+			dist = VectorLength(cam_dist);
+			
+			// Skip rendering if camera is very close to player origin
+			// Player hull is roughly 32x32x56, so check if we're within ~20 units
+			if (dist < 25.0f) {
+				continue;
+			}
+		}
 
 		// spawn light flashes, even ones coming from invisible objects
 		if (r_powerupglow.value && !(r_powerupglow.value == 2 && j == cl.viewplayernum)) 
