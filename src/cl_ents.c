@@ -2679,8 +2679,14 @@ static void CL_LinkPlayers(void)
 			
 			// Handle prediction error lerping (but not for local player)
 			if (cl_predict_lerp.value && j != cl.playernum) {
+				// Use cl_predict_lerp as minimum error threshold
+				// 0 = disabled, 0-1 clamped to 1, >1 used as threshold
+				float error_threshold = cl_predict_lerp.value;
+				if (error_threshold > 0 && error_threshold < 1.0f)
+					error_threshold = 1.0f;
+				
 				// If error is significant, start or update lerping
-				if (error_distance > 1.0f && predicted_players[j].drawn) {
+				if (error_distance > error_threshold && predicted_players[j].drawn) {
 					// Calculate adaptive lerp time based on error magnitude
 					// Formula: error_units * 13ms, clamped between 39ms and 260ms
 					predicted_players[j].adaptive_lerp_time = bound(0.039f, error_distance * 0.013f, 0.26f);
