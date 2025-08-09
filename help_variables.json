@@ -2599,12 +2599,10 @@
     },
     "cl_predict_lerp": {
       "default": "1",
-      "desc": "Enables adaptive smoothing of other players when prediction errors occur.",
+      "desc": "Sets minimum prediction error threshold for adaptive smoothing. 0 disables, values 0-1 are clamped to 1.",
       "group-id": "21",
-      "type": "boolean",
-      "min-value": 0,
-      "max-value": 1,
-      "remarks": "Only affects other players, not your own movement. Helps reduce visual 'warping' from strafing, knockback, rocket jumps, and network jitter."
+      "type": "float",
+      "remarks": "Only affects other players, not your own movement. Higher values require larger prediction errors before smoothing begins. Helps reduce visual 'warping' from strafing, knockback, rocket jumps, and network jitter."
     },
     "cl_predict_players": {
       "default": "1",
