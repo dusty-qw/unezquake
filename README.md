@@ -15,6 +15,7 @@ unezQuake has all of the latest ezQuake features, plus:
 ### Improved Player Prediction / Movement
 
  * `cl_predict_lerp` - interpolate errors in player prediction
+ * `cl_predict_show_errors` - Prints prediction errors for other players
  * `cl_predict_velocity_scale` - reduces player jitter while strafing (accepts values 0-3, 3 being most aggressive)
 
 ### New Gameplay Features

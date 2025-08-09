@@ -159,6 +159,7 @@ cvar_t	cl_solid_players = {"cl_solid_players", "1"};
 cvar_t	cl_predict_half = {"cl_predict_half", "0"};
 cvar_t	cl_predict_velocity_scale = {"cl_predict_velocity_scale", "1"};
 cvar_t	cl_predict_lerp = {"cl_predict_lerp", "1"};
+cvar_t	cl_predict_show_errors = {"cl_predict_show_errors", "0"};
 
 cvar_t	hud_fps_min_reset_interval = {"hud_fps_min_reset_interval", "30"};
 cvar_t  hud_frametime_max_reset_interval = { "hud_frametime_max_reset_interval", "30" };
@@ -1915,6 +1916,7 @@ static void CL_InitLocal(void)
 	Cvar_Register(&cl_predict_half);
 	Cvar_Register(&cl_predict_velocity_scale);
 	Cvar_Register(&cl_predict_lerp);
+	Cvar_Register(&cl_predict_show_errors);
 	Cvar_Register(&cl_timeout);
 	Cvar_Register(&cl_useproxy);
 	Cvar_Register(&cl_proxyaddr);

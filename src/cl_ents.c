@@ -31,6 +31,7 @@ void TP_ParsePlayerInfo(player_state_t *, player_state_t *, player_info_t *info)
 
 extern cvar_t cl_predict_players, cl_solid_players, cl_rocket2grenade;
 extern cvar_t cl_predict_half, cl_predict_velocity_scale, cl_predict_lerp;
+extern cvar_t cl_predict_show_errors;
 extern cvar_t cl_model_bobbing;		
 extern cvar_t cl_model_height;
 extern cvar_t cl_nolerp, cl_lerp_monsters, cl_newlerp;
@@ -2028,6 +2029,9 @@ static void CL_LinkPlayers(void)
 			predicted_players[j].lerping = false; // No lerping needed for non-predicted players
 		}
 		else {
+			vec3_t prediction_error;
+			float error_distance;
+
 			// predict players movement
 			msec = min(msec, 255);
 			state->command.msec = msec;
@@ -2036,16 +2040,19 @@ static void CL_LinkPlayers(void)
 			CL_SetSolidPlayers(j);
 			CL_PredictUsercmd(state, &exact, &state->command);
 			pmove.numphysent = oldphysent;
+
+			// Calculate prediction error
+			VectorSubtract(exact.origin, predicted_players[j].drawn_origin, prediction_error);
+			error_distance = VectorLength(prediction_error);
+
+			// cl_predict_show_errors
+			if (cl_predict_show_errors.value > 0 && error_distance >= cl_predict_show_errors.value) {
+				Com_Printf("Prediction error: player=%s distance=%.2f\n",
+					info->name, error_distance);
+			}
 			
 			// Handle prediction error lerping (but not for local player)
 			if (cl_predict_lerp.value && j != cl.playernum) {
-				vec3_t prediction_error;
-				float error_distance;
-				
-				// Calculate prediction error
-				VectorSubtract(exact.origin, predicted_players[j].drawn_origin, prediction_error);
-				error_distance = VectorLength(prediction_error);
-				
 				// If error is significant, start or update lerping
 				if (error_distance > 1.0f && predicted_players[j].drawn) {
 					// Calculate adaptive lerp time based on error magnitude
