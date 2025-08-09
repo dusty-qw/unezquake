@@ -866,8 +866,22 @@ void TP_AutoShowNick(void)
 	if (flashed)
 		return;
 
+	// If cl_autoshownick is enabled, temporarily ensure teammate detection is enabled
+	extern unsigned int pointflags;
+	unsigned int saved_pointflags = pointflags;
+	if (cl_autoshownick.integer > 0 && !(pointflags & it_teammate)) {
+		// Temporarily add teammate flag to ensure we can detect teammates
+		pointflags |= it_teammate;
+	}
+	
 	// Check for a player in point to shownick.
 	TP_FindPoint();
+	
+	// Restore original pointflags
+	if (cl_autoshownick.integer > 0) {
+		pointflags = saved_pointflags;
+	}
+	
 	if (!TP_AutoShowNickPointHasPlayer())
 		return;
 
