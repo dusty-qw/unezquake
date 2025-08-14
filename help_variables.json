@@ -16285,6 +16285,48 @@
         }
       ]
     },
+    "r_explosion_sparks": {
+      "default": "1",
+      "desc": "Controls whether sparks are displayed in blob explosions (r_explosionType 6).",
+      "group-id": "8",
+      "type": "boolean",
+      "values": [
+        {
+          "description": "Sparks disabled",
+          "name": "0"
+        },
+        {
+          "description": "Sparks enabled",
+          "name": "1"
+        }
+      ]
+    },
+    "r_explosion_scale": {
+      "default": "1",
+      "desc": "Controls the scale/size of blob explosions (r_explosionType 6).",
+      "group-id": "8",
+      "type": "float"
+    },
+    "r_explosion_color": {
+      "default": "90 47 207",
+      "desc": "Sets the RGB color of blob explosions (r_explosionType 6). Format: \"R G B\" where each value is 0-255.",
+      "group-id": "8",
+      "type": "string",
+      "values": [
+        {
+          "description": "Default purple-blue",
+          "name": "90 47 207"
+        },
+        {
+          "description": "Classic blue",
+          "name": "60 100 240"
+        },
+        {
+          "description": "Orange",
+          "name": "255 128 0"
+        }
+      ]
+    },
     "r_farclip": {
       "default": "8192",
       "desc": "Can be used to overcome vision being limited to 4096 units in GL clients (good for xpress2 etc).",
