@@ -231,6 +231,9 @@ cvar_t r_grenadetrail           = {"r_grenadeTrail", "1"}; // 3
 cvar_t r_railtrail              = {"r_railTrail", "1"};
 cvar_t r_instagibtrail          = {"r_instagibTrail", "1"};
 cvar_t r_explosiontype          = {"r_explosionType", "1"}; // 7
+cvar_t r_explosion_sparks       = {"r_explosion_sparks", "1"};
+cvar_t r_explosion_scale        = {"r_explosion_scale", "1"};
+cvar_t r_explosion_color        = {"r_explosion_color", "90 47 207"};
 cvar_t r_telesplash             = {"r_telesplash", "1"}; // disconnect
 cvar_t r_shaftalpha             = {"r_shaftalpha", "1"};
 cvar_t r_lightdecayrate         = {"r_lightdecayrate", "2"}; // default 2, as CL_DecayLights() used to get called twice per frame
@@ -1859,6 +1862,9 @@ static void CL_InitLocal(void)
 	Cvar_Register(&cl_muzzleflash);
 	Cvar_Register(&cl_rocket2grenade);
 	Cvar_Register(&r_explosiontype);
+	Cvar_Register(&r_explosion_sparks);
+	Cvar_Register(&r_explosion_scale);
+	Cvar_Register(&r_explosion_color);
 	Cvar_Register(&r_lightflicker);
 	Cvar_Register(&r_lightmap_lateupload);
 	Cvar_Register(&r_lightmap_packbytexture);
