@@ -37,7 +37,7 @@ unezQuake has all of the latest ezQuake features, plus:
     * `m_accel_smooth_halflife` - Alternative time-based smoothing using exponential decay
     * `m_accel_cap_type` - Specify if sens caps should apply to input or output (default)
     * `m_accel_distance_mode` - Distance calculation method
-    * `m_accel_legacy - Use legacy accel calculations or Raw Accel's "Gain" method
+    * `m_accel_legacy` - Use legacy accel calculations or Raw Accel's "Gain" method
 
 ### New EyeCandy Customizations
 
