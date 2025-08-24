@@ -14202,7 +14202,7 @@
     },
     "m_accel_offset": {
       "default": "0",
-      "desc": "Acceleration will not be active until the mouse movement exceeds this speed (counts per millisecond).\nNegative values are supported, which has the effect of causing higher rates of acceleration to happen at lower velocities.",
+      "desc": "Acceleration will not be active until the mouse movement exceeds this speed (counts per millisecond). Only affects Classic curve (m_accel_type 0) for backward compatibility.\nEach curve type has its own offset parameter (e.g., m_accel_linear_offset, m_accel_natural_offset).\nNegative values are supported, which has the effect of causing higher rates of acceleration to happen at lower velocities.",
       "group-id": "11",
       "type": "float"
     },
@@ -14217,6 +14217,186 @@
       "desc": "Sets an upper limit on the amplified mouse movement. Great for tuning acceleration around lower velocities while still remaining in control of fast motion such as flicking.",
       "group-id": "11",
       "type": "float"
+    },
+    "m_accel_type": {
+      "default": "0",
+      "desc": "Selects the mouse acceleration curve type.\n0 = Classic (Raw Accel compatible power curve)\n1 = Linear (simple linear acceleration)\n2 = Natural (logarithmic curve with asymptotic limit)\n3 = Jump (step function with optional smoothing)\n4 = Motivity (synchronous/motivity curve)\n5 = Power (simplified power curve)\n6 = Custom (user-defined curve points)",
+      "group-id": "11",
+      "type": "integer"
+    },
+    "m_accel_legacy": {
+      "default": "0",
+      "desc": "When set to 1, uses legacy calculation for acceleration curves instead of the newer \"gain\" method which calculates acceleration based on accumulated sensitivity changes",
+      "group-id": "11",
+      "type": "boolean"
+    },
+    "m_accel_classic_offset": {
+      "default": "0",
+      "desc": "Speed threshold for Classic curve acceleration to begin (counts per millisecond). Mouse speeds below this value will have no acceleration applied. Takes precedence over m_accel_offset when set.",
+      "group-id": "11",
+      "type": "float"
+    },
+    "m_accel_classic_accel": {
+      "default": "0.5",
+      "desc": "Acceleration multiplier for Classic curve. Higher values increase the acceleration effect. When set, takes precedence over m_accel for the Classic curve type.",
+      "group-id": "11",
+      "type": "float"
+    },
+    "m_accel_classic_exponent": {
+      "default": "2.0",
+      "desc": "Power exponent for Classic curve. Values below 2 provide sublinear acceleration, 2 is linear, and above 2 provides exponential acceleration. Takes precedence over m_accel_power when set.",
+      "group-id": "11",
+      "type": "float"
+    },
+    "m_accel_classic_cap": {
+      "default": "0",
+      "desc": "Maximum multiplier cap for Classic curve. Limits the maximum acceleration applied. Takes precedence over m_accel_senscap when set.",
+      "group-id": "11",
+      "type": "float"
+    },
+    "m_accel_linear_offset": {
+      "default": "0",
+      "desc": "Speed threshold for Linear curve acceleration to begin (counts per millisecond). Mouse speeds below this value will have no acceleration applied.",
+      "group-id": "11",
+      "type": "float"
+    },
+    "m_accel_linear_accel": {
+      "default": "0.5",
+      "desc": "Acceleration rate for Linear curve. Determines how much the multiplier increases per unit of speed above the offset.",
+      "group-id": "11",
+      "type": "float"
+    },
+    "m_accel_linear_cap": {
+      "default": "0",
+      "desc": "Maximum multiplier cap for Linear curve. Limits the maximum acceleration applied.",
+      "group-id": "11",
+      "type": "float"
+    },
+    "m_accel_natural_offset": {
+      "default": "0",
+      "desc": "Speed threshold for Natural curve acceleration to begin (counts per millisecond). Mouse speeds below this value will have no acceleration applied.",
+      "group-id": "11",
+      "type": "float"
+    },
+    "m_accel_natural_accel": {
+      "default": "0.5",
+      "desc": "Decay rate for Natural curve. Controls how quickly the acceleration approaches its limit. Higher values reach the limit faster.",
+      "group-id": "11",
+      "type": "float"
+    },
+    "m_accel_natural_limit": {
+      "default": "2.0",
+      "desc": "Maximum multiplier limit for Natural curve. The acceleration asymptotically approaches this value.",
+      "group-id": "11",
+      "type": "float"
+    },
+    "m_accel_jump_input": {
+      "default": "5.0",
+      "desc": "Speed threshold for Jump curve (counts per millisecond). When mouse speed exceeds this value, the sensitivity jumps to the output multiplier.",
+      "group-id": "11",
+      "type": "float"
+    },
+    "m_accel_jump_output": {
+      "default": "2.0",
+      "desc": "Target multiplier for Jump curve. The sensitivity multiplier applied when speed exceeds the input threshold.",
+      "group-id": "11",
+      "type": "float"
+    },
+    "m_accel_jump_smooth": {
+      "default": "0",
+      "desc": "Smoothing factor for Jump curve transition. When 0, the jump is instantaneous. Higher values create a smoother transition between base and target multiplier.",
+      "group-id": "11",
+      "type": "float"
+    },
+    "m_accel_sync_speed": {
+      "default": "6.0",
+      "desc": "Synchronous speed for Motivity curve (counts per millisecond). The speed at which the multiplier equals 1.0. Speeds above and below are adjusted based on motivity.",
+      "group-id": "11",
+      "type": "float"
+    },
+    "m_accel_sync_motivity": {
+      "default": "1.5",
+      "desc": "Motivity factor for synchronous curve. Values above 1 increase sensitivity at high speeds and decrease at low speeds. Values below 1 do the opposite.",
+      "group-id": "11",
+      "type": "float"
+    },
+    "m_accel_sync_smooth": {
+      "default": "0.5",
+      "desc": "Smoothing factor for Motivity curve transitions. Higher values create smoother transitions around the synchronous speed point.",
+      "group-id": "11",
+      "type": "float"
+    },
+    "m_accel_sync_gamma": {
+      "default": "1.0",
+      "desc": "Gamma correction for Motivity curve. Adjusts the curve shape, with values above 1 making it more aggressive and below 1 making it gentler.",
+      "group-id": "11",
+      "type": "float"
+    },
+    "m_accel_sync_min": {
+      "default": "0.1",
+      "desc": "Minimum multiplier limit for Motivity curve. Prevents sensitivity from dropping below this value at low speeds.",
+      "group-id": "11",
+      "type": "float"
+    },
+    "m_accel_sync_max": {
+      "default": "5.0",
+      "desc": "Maximum multiplier limit for Motivity curve. Caps the maximum sensitivity at high speeds. 0 means no limit.",
+      "group-id": "11",
+      "type": "float"
+    },
+    "m_accel_power_scale": {
+      "default": "1.0",
+      "desc": "Scale factor for Power curve. Multiplies the final acceleration value.",
+      "group-id": "11",
+      "type": "float"
+    },
+    "m_accel_power_exponent": {
+      "default": "0.05",
+      "desc": "Power exponent for simplified Power curve. Similar to m_accel_classic_exponent but for the Power curve type.",
+      "group-id": "11",
+      "type": "float"
+    },
+    "m_accel_power_offset": {
+      "default": "0",
+      "desc": "Speed offset for Power curve (counts per millisecond). Speeds below this value have no acceleration.",
+      "group-id": "11",
+      "type": "float"
+    },
+    "m_accel_power_cap": {
+      "default": "0",
+      "desc": "Maximum multiplier cap for Power curve. Limits the maximum acceleration applied.",
+      "group-id": "11",
+      "type": "float"
+    },
+    "m_accel_custom_points": {
+      "default": "",
+      "desc": "Custom curve control points in format 'x1,y1;x2,y2;...'. X values are speeds (counts/ms), Y values are multipliers. The curve interpolates between these points.",
+      "group-id": "11",
+      "type": "string"
+    },
+    "m_accel_smooth": {
+      "default": "0",
+      "desc": "Global input speed smoothing applied before acceleration curves using exp. moving average.\nAffects ALL acceleration types.\n0 = No smoothing (raw input)\n0.1-0.3 = Light smoothing (recommended for jittery mice)\n0.5-0.8 = Heavy smoothing (adds noticeable delay)\n1.0 = Maximum smoothing\nNote: Higher values mean LESS smoothing (more weight to current speed).\nIgnored if m_accel_smooth_halflife is set.",
+      "group-id": "11",
+      "type": "float"
+    },
+    "m_accel_smooth_halflife": {
+      "default": "0",
+      "desc": "Time-based smoothing using exponential decay (milliseconds).\nOverrides m_accel_smooth when set.\n0 = Disabled (use m_accel_smooth instead)\n5-10 = Light smoothing\n10-20 = Moderate smoothing\n20+ = Heavy smoothing\nProvides framerate-independent smoothing.\nLower values = faster response, higher values = more smoothing.",
+      "group-id": "11",
+      "type": "float"
+    },
+    "m_accel_cap_type": {
+      "default": "0",
+      "desc": "Capping mode for acceleration limits.\n0 = Output cap (limits final multiplier)\n1 = Input cap (limits speed before curve calculation)",
+      "group-id": "11",
+      "type": "integer"
+    },
+    "m_accel_distance_mode": {
+      "default": "0",
+      "desc": "Method for calculating mouse speed from X/Y components.\n0 = Euclidean (most accurate) - diagonal movements are faster\n1 = Separate (NOT IMPLEMENTED - acts same as Euclidean)\n2 = Maximum (most uniform) - all directions same speed",
+      "group-id": "11",
+      "type": "integer"
     },
     "m_filter": {
       "default": "0",
