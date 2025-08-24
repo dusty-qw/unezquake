@@ -29,16 +29,31 @@ unezQuake has all of the latest ezQuake features, plus:
  * `cl_smartspawn` - uses jump to spawn even when pressing +attack
  * `r_teammateskincolors_enable` - enable custom skin colors for teammates
     * `r_teammateskincolor[1-6] "R G B substring1 substring2 ..."` - any teammate matching the substrings will be colored accordingly
- * `scr_autoid_ingame` - see autoID for teammates while playing
-    * `scr_autoid_ingame_namelength`
-    * `scr_autoid_ingame_weapon`
-    * `scr_autoid_ingame_armor_health`
 
- ### Hud and Scoreboard Enhancements
+### Additional Input Support
+
+ * `m_accel_type` - Native Raw Accel integration. Use your favorite accel curve and settings
+    * `m_accel_smooth` - EMA-based input smoothing applied before accel curves
+    * `m_accel_smooth_halflife` - Alternative time-based smoothing using exponential decay
+    * `m_accel_cap_type` - Specify if sens caps should apply to input or output (default)
+    * `m_accel_distance_mode` - Distance calculation method
+    * `m_accel_legacy - Use legacy accel calculations or Raw Accel's "Gain" method
+
+### New EyeCandy Customizations
+
+ * `r_explosion_color` - Set color of blob explosions (r_explosionType 6)
+ * `r_explosion_scale` - Set size of blob explosions
+ * `r_explosion_sparks` - Show or hide explosion sparks of blob explosions
+
+### Hud and Scoreboard Enhancements
 
  * `hud_[element]_border x` - sets a border of "x" thickness around any hud element  
     * `hud_[element]_border_color "R G B A"` - set color of border
     * `hud_[element]_border_radius` - give your hud elements rounded corners
+ * `scr_autoid_ingame` - see autoID for teammates while playing
+    * `scr_autoid_ingame_namelength`
+    * `scr_autoid_ingame_weapon`
+    * `scr_autoid_ingame_armor_health`
  * `scr_scoreboard_scale` - size the scoreboard. Convenient when using high console resolutions
  * `scr_scoreboard_showtracking` - see who spectators are following in the scoreboard (experimental)
     * `scr_scoreboard_showtracking_format`
