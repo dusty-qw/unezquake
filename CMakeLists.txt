@@ -656,6 +656,7 @@ set(client
         ${SOURCE_DIR}/cl_demo.c
         ${SOURCE_DIR}/cl_ents.c
         ${SOURCE_DIR}/cl_input.c
+        ${SOURCE_DIR}/cl_mouseaccel.c
         ${SOURCE_DIR}/cl_main.c
         ${SOURCE_DIR}/cl_multiview.c
         ${SOURCE_DIR}/cl_nqdemo.c

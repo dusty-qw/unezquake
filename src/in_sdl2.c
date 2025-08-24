@@ -25,6 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "input.h"
 #include "keys.h"
 #include "movie.h"
+#include "cl_mouseaccel.h"
 
 #ifndef _WIN32
 #include <sys/time.h>
@@ -63,6 +64,7 @@ cvar_t	joy_yawsensitivity	= {"joyyawsensitivity",		"-1.0",	CVAR_SILENT };
 
 
 extern cvar_t	movie_steadycam, movie_fps;
+extern cvar_t	m_accel_type;
 extern int	mx, my;
 extern qbool	mouseinitialized;
 
@@ -102,25 +104,10 @@ void IN_MouseMove (usercmd_t *cmd)
 		old_mouse_x = mx;
 		old_mouse_y = my;
 
-		if (m_accel.value > 0.0f) {
-			float accelsens = sensitivity.value;
-			float mousespeed = (sqrt (mx * mx + my * my)) / (1000.0f * (float) cls.trueframetime);
-
-			mousespeed -= m_accel_offset.value;
-			if (mousespeed > 0) {
-				mousespeed *= m_accel.value;
-				if (m_accel_power.value > 1) {
-					accelsens += exp((m_accel_power.value - 1) * log(mousespeed));
-				} else {
-					accelsens = 1;
-				}
-			}
-			if (m_accel_senscap.value > 0 && accelsens > m_accel_senscap.value) {
-				accelsens = m_accel_senscap.value;
-			}
-
-			mouse_x *= accelsens;
-			mouse_y *= accelsens;
+		if (m_accel.value > 0.0f || m_accel_type.value > 0) {
+			double accel_multiplier = MouseAccel_Calculate(mouse_x, mouse_y, cls.trueframetime, sensitivity.value);
+			mouse_x *= sensitivity.value * accel_multiplier;
+			mouse_y *= sensitivity.value * accel_multiplier;
 		} else {
 			mouse_x *= sensitivity.value;
 			mouse_y *= sensitivity.value;
