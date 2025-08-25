@@ -109,7 +109,17 @@ void IN_MouseMove (usercmd_t *cmd)
 		double accel_multiplier = 1.0;
 		
 		if (m_accel.value > 0.0f || m_accel_type.value > 0) {
+			extern cvar_t m_accel_senscap;
 			accel_multiplier = MouseAccel_Calculate(mouse_x, mouse_y, cls.trueframetime, sensitivity.value);
+			
+			// Apply global sensitivity cap if set
+			if (m_accel_senscap.value > 0) {
+				double effective_sensitivity = sensitivity.value * accel_multiplier;
+				if (effective_sensitivity > m_accel_senscap.value) {
+					accel_multiplier = m_accel_senscap.value / sensitivity.value;
+				}
+			}
+			
 			mouse_x *= sensitivity.value * accel_multiplier;
 			mouse_y *= sensitivity.value * accel_multiplier;
 		} else {
