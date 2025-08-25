@@ -109,20 +109,6 @@ static double MouseAccel_Smooth(double current_speed, double frametime)
     return mouse_state.smoothed_speed;
 }
 
-static double MouseAccel_ApplyCap(double multiplier)
-{
-    // Only apply global cap for Classic curve when using old cvars
-    if (m_accel_type.value == ACCEL_TYPE_CLASSIC && m_accel.value > 0 && m_accel_classic_accel.value <= 0) {
-        if (m_accel_senscap.value <= 0)
-            return multiplier;
-        
-        return min(multiplier, m_accel_senscap.value);
-    }
-    
-    // Each curve handles its own capping
-    return multiplier;
-}
-
 static double MouseAccel_Classic_Legacy(double speed)
 {
     // Backward compatibility: use old cvars if new ones aren't set
@@ -496,8 +482,6 @@ double MouseAccel_Calculate(double mx, double my, double frametime, double base_
             multiplier = 1.0;
             break;
     }
-    
-    multiplier = MouseAccel_ApplyCap(multiplier);
     
     mouse_state.mx = mx;
     mouse_state.my = my;

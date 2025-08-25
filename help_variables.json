@@ -14318,7 +14318,7 @@
     },
     "m_accel_senscap": {
       "default": "0",
-      "desc": "Sets an upper limit on the amplified mouse movement. Great for tuning acceleration around lower velocities while still remaining in control of fast motion such as flicking.",
+      "desc": "Global cap on the effective mouse sensitivity that applies after any curve-specific caps. Great for tuning acceleration around lower velocities while still remaining in control of fast motion such as flicking.",
       "group-id": "11",
       "type": "float"
     },
