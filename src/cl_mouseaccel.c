@@ -57,6 +57,7 @@ extern cvar_t m_accel_smooth;
 extern cvar_t m_accel_smooth_halflife;
 extern cvar_t m_accel_cap_type;
 extern cvar_t m_accel_distance_mode;
+extern cvar_t m_showspeed;
 
 static mouse_accel_state_t mouse_state = {0};
 static custom_curve_t custom_curve = {NULL, 0, 0};

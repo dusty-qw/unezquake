@@ -93,6 +93,7 @@ cvar_t m_accel_smooth = { "m_accel_smooth", "0" };
 cvar_t m_accel_smooth_halflife = { "m_accel_smooth_halflife", "0" };
 cvar_t m_accel_cap_type = { "m_accel_cap_type", "0" };
 cvar_t m_accel_distance_mode = { "m_accel_distance_mode", "0" };
+cvar_t m_showspeed = { "m_showspeed", "0" };
 
 #ifdef JSS_CAM
 cvar_t cam_zoomspeed = { "cam_zoomspeed", "300" };
@@ -1498,6 +1499,7 @@ void CL_InitInput(void)
 	Cvar_Register(&m_accel_smooth_halflife);
 	Cvar_Register(&m_accel_cap_type);
 	Cvar_Register(&m_accel_distance_mode);
+	Cvar_Register(&m_showspeed);
 
 	Cvar_SetCurrentGroup(CVAR_GROUP_NETWORK);
 	Cvar_Register(&cl_nodelta);

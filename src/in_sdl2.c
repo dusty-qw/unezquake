@@ -104,13 +104,39 @@ void IN_MouseMove (usercmd_t *cmd)
 		old_mouse_x = mx;
 		old_mouse_y = my;
 
+		// Apply acceleration and display speed if m_showspeed is enabled
+		extern cvar_t m_showspeed;
+		double accel_multiplier = 1.0;
+		
 		if (m_accel.value > 0.0f || m_accel_type.value > 0) {
-			double accel_multiplier = MouseAccel_Calculate(mouse_x, mouse_y, cls.trueframetime, sensitivity.value);
+			accel_multiplier = MouseAccel_Calculate(mouse_x, mouse_y, cls.trueframetime, sensitivity.value);
 			mouse_x *= sensitivity.value * accel_multiplier;
 			mouse_y *= sensitivity.value * accel_multiplier;
 		} else {
 			mouse_x *= sensitivity.value;
 			mouse_y *= sensitivity.value;
+		}
+		
+		// Display speed and multiplier (rate limited)
+		if (m_showspeed.value && cls.trueframetime > 0 && (old_mouse_x != 0 || old_mouse_y != 0)) {
+			static double last_print_time = 0;
+			double current_time = Sys_DoubleTime();
+
+			// Use raw mouse values (before filter/sensitivity) for speed calculation
+			double raw_x = (m_filter.value) ? old_mouse_x : mx;
+			double raw_y = (m_filter.value) ? old_mouse_y : my;
+			double speed = sqrt(raw_x * raw_x + raw_y * raw_y) / (1000.0 * cls.trueframetime);
+
+			// Only print if at least 10ms (0.01s) have passed since last print
+			// Also make sure speed exceeds the threshold set by m_showspeed
+			if (current_time - last_print_time >= 0.01 && speed >= m_showspeed.value) {
+				if (m_accel.value > 0.0f || m_accel_type.value > 0) {
+					Com_Printf("Mouse speed: %.2f counts/ms, multiplier: %.3fx\n", speed, accel_multiplier);
+				} else {
+					Com_Printf("Mouse speed: %.2f counts/ms\n", speed);
+				}
+				last_print_time = current_time;
+			}
 		}
 
 		// add mouse X/Y movement to cmd
