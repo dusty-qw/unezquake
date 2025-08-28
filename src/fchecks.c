@@ -52,6 +52,7 @@ extern cvar_t cl_hud;
 extern cvar_t scr_teaminlay;
 extern cvar_t cl_autohop;
 extern cvar_t cl_rollalpha;
+extern cvar_t scr_allowsnap;
 
 
 static void FChecks_VersionResponse (void)
@@ -251,6 +252,9 @@ const char* FChecks_RulesetAdditionString(void)
 
 	// cl_autohop
 	APPENDFEATURE((cl_autohop.integer)," &cc80autohop&r");
+
+	// refuse snap
+	APPENDFEATURE((!scr_allowsnap.integer)," &cc80refusesnap&r");
 	#undef APPENDFEATURE
 
 	if (strlen(feat_on_buf) > 10) {
