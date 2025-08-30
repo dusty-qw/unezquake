@@ -107,8 +107,29 @@ void IN_MouseMove (usercmd_t *cmd)
 		// Apply acceleration and display speed if m_showspeed is enabled
 		extern cvar_t m_showspeed;
 		double accel_multiplier = 1.0;
-		
-		if (m_accel.value > 0.0f || m_accel_type.value > 0) {
+
+		// If no accel type is specified, use old accel calculation via "m_accel"
+		if (m_accel.value > 0.0f && m_accel_type.value <= 0) {
+			float accelsens = sensitivity.value;
+			float mousespeed = (sqrt (mx * mx + my * my)) / (1000.0f * (float) cls.trueframetime);
+
+			mousespeed -= m_accel_offset.value;
+			if (mousespeed > 0) {
+				mousespeed *= m_accel.value;
+				if (m_accel_power.value > 1) {
+					accelsens += exp((m_accel_power.value - 1) * log(mousespeed));
+				} else {
+					accelsens = 1;
+				}
+			}
+			if (m_accel_senscap.value > 0 && accelsens > m_accel_senscap.value) {
+				accelsens = m_accel_senscap.value;
+			}
+
+			mouse_x *= accelsens;
+			mouse_y *= accelsens;
+		} 
+		else if (m_accel_type.value > 0) {
 			extern cvar_t m_accel_senscap;
 			accel_multiplier = MouseAccel_Calculate(mouse_x, mouse_y, cls.trueframetime, sensitivity.value);
 			

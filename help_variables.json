@@ -14292,13 +14292,13 @@
     },
     "m_accel_type": {
       "default": "0",
-      "desc": "Selects the mouse acceleration curve type.\n0 = Classic (Raw Accel compatible power curve)\n1 = Linear (simple linear acceleration)\n2 = Natural (logarithmic curve with asymptotic limit)\n3 = Jump (step function with optional smoothing)\n4 = Motivity (synchronous/motivity curve)\n5 = Power (simplified power curve)\n6 = Custom (user-defined curve points)",
+      "desc": "Selects the mouse acceleration curve type.\n0 = None (use legacy m_accel calculations)\n1 = Classic (Raw Accel compatible power curve)\n2 = Linear (simple linear acceleration)\n3 = Natural (logarithmic curve with asymptotic limit)\n4 = Jump (step function with optional smoothing)\n5 = Motivity (synchronous/motivity curve)\n6 = Power (simplified power curve)\n7 = Custom (user-defined curve points)",
       "group-id": "11",
       "type": "integer"
     },
     "m_accel_legacy": {
       "default": "0",
-      "desc": "When set to 1, uses legacy calculation for acceleration curves instead of the newer \"gain\" method which calculates acceleration based on accumulated sensitivity changes",
+      "desc": "When set to 1, uses Raw Accel's legacy calculation for acceleration curves instead of the newer \"gain\" method which calculates acceleration based on accumulated sensitivity changes",
       "group-id": "11",
       "type": "boolean"
     },

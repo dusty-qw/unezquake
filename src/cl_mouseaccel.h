@@ -21,7 +21,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define CL_MOUSEACCEL_H
 
 typedef enum {
-    ACCEL_TYPE_CLASSIC = 0,
+    ACCEL_TYPE_NONE = 0,
+    ACCEL_TYPE_CLASSIC,
     ACCEL_TYPE_LINEAR,
     ACCEL_TYPE_NATURAL,
     ACCEL_TYPE_JUMP,
