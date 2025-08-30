@@ -111,12 +111,13 @@ static double MouseAccel_Smooth(double current_speed, double frametime)
 
 static double MouseAccel_Classic_Legacy(double speed)
 {
+    double cap = m_accel_classic_cap.value;
+
     // Backward compatibility: use old cvars if new ones aren't set
-    double offset = (m_accel_classic_accel.value > 0) ? m_accel_classic_offset.value : m_accel_offset.value;
+    double offset = (m_accel_classic_offset.value > 0) ? m_accel_classic_offset.value : m_accel_offset.value;
     double accel = (m_accel_classic_accel.value > 0) ? m_accel_classic_accel.value : m_accel.value;
-    double exponent = (m_accel_classic_accel.value > 0) ? m_accel_classic_exponent.value : m_accel_power.value;
-    double cap = (m_accel_classic_accel.value > 0) ? m_accel_classic_cap.value : m_accel_senscap.value;
-    
+    double exponent = (m_accel_classic_exponent.value > 0) ? m_accel_classic_exponent.value : m_accel_power.value;
+
     // Apply input cap if specified
     if (m_accel_cap_type.value == CAP_INPUT && cap > 0) {
         speed = min(speed, cap);
@@ -138,11 +139,12 @@ static double MouseAccel_Classic_Legacy(double speed)
 
 static double MouseAccel_Classic_Gain(double speed)
 {
+    double cap = m_accel_classic_cap.value;
+    
     // Backward compatibility: use old cvars if new ones aren't set
-    double offset = (m_accel_classic_accel.value > 0) ? m_accel_classic_offset.value : m_accel_offset.value;
+    double offset = (m_accel_classic_offset.value > 0) ? m_accel_classic_offset.value : m_accel_offset.value;
     double accel = (m_accel_classic_accel.value > 0) ? m_accel_classic_accel.value : m_accel.value;
-    double exponent = (m_accel_classic_accel.value > 0) ? m_accel_classic_exponent.value : m_accel_power.value;
-    double cap = (m_accel_classic_accel.value > 0) ? m_accel_classic_cap.value : m_accel_senscap.value;
+    double exponent = (m_accel_classic_exponent.value > 0) ? m_accel_classic_exponent.value : m_accel_power.value;
     
     // Apply input cap if specified
     if (m_accel_cap_type.value == CAP_INPUT && cap > 0) {
