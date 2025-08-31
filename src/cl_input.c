@@ -40,6 +40,7 @@ cvar_t cl_movespeedkey = { "cl_movespeedkey","2.0" };
 cvar_t cl_nodelta = { "cl_nodelta","0" };
 cvar_t cl_pitchspeed = { "cl_pitchspeed","150" };
 cvar_t cl_upspeed = { "cl_upspeed","400" };
+cvar_t cl_safestrafe = {"cl_safestrafe", "0"};
 cvar_t cl_safeswitch = {"cl_safeswitch", "0"};
 cvar_t cl_safeswitch_order = {"cl_safeswitch_order", ""};
 cvar_t cl_sidespeed = { "cl_sidespeed","400" };
@@ -1145,7 +1146,8 @@ int cmdtime_msec = 0;
 
 void CL_ApplySafestrafe(usercmd_t *cmd)
 {
-	int required_frames = movevars.safestrafe;
+	int required_frames = max(movevars.safestrafe, cl_safestrafe.value);
+
 	if (required_frames <= 0)
 		return;
 	
@@ -1248,7 +1250,7 @@ void CL_SendCmd(void)
 		CL_EasyAirControl(cmd);
 
 	// Apply safestrafe if enabled on server
-	if (movevars.safestrafe > 0 && !cl.spectator)
+	if ((movevars.safestrafe > 0 || cl_safestrafe.value > 0) && !cl.spectator)
 		CL_ApplySafestrafe(cmd);
 
 	CL_FinishMove(cmd);
@@ -1439,6 +1441,7 @@ void CL_InitInput(void)
 	Cvar_Register(&cl_upspeed);
 	Cvar_Register(&cl_forwardspeed);
 	Cvar_Register(&cl_backspeed);
+	Cvar_Register(&cl_safestrafe);
 	Cvar_Register(&cl_safeswitch);
 	Cvar_Register(&cl_safeswitch_order);
 	Cvar_Register(&cl_sidespeed);
