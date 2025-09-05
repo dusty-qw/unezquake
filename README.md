@@ -32,6 +32,7 @@ unezQuake has all of the latest ezQuake features, plus:
 
 ### Additional Input Support
 
+ * `cl_delay_input` - Simulate input lag - Delay mouse input in milliseconds
  * `m_accel_type` - Native Raw Accel integration. Use your favorite accel curve and settings
     * `m_accel_smooth` - EMA-based input smoothing applied before accel curves
     * `m_accel_smooth_halflife` - Alternative time-based smoothing using exponential decay

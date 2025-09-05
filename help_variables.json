@@ -1462,6 +1462,13 @@
       "group-id": "0",
       "type": "boolean"
     },
+    "cl_delay_input": {
+      "default": "0",
+      "desc": "Delays mouse input (look position and button presses) by the specified number of milliseconds.\nUseful for simulating input lag.",
+      "group-id": "11",
+      "remarks": "Specified in ms. Maximum delay is 1000ms. Mouse wheel events are also delayed.",
+      "type": "float"
+    },
     "cl_delay_packet": {
       "default": "0",
       "desc": "Client will delay incoming and outgoing packets, allowing user to increase his ping in the game.",

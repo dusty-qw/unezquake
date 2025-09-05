@@ -46,6 +46,7 @@ cvar_t cl_safeswitch_order = {"cl_safeswitch_order", ""};
 cvar_t cl_sidespeed = { "cl_sidespeed","400" };
 cvar_t cl_smartspawn = {"cl_smartspawn", "0"};
 cvar_t cl_yawspeed = { "cl_yawspeed","140" };
+cvar_t cl_delay_input = { "cl_delay_input", "0" };
 cvar_t cl_weaponhide = { "cl_weaponhide", "0" };
 cvar_t cl_weaponpreselect = { "cl_weaponpreselect", "0" };
 cvar_t cl_weaponforgetorder = { "cl_weaponforgetorder", "0" };
@@ -1478,6 +1479,7 @@ void CL_InitInput(void)
 	Cvar_Register(&cl_anglespeedkey);
 	Cvar_Register(&cl_socd);
 	Cvar_Register(&cl_easyaircontrol);
+	Cvar_Register(&cl_delay_input);
 
 	Cvar_SetCurrentGroup(CVAR_GROUP_INPUT_MISC);
 	Cvar_Register(&lookspring);
