@@ -65,6 +65,7 @@ cvar_t	joy_yawsensitivity	= {"joyyawsensitivity",		"-1.0",	CVAR_SILENT };
 
 extern cvar_t	movie_steadycam, movie_fps;
 extern cvar_t	m_accel_type;
+extern cvar_t	cl_delay_input;
 extern int	mx, my;
 extern qbool	mouseinitialized;
 
@@ -72,6 +73,134 @@ extern void IN_StartupMouse(void);
 extern void IN_DeactivateMouse(void);
 extern void IN_Restart_f(void);
 
+
+/***************************************************************************
+ * Mouse input delay buffer
+ */
+#define MAX_DELAY_BUFFER_MS 1000
+#define MAX_DELAY_BUFFER_SIZE 1000
+
+typedef enum {
+	INPUT_TYPE_MOVE,
+	INPUT_TYPE_BUTTON,
+	INPUT_TYPE_WHEEL
+} input_type_t;
+
+typedef struct {
+	input_type_t type;
+	double timestamp;
+	union {
+		struct {
+			float mouse_x;
+			float mouse_y;
+		} move;
+		struct {
+			unsigned int key;
+			qbool pressed;
+		} button;
+		struct {
+			int direction; // 1 for up, -1 for down
+		} wheel;
+	} data;
+} mouse_input_t;
+
+static mouse_input_t delay_buffer[MAX_DELAY_BUFFER_SIZE];
+static int delay_buffer_head = 0;
+static int delay_buffer_tail = 0;
+static int delay_buffer_count = 0;
+
+static void IN_AddMoveToDelayBuffer(float mouse_x, float mouse_y) {
+	delay_buffer[delay_buffer_head].type = INPUT_TYPE_MOVE;
+	delay_buffer[delay_buffer_head].data.move.mouse_x = mouse_x;
+	delay_buffer[delay_buffer_head].data.move.mouse_y = mouse_y;
+	delay_buffer[delay_buffer_head].timestamp = Sys_DoubleTime() * 1000.0;
+	
+	delay_buffer_head = (delay_buffer_head + 1) % MAX_DELAY_BUFFER_SIZE;
+	
+	if (delay_buffer_count < MAX_DELAY_BUFFER_SIZE) {
+		delay_buffer_count++;
+	} else {
+		delay_buffer_tail = (delay_buffer_tail + 1) % MAX_DELAY_BUFFER_SIZE;
+	}
+}
+
+void IN_AddButtonToDelayBuffer(unsigned int key, qbool pressed) {
+	delay_buffer[delay_buffer_head].type = INPUT_TYPE_BUTTON;
+	delay_buffer[delay_buffer_head].data.button.key = key;
+	delay_buffer[delay_buffer_head].data.button.pressed = pressed;
+	delay_buffer[delay_buffer_head].timestamp = Sys_DoubleTime() * 1000.0;
+	
+	delay_buffer_head = (delay_buffer_head + 1) % MAX_DELAY_BUFFER_SIZE;
+	
+	if (delay_buffer_count < MAX_DELAY_BUFFER_SIZE) {
+		delay_buffer_count++;
+	} else {
+		delay_buffer_tail = (delay_buffer_tail + 1) % MAX_DELAY_BUFFER_SIZE;
+	}
+}
+
+void IN_AddWheelToDelayBuffer(int direction) {
+	delay_buffer[delay_buffer_head].type = INPUT_TYPE_WHEEL;
+	delay_buffer[delay_buffer_head].data.wheel.direction = direction;
+	delay_buffer[delay_buffer_head].timestamp = Sys_DoubleTime() * 1000.0;
+	
+	delay_buffer_head = (delay_buffer_head + 1) % MAX_DELAY_BUFFER_SIZE;
+	
+	if (delay_buffer_count < MAX_DELAY_BUFFER_SIZE) {
+		delay_buffer_count++;
+	} else {
+		delay_buffer_tail = (delay_buffer_tail + 1) % MAX_DELAY_BUFFER_SIZE;
+	}
+}
+
+static void IN_ProcessDelayedEvents(float delay_ms, float *mouse_x, float *mouse_y) {
+	double current_time = Sys_DoubleTime() * 1000.0;
+	double target_time = current_time - delay_ms;
+	int processed_count = 0;
+	
+	*mouse_x = 0;
+	*mouse_y = 0;
+	
+	while (delay_buffer_count > 0) {
+		mouse_input_t *input = &delay_buffer[delay_buffer_tail];
+		
+		if (input->timestamp > target_time) {
+			break;
+		}
+		
+		switch (input->type) {
+		case INPUT_TYPE_MOVE:
+			// Accumulate movement so we preserve all delayed deltas
+			*mouse_x += input->data.move.mouse_x;
+			*mouse_y += input->data.move.mouse_y;
+			break;
+			
+		case INPUT_TYPE_BUTTON:
+			Key_Event(input->data.button.key, input->data.button.pressed);
+			break;
+			
+		case INPUT_TYPE_WHEEL:
+			if (input->data.wheel.direction > 0) {
+				Key_Event(K_MWHEELUP, true);
+				Key_Event(K_MWHEELUP, false);
+			} else {
+				Key_Event(K_MWHEELDOWN, true);
+				Key_Event(K_MWHEELDOWN, false);
+			}
+			break;
+		}
+		
+		delay_buffer_tail = (delay_buffer_tail + 1) % MAX_DELAY_BUFFER_SIZE;
+		delay_buffer_count--;
+		processed_count++;
+	}
+}
+
+static void IN_ClearDelayBuffer(void) {
+	delay_buffer_head = 0;
+	delay_buffer_tail = 0;
+	delay_buffer_count = 0;
+}
 
 /***************************************************************************
  * Mouse-y things.
@@ -91,18 +220,39 @@ void IN_MouseMove (usercmd_t *cmd)
 	{
 		// Normal game mode.
 		float mouse_x, mouse_y;
+		float raw_mouse_x, raw_mouse_y;
 
 		if (m_filter.value) {
 			float filterfrac = bound (0.0f, m_filter.value, 1.0f) / 2.0f;
-			mouse_x = (mx * (1.0f - filterfrac) + old_mouse_x * filterfrac);
-			mouse_y = (my * (1.0f - filterfrac) + old_mouse_y * filterfrac);
+			raw_mouse_x = (mx * (1.0f - filterfrac) + old_mouse_x * filterfrac);
+			raw_mouse_y = (my * (1.0f - filterfrac) + old_mouse_y * filterfrac);
 		} else {
-			mouse_x = mx;
-			mouse_y = my;
+			raw_mouse_x = mx;
+			raw_mouse_y = my;
 		}
 
 		old_mouse_x = mx;
 		old_mouse_y = my;
+
+		// Handle input delay
+		if (cl_delay_input.value > 0) {
+			// Add current input to delay buffer (skip no-op frames)
+			if (raw_mouse_x != 0 || raw_mouse_y != 0) {
+				IN_AddMoveToDelayBuffer(raw_mouse_x, raw_mouse_y);
+			}
+			
+			// Process delayed events
+			float delay_ms = bound(0, cl_delay_input.value, MAX_DELAY_BUFFER_MS);
+			IN_ProcessDelayedEvents(delay_ms, &mouse_x, &mouse_y);
+		} else {
+			// No delay, use raw input directly
+			mouse_x = raw_mouse_x;
+			mouse_y = raw_mouse_y;
+			// Clear delay buffer when delay is disabled
+			if (delay_buffer_count > 0) {
+				IN_ClearDelayBuffer();
+			}
+		}
 
 		// Apply acceleration and display speed if m_showspeed is enabled
 		extern cvar_t m_showspeed;
@@ -111,7 +261,8 @@ void IN_MouseMove (usercmd_t *cmd)
 		// If no accel type is specified, use old accel calculation via "m_accel"
 		if (m_accel.value > 0.0f && m_accel_type.value <= 0) {
 			float accelsens = sensitivity.value;
-			float mousespeed = (sqrt (mx * mx + my * my)) / (1000.0f * (float) cls.trueframetime);
+			// Use delayed (or current) mouse_x/y to compute speed pre-sensitivity
+			float mousespeed = (sqrt (mouse_x * mouse_x + mouse_y * mouse_y)) / (1000.0f * (float) cls.trueframetime);
 
 			mousespeed -= m_accel_offset.value;
 			if (mousespeed > 0) {
@@ -618,4 +769,3 @@ void IN_Shutdown(void)
 
 	mouseinitialized = false;
 }
-
