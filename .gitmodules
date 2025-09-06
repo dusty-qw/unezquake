@@ -1,6 +1,6 @@
 [submodule "src/qwprot"]
 	path = src/qwprot
-	url = https://github.com/dusty-qw/qwprot.git
+	url = https://github.com/QW-Community/qwprot.git
 	branch = master
 [submodule "vcpkg"]
 	path = vcpkg
