@@ -24,6 +24,7 @@ unezQuake has all of the latest ezQuake features, plus:
  * `cl_autoshownick` - triggers shownick automatically when looking towards a teammate  
  * `cl_easyaircontrol` - experimental input handling for controller/joystick (only works in prewar)
  * `cl_model_height` - ability to set custom height of models/simpleitems
+ * `cl_safestrafe` - use SOCD without violating rules or triggering detection
  * `cl_safeswitch` - switches to a non-LG weapon when entering water (does not prevent discharge)
     * `cl_safeswitch_order "7 5 2 1"` - set a custom weapon order (default is `""`)
  * `cl_smartspawn` - uses jump to spawn even when pressing +attack
