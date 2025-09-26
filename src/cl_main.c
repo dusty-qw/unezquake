@@ -1413,7 +1413,7 @@ void CL_Disconnect_f (void)
 // The server is changing levels.
 void CL_Reconnect_f (void) 
 {
-	//SCR_FinishMapVote();
+	SCR_FinishMapVote();
 	if (cls.download)
 		return; // Don't change when downloading.
 
