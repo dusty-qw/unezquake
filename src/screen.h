@@ -52,6 +52,9 @@ void SCR_CenterPrint_Clear(void);
 void SCR_CenterPrint_Init(void);
 void SCR_CenterString_Draw(void);
 
+void SCR_MapVote(char *str);
+void SCR_FinishMapVote(void);
+
 extern	float		scr_con_current;
 extern	float		scr_conlines;		// lines of console to display
 

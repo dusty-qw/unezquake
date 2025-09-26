@@ -74,6 +74,7 @@ void GameSummary_HudInit(void);
 void Performance_HudInit(void);
 void Scores_HudInit(void);
 void Face_HudInit(void);
+void MapVote_HudInit(void);
 void Frags_HudInit(void);
 void Tracking_HudInit(void);
 void CenterPrint_HudInit(void);
@@ -1019,6 +1020,7 @@ void CommonDraw_Init(void)
 	Armor_HudInit();
 	Scores_HudInit();
 	Face_HudInit();
+	MapVote_HudInit();
 	GameSummary_HudInit();
 	Net_HudInit();
 	Clock_HudInit();

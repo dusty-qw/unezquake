@@ -1220,6 +1220,45 @@ void Draw_InitConback(void)
 	Q_free(cb);
 }
 
+void Draw_MapVote(float x, float y, int width, int height, float alpha_override)
+{
+	mpic_t *lvlshot = NULL;
+    float alpha = alpha_override >= 0 ? alpha_override :
+                  ((SCR_NEED_CONSOLE_BACKGROUND ? 1 : bound(0, scr_conalpha.value, 1)) * overall_alpha);
+
+    if (map_vote_map[0])
+    {
+        // Load per-level conback once
+        if (strncmp(map_vote_map, last_mapname, sizeof(last_mapname)))
+        {
+            char name[MAX_QPATH];
+            mpic_t* old_levelshot = last_lvlshot;
+
+            snprintf(name, sizeof(name), "textures/levelshots/%s.xxx", map_vote_map);
+            if ((last_lvlshot = Draw_CachePicSafe(name, false, true)))
+            {
+                last_lvlshot->width  = conback.width;
+                last_lvlshot->height = conback.height;
+            }
+
+            if (last_lvlshot != old_levelshot)
+                Draw_DeleteOldLevelshot(old_levelshot);
+
+            strlcpy(last_mapname, map_vote_map, sizeof(last_mapname));
+        }
+
+        lvlshot = last_lvlshot;
+    }
+
+    if (!alpha)
+        return;
+
+    if (lvlshot)
+        Draw_FitPicAlphaCenter(x, y, width, height, lvlshot, alpha);
+    else
+        Draw_FitPicAlphaCenter(x, y, width, height, &conback, alpha);
+}
+
 void Draw_ConsoleBackground(int lines)
 {
 	mpic_t *lvlshot = NULL;
