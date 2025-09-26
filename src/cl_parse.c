@@ -3110,13 +3110,21 @@ void CL_ProcessPrint (int level, char* s0)
 	}
 	else if (level == PRINT_HIGH)
 	{
-		char vote[] = "suggests map";
-		char qbuf[128];
-		strncpy(qbuf, vote, sizeof(qbuf) - 1);
-		qbuf[sizeof(qbuf) - 1] = '\0';
-		unsigned char *q_red_vote = Q_redtext((unsigned char *)qbuf);
-		if (strstr(s0, (char *)q_red_vote)) {
+		char *triggers[] = { "suggests map", "would rather play on" };
+		int n_triggers = sizeof(triggers) / sizeof(triggers[0]);
+		
+		int i;
+		for (i = 0; i < n_triggers; i++) {
+		    char qbuf[128];
+		    strncpy(qbuf, triggers[i], sizeof(qbuf) - 1);
+		    qbuf[sizeof(qbuf) - 1] = '\0';
+
+		    unsigned char *q_red = Q_redtext((unsigned char *)qbuf);
+
+		    if (strstr(s0, (char *)q_red)) {
 			SCR_MapVote(s0);
+			break; // stop after first match
+		    }
 		}
 
 		if (ignore_no_weapon.integer > 0 && strncmp(s0, "no weapon", 9) == 0)
