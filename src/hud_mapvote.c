@@ -24,6 +24,7 @@ $Id: hud_mapvote.c,v 1.0 2025-09-25 Bance $
 #include "hud_common.h"
 #include "fonts.h"
 #include "screen.h"
+#include <stdio.h>
 #include <string.h>
 
 static cvar_t hud_mapvote_frame_color  = { "scr_mapvote_frame_color", "10 10 10 160", CVAR_COLOR };
@@ -33,27 +34,37 @@ char map_vote_map[64];
 
 void SCR_MapVote(char *str) {
     vote_active = true;
-    strcpy(map_vote_str, str);
 
-    char vote[] = "suggests map";
-    char qbuf[128];
-    strncpy(qbuf, vote, sizeof(qbuf) - 1);
-    qbuf[sizeof(qbuf) - 1] = '\0';
-    unsigned char *q_red_vote = Q_redtext((unsigned char *)qbuf);
-    char *found = strstr(str, (char *)q_red_vote);
-    if (found) {
-        found += strlen((char *)q_red_vote);
-        while (*found == ' ') found++;
-        strncpy(map_vote_map, found, sizeof(map_vote_map) - 1);
-        map_vote_map[sizeof(map_vote_map) - 1] = '\0';
+    char *triggers[] = { "suggests map", "would rather play on" };
+    int n_triggers = sizeof(triggers) / sizeof(triggers[0]);
 
-        size_t len = strlen(map_vote_map);
-        if (len > 0 && map_vote_map[len - 1] == '\n') {
-            map_vote_map[len - 1] = '\0';
+    map_vote_map[0] = '\0';
+
+    int i;
+    for (i = 0; i < n_triggers; i++) {
+        char qbuf[128];
+        strncpy(qbuf, triggers[i], sizeof(qbuf) - 1);
+        qbuf[sizeof(qbuf) - 1] = '\0';
+
+        unsigned char *q_red = Q_redtext((unsigned char *)qbuf);
+
+        char *found = strstr(str, (char *)q_red);
+        if (found) {
+            found += strlen((char *)q_red);
+            while (*found == ' ') found++;
+
+            strncpy(map_vote_map, found, sizeof(map_vote_map) - 1);
+            map_vote_map[sizeof(map_vote_map) - 1] = '\0';
+
+            size_t len = strlen(map_vote_map);
+            if (len > 0 && map_vote_map[len - 1] == '\n') {
+                map_vote_map[len - 1] = '\0';
+            }
+
+            break;
         }
-    } else {
-        map_vote_map[0] = '\0';
     }
+    sprintf(map_vote_str, "map vote for %s", map_vote_map);
 }
 
 void SCR_FinishMapVote(void) {
@@ -65,14 +76,16 @@ void SCR_HUD_DrawMapVote(hud_t *hud)
     if (!vote_active)
         return;
 
+    if (!cl.standby) {
+        vote_active = false;
+        return;
+    }
+
     int x, y;
     cvar_t *v_scale = HUD_FindVar(hud, "scale");
     float scale = bound(0.1f, v_scale->value, 10.0f);
 
     int base_char_w = 8;
-    int line1_w = (int)(strlen(map_vote_str) * base_char_w * scale);
-    int line2_w = (int)(strlen("use /agree to vote") * base_char_w * scale);
-    int text_w = line1_w > line2_w ? line1_w : line2_w;
 
     int text_h = (int)(FONTWIDTH * scale);
     int num_lines = 2;
@@ -80,7 +93,7 @@ void SCR_HUD_DrawMapVote(hud_t *hud)
     int pad_x = (int)(4 * scale);
     int pad_y = (int)(2 * scale);
 
-    int conback_w = text_w;
+    int conback_w = base_char_w * 25;
     int conback_h = (int)(conback_w * 9.0f / 16.0f);
 
     int box_w = conback_w + pad_x * 2;
