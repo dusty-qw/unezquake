@@ -19,12 +19,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 $Id: cl_parse.c,v 1.135 2007-10-28 19:56:44 qqshka Exp $
 */
 
+#include "common.h"
 #include "quakedef.h"
 #include "gl_model.h"
 #include "cdaudio.h"
 #include "ignore.h"
 #include "fchecks.h"
 #include "config_manager.h"
+#include "screen.h"
 #include "utils.h"
 #include "localtime.h"
 #include "sbar.h"
@@ -45,6 +47,7 @@ $Id: cl_parse.c,v 1.135 2007-10-28 19:56:44 qqshka Exp $
 #include "qtv.h"
 #include "r_brushmodel_sky.h"
 #include "central.h"
+#include <stdio.h>
 
 int CL_LoginImageId(const char* name);
 
@@ -3153,6 +3156,15 @@ void CL_ProcessPrint (int level, char* s0)
 	}
 	else if (level == PRINT_HIGH)
 	{
+		char vote[] = "suggests map";
+		char qbuf[128];
+		strncpy(qbuf, vote, sizeof(qbuf) - 1);
+		qbuf[sizeof(qbuf) - 1] = '\0';
+		unsigned char *q_red_vote = Q_redtext((unsigned char *)qbuf);
+		if (strstr(s0, (char *)q_red_vote)) {
+			SCR_MapVote(s0);
+		}
+
 		if (ignore_no_weapon.integer > 0 && strncmp(s0, "no weapon", 9) == 0)
 		{
 			return;

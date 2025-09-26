@@ -36,6 +36,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "hud_editor.h"
 #include "input.h"
 #include "gl_model.h"
+#include "screen.h"
 #include "tr_types.h"
 #include "teamplay.h"
 #include "tp_triggers.h"
@@ -1431,6 +1432,7 @@ void CL_Disconnect_f (void)
 // The server is changing levels.
 void CL_Reconnect_f (void) 
 {
+	//SCR_FinishMapVote();
 	if (cls.download)
 		return; // Don't change when downloading.
 
