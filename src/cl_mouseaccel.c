@@ -64,6 +64,14 @@ static custom_curve_t custom_curve = {NULL, 0, 0};
 static double gain_constants[ACCEL_TYPE_COUNT] = {0};
 static qbool gain_constants_dirty = true;
 
+// Numerically stable log(1 + exp(x)) used by jump gain smoothing
+static double MouseAccel_Log1pExp(double x)
+{
+    if (x > 0.0)
+        return x + log(1.0 + exp(-x));
+    return log(1.0 + exp(x));
+}
+
 static double MouseAccel_CalculateSpeed(double mx, double my, double frametime)
 {
     double speed = 0;
@@ -212,6 +220,8 @@ static double MouseAccel_Natural_Gain(double speed)
     double offset = m_accel_natural_offset.value;
     if (speed <= offset)
         return 1.0;
+    if (speed <= 0.0)
+        return 1.0;  // Prevent division by zero in the gain formulation
     
     // Raw Accel natural GAIN formula
     // Our m_accel_natural_limit is the desired max multiplier (e.g., 2.0)
@@ -219,10 +229,16 @@ static double MouseAccel_Natural_Gain(double speed)
     double limit = m_accel_natural_limit.value - 1.0;
     if (fabs(limit) < 0.001) // Avoid division by zero
         return 1.0;
+
+    double accel_raw = m_accel_natural_accel.value;
+    if (fabs(accel_raw) < 1e-9)
+        return 1.0;  // A zero decay rate produces no gain change
     
-    double accel = m_accel_natural_accel.value / fabs(limit);
+    double accel = accel_raw / fabs(limit);
     double offset_x = offset - speed;
-    double decay = exp(accel * offset_x);
+    double exponent = accel * offset_x;
+    exponent = bound(-700.0, exponent, 700.0); // Clamp below overflow edge
+    double decay = exp(exponent);
     double constant = -limit / accel;
     
     double output = limit * (decay / accel - offset_x) + constant;
@@ -258,7 +274,7 @@ static double MouseAccel_Jump_Gain(double speed)
     
     if (speed <= 0)
         return 1.0;
-    
+
     if (m_accel_jump_smooth.value <= 0) {
         // Without smoothing in gain mode
         if (speed < step_x)
@@ -269,20 +285,20 @@ static double MouseAccel_Jump_Gain(double speed)
     
     // Raw Accel gain mode uses antiderivative of sigmoid for smooth transitions
     // The antiderivative of 1/(1+e^(-k(x-c))) is (1/k)*ln(1+e^(k(x-c)))
-    double smooth_rate = 10.0 / (m_accel_jump_smooth.value * step_x);
+    double safe_step_x = (step_x <= 0) ? 0.0001 : step_x; // Avoid dividing by zero
+    double smooth_rate = 10.0 / (m_accel_jump_smooth.value * safe_step_x);
     double k = smooth_rate;
-    double c = step_x;
+    double c = safe_step_x;
     
     // Calculate the antiderivative (integral) of the sigmoid
     // This gives us the accumulated sensitivity change
-    double exp_term = exp(k * (speed - c));
-    double antideriv = (1.0 / k) * log(1.0 + exp_term);
+    double exponent = k * (speed - c);
+    double antideriv = MouseAccel_Log1pExp(exponent) / k; // Stable integral of sigmoid
     
     // Calculate the integration constant to ensure continuity
     // At speed = 0, we want multiplier = 1.0
-    double exp_term_0 = exp(-k * c);
-    double antideriv_0 = (1.0 / k) * log(1.0 + exp_term_0);
-    double constant = speed * (1.0 - (step_y - 1.0) * antideriv_0 / speed);
+    double antideriv_0 = MouseAccel_Log1pExp(-k * c) / k;
+    double constant = speed * (1.0 - (step_y - 1.0) * antideriv_0 / speed); // Enforce continuity at speed=0
     
     // The gain formula: output = (step_y - 1) * antideriv + constant
     // Then divide by speed to get the multiplier
@@ -299,17 +315,31 @@ static double MouseAccel_Motivity_Legacy(double speed)
     if (syncspeed <= 0 || motivity <= 0)
         return 1.0;
     
+    if (speed <= 0)
+        return 1.0;
+    
     if (speed == syncspeed)
         return 1.0;
     
     // Raw Accel synchronous formula using logarithmic space
     double log_motivity = log(motivity);
+    if (fabs(log_motivity) < 1e-9)
+        return 1.0;
+    
     double gamma_const = gamma / log_motivity;
+    if (!isfinite(gamma_const))
+        return 1.0;
+    
     double sharpness = (m_accel_sync_smooth.value == 0) ? 16.0 : 0.5 / m_accel_sync_smooth.value;
+    if (sharpness <= 0.0)
+        sharpness = 16.0; // Fall back to clamped behaviour
+    
+    double log_speed = log(speed);
+    double log_syncspeed = log(syncspeed);
     
     // Linear clamp for high sharpness
     if (sharpness >= 16.0) {
-        double log_space = gamma_const * (log(speed) - log(syncspeed));
+        double log_space = gamma_const * (log_speed - log_syncspeed);
         if (log_space < -1.0)
             return 1.0 / motivity;  // minimum_sens
         if (log_space > 1.0)
@@ -318,16 +348,12 @@ static double MouseAccel_Motivity_Legacy(double speed)
     }
     
     // Non-linear path with tanh smoothing
-    double log_diff = log(speed) - log(syncspeed);
-    double log_space, exponent;
-    
-    if (log_diff > 0) {
-        log_space = gamma_const * log_diff;
-        exponent = pow(tanh(pow(log_space, sharpness)), 1.0 / sharpness);
-    } else {
-        log_space = -gamma_const * log_diff;
-        exponent = -pow(tanh(pow(log_space, sharpness)), 1.0 / sharpness);
-    }
+    double log_diff = log_speed - log_syncspeed;
+    double log_space = gamma_const * log_diff;
+    double log_magnitude = fabs(log_space);
+    double sign = (log_space >= 0.0) ? 1.0 : -1.0;
+    double shaped = pow(tanh(pow(log_magnitude, sharpness)), 1.0 / sharpness); // Always non-negative input to pow()
+    double exponent = sign * shaped;
     
     double result = exp(exponent * log_motivity);
     
