@@ -1008,6 +1008,17 @@ int PM_PlayerMove(void)
 
 prediction_event_fakeproj_t* PM_AddEvent_FakeProj(int type)
 {
+#ifndef SERVERONLY
+	if (type == IT_LIGHTNING) {
+		if (!cl_predict_beam.integer)
+			return NULL;
+	}
+	else {
+		if (!cl_predict_projectiles.integer)
+			return NULL;
+	}
+#endif
+
 	prediction_event_fakeproj_t *proj = malloc(sizeof(prediction_event_fakeproj_t));
 	proj->type = type;
 
@@ -1546,16 +1557,19 @@ void launch_spike(float off)
 		PM_SoundEffect_Weapon(cl_sfx_ng, 1, 16);
 	}
 
-	vec3_t forward, right;
-	AngleVectors(pmove.cmd.angles, forward, right, NULL);
-	VectorScale(forward, 1000, newmis->velocity);
+	if (newmis)
+	{
+		vec3_t forward, right;
+		AngleVectors(pmove.cmd.angles, forward, right, NULL);
+		VectorScale(forward, 1000, newmis->velocity);
 
-	VectorCopy(pmove.origin, newmis->origin);
-	newmis->origin[0] += (forward[0] * 8) + (right[0] * off);
-	newmis->origin[1] += (forward[1] * 8) + (right[1] * off);
-	newmis->origin[2] += 16 + forward[2] * 8;
-	VectorCopy(pmove.cmd.angles, newmis->angles);
-	newmis->angles[0] = -newmis->angles[0];
+		VectorCopy(pmove.origin, newmis->origin);
+		newmis->origin[0] += (forward[0] * 8) + (right[0] * off);
+		newmis->origin[1] += (forward[1] * 8) + (right[1] * off);
+		newmis->origin[2] += 16 + forward[2] * 8;
+		VectorCopy(pmove.cmd.angles, newmis->angles);
+		newmis->angles[0] = -newmis->angles[0];
+	}
 }
 
 void player_run(void)
@@ -1655,10 +1669,13 @@ void player_light1(void)
 	if (pmove.waterlevel <= 1)
 	{
 		prediction_event_fakeproj_t *beam = PM_AddEvent_FakeProj(IT_LIGHTNING);
-		VectorCopy(pmove.origin, beam->origin);
-		beam->origin[2] += 16;
+		if (beam)
+		{
+			VectorCopy(pmove.origin, beam->origin);
+			beam->origin[2] += 16;
 
-		VectorCopy(pmove.cmd.angles, beam->angles);
+			VectorCopy(pmove.cmd.angles, beam->angles);
+		}
 	}
 }
 
@@ -1685,10 +1702,13 @@ void player_light2(void)
 	if (pmove.waterlevel <= 1)
 	{
 		prediction_event_fakeproj_t *beam = PM_AddEvent_FakeProj(IT_LIGHTNING);
-		VectorCopy(pmove.origin, beam->origin);
-		beam->origin[2] += 16;
+		if (beam)
+		{
+			VectorCopy(pmove.origin, beam->origin);
+			beam->origin[2] += 16;
 
-		VectorCopy(pmove.cmd.angles, beam->angles);
+			VectorCopy(pmove.cmd.angles, beam->angles);
+		}
 	}
 }
 
@@ -1833,17 +1853,20 @@ void W_Attack(void)
 		pmove.current_ammo = pmove.ammo_rockets -= 1;
 		PM_SoundEffect_Weapon(cl_sfx_gl, 1, 64);
 		prediction_event_fakeproj_t *newmis = PM_AddEvent_FakeProj(IT_GRENADE_LAUNCHER);
-		vec3_t forward, right, up;
-		AngleVectors(pmove.cmd.angles, forward, right, up);
+		if (newmis)
+		{
+			vec3_t forward, right, up;
+			AngleVectors(pmove.cmd.angles, forward, right, up);
 
-		newmis->velocity[0] = forward[0] * 600 + up[0] * 200;
-		newmis->velocity[1] = forward[1] * 600 + up[1] * 200;
-		newmis->velocity[2] = forward[2] * 600 + up[2] * 200;
+			newmis->velocity[0] = forward[0] * 600 + up[0] * 200;
+			newmis->velocity[1] = forward[1] * 600 + up[1] * 200;
+			newmis->velocity[2] = forward[2] * 600 + up[2] * 200;
 
-		VectorCopy(pmove.origin, newmis->origin);
+			VectorCopy(pmove.origin, newmis->origin);
 
-		vectoangles(newmis->velocity, newmis->angles);
-		VectorSet(newmis->avelocity, 300, 300, 300);
+			vectoangles(newmis->velocity, newmis->angles);
+			VectorSet(newmis->avelocity, 300, 300, 300);
+		}
 
 		pmove.client_thinkindex = 1;
 		anim_rocket();
@@ -1854,25 +1877,28 @@ void W_Attack(void)
 		PM_SoundEffect_Weapon(cl_sfx_rl, 1, 128);
 
 		prediction_event_fakeproj_t *newmis = PM_AddEvent_FakeProj(IT_ROCKET_LAUNCHER);
-		vec3_t forward;
-		AngleVectors(pmove.cmd.angles, forward, NULL, NULL);
-
-		if (pmove.client_predflags & PRDFL_MIDAIR)
+		if (newmis)
 		{
-			VectorScale(forward, 2000, newmis->velocity);
-		}
-		else
-		{
-			VectorScale(forward, 1000, newmis->velocity);
-		}
+			vec3_t forward;
+			AngleVectors(pmove.cmd.angles, forward, NULL, NULL);
 
-		VectorCopy(pmove.origin, newmis->origin);
-		newmis->origin[0] += forward[0] * 8;
-		newmis->origin[1] += forward[1] * 8;
-		newmis->origin[2] += 16 + forward[2] * 8;
+			if (pmove.client_predflags & PRDFL_MIDAIR)
+			{
+				VectorScale(forward, 2000, newmis->velocity);
+			}
+			else
+			{
+				VectorScale(forward, 1000, newmis->velocity);
+			}
 
-		VectorCopy(pmove.cmd.angles, newmis->angles);
-		newmis->angles[0] = -newmis->angles[0];
+			VectorCopy(pmove.origin, newmis->origin);
+			newmis->origin[0] += forward[0] * 8;
+			newmis->origin[1] += forward[1] * 8;
+			newmis->origin[2] += 16 + forward[2] * 8;
+
+			VectorCopy(pmove.cmd.angles, newmis->angles);
+			newmis->angles[0] = -newmis->angles[0];
+		}
 
 		pmove.client_thinkindex = 1;
 		anim_rocket();
@@ -1937,4 +1963,3 @@ void PM_PlayerWeapon(void)
 		}
 	}
 }
-
