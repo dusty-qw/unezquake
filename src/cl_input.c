@@ -27,6 +27,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 static void IN_AttackUp_CommonHide(void);
 void IN_SafeSwitch(void);
 
+static void OnChange_m_accel_custom_points(cvar_t *var, char *string, qbool *cancel);
+
 cvar_t cl_autohop = { "cl_autohop", "0", 0, Rulesets_OnChange_cl_autohop };
 cvar_t cl_anglespeedkey = { "cl_anglespeedkey","1.5" };
 cvar_t cl_backspeed = { "cl_backspeed","400" };
@@ -90,7 +92,7 @@ cvar_t m_accel_power_scale = { "m_accel_power_scale", "1.0" };
 cvar_t m_accel_power_exponent = { "m_accel_power_exponent", "0.05" };
 cvar_t m_accel_power_offset = { "m_accel_power_offset", "0" };
 cvar_t m_accel_power_cap = { "m_accel_power_cap", "0" };
-cvar_t m_accel_custom_points = { "m_accel_custom_points", "" };
+cvar_t m_accel_custom_points = { "m_accel_custom_points", "", CVAR_NONE, OnChange_m_accel_custom_points };
 cvar_t m_accel_smooth = { "m_accel_smooth", "0" };
 cvar_t m_accel_smooth_halflife = { "m_accel_smooth_halflife", "0" };
 cvar_t m_accel_cap_type = { "m_accel_cap_type", "0" };
