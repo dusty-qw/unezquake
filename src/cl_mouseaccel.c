@@ -519,6 +519,10 @@ double MouseAccel_Calculate(double mx, double my, double frametime, double base_
     return multiplier;
 }
 
+void OnChange_m_accel_custom_points(cvar_t *var, char *string, qbool *cancel) {
+	MouseAccel_UpdateCustomCurve(string);
+}
+
 void MouseAccel_UpdateCustomCurve(const char *points_string)
 {
     if (custom_curve.points) {
