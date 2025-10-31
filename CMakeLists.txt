@@ -554,6 +554,7 @@ set(common_hud
         ${SOURCE_DIR}/hud_scores.c
         ${SOURCE_DIR}/hud_speed.c
         ${SOURCE_DIR}/hud_teaminfo.c
+        ${SOURCE_DIR}/hud_mapvote.c
         ${SOURCE_DIR}/hud_tracking.c
         ${SOURCE_DIR}/hud_weapon_stats.c
         ${common_hud_headers}

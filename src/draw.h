@@ -69,6 +69,7 @@ typedef enum {
 void Draw_AdjustConback (void);
 
 extern	mpic_t		*draw_disc;	// also used on sbar
+extern char map_vote_map[64]; // also used in hud_mapvote
 
 #define MCHARSET_PATH "gfx/mcharset.png"
 
@@ -95,6 +96,7 @@ void Draw_SubPic(float x, float y, mpic_t *pic, int srcx, int srcy, int width, i
 void Draw_Pic(float x, float y, mpic_t *pic);
 void Draw_TransPic(float x, float y, mpic_t *pic);
 void Draw_ConsoleBackground (int lines);
+void Draw_MapVote(float x, float y, int width, int height, float alpha_override);
 void Draw_BeginDisc(void);
 void Draw_EndDisc(void);
 void Draw_TileClear(int x, int y, int w, int h);
