@@ -20,6 +20,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef CL_MOUSEACCEL_H
 #define CL_MOUSEACCEL_H
 
+#include "cvar.h"
+
 typedef enum {
     ACCEL_TYPE_NONE = 0,
     ACCEL_TYPE_CLASSIC,
@@ -68,5 +70,6 @@ double MouseAccel_Calculate(double mx, double my, double frametime, double base_
 void MouseAccel_Init(void);
 void MouseAccel_Shutdown(void);
 void MouseAccel_UpdateCustomCurve(const char *points_string);
+void OnChange_m_accel_custom_points(cvar_t *var, char *string, qbool *cancel);
 
 #endif

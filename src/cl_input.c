@@ -23,11 +23,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "pmove.h"		// PM_FLY etc
 #include "rulesets.h"
 #include "cl_easyaircontrol.h"
+#include "cl_mouseaccel.h"
 
 static void IN_AttackUp_CommonHide(void);
 void IN_SafeSwitch(void);
-
-static void OnChange_m_accel_custom_points(cvar_t *var, char *string, qbool *cancel);
 
 cvar_t cl_autohop = { "cl_autohop", "0", 0, Rulesets_OnChange_cl_autohop };
 cvar_t cl_anglespeedkey = { "cl_anglespeedkey","1.5" };
