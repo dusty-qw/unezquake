@@ -505,6 +505,13 @@ void IN_JumpUp(void)
 		in_autohop.state &= ~8; // Pogo: OFF
 }
 
+void IN_ResetAutohopState(void)
+{
+	KeyUp_common(&in_jump, VOID_KEY);
+	KeyUp_common(&in_autohop, VOID_KEY);
+	in_autohop.state &= ~8;
+}
+
 // called within 'impulse' or 'weapon' commands, remembers it's first 10 (MAXWEAPONS) arguments
 void IN_RememberWpOrder(void)
 {
