@@ -456,14 +456,17 @@ void Rulesets_OnChange_cl_autohop(cvar_t *var, char *value, qbool *cancel)
 		if (cl.standby) {
 			// allow in standby
 			Cbuf_AddText(va("say cl_autohop: %s\n", ival ? "on" : "off"));
+			IN_ResetAutohopState();
 		}
 		else {
 			// disallow during the match
 			Com_Printf("%s changes are not allowed during the match\n", var->name);
 			*cancel = true;
+			return;
 		}
 	} else {
 		// allow in not fully connected state
+		IN_ResetAutohopState();
 	}
 }
 

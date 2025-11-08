@@ -43,6 +43,7 @@ extern kbutton_t in_strafe;
 extern kbutton_t in_speed;
 
 void CL_InitInput (void);
+void IN_ResetAutohopState(void);
 void CL_SendClientCommand(qbool reliable, char *format, ...);
 void CL_SendCmd (void);
 void CL_BaseMove (usercmd_t *cmd);
