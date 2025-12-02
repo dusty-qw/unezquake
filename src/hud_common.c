@@ -71,6 +71,7 @@ void Guns_HudInit(void);
 void Groups_HudInit(void);
 void Armor_HudInit(void);
 void Health_HudInit(void);
+void TotalStrength_HudInit(void);
 void GameSummary_HudInit(void);
 void Performance_HudInit(void);
 void Scores_HudInit(void);
@@ -1032,6 +1033,7 @@ void CommonDraw_Init(void)
     Inlay_HudInit();
 	TeamHold_HudInit();
 	Health_HudInit();
+        TotalStrength_HudInit();
 	Frags_HudInit();
 	Tracking_HudInit();
 	CenterPrint_HudInit();
