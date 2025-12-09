@@ -1076,7 +1076,7 @@ void CL_RemovePrefixFromName(int player)
 	strlcpy(cl.players[player].shortname, cl.players[player].name, sizeof(cl.players[player].shortname));
 
 	if (!prefixes_list || !prefixes_list[0]) {
-		override_name = Nick_OverrideForName(cl.players[player].name);
+		override_name = Nick_OverrideForPlayer(&cl.players[player]);
 		if (override_name && override_name[0]) {
 			strlcpy(cl.players[player].shortname, override_name, sizeof(cl.players[player].shortname));
 		}
@@ -1109,7 +1109,7 @@ void CL_RemovePrefixFromName(int player)
 
 	strlcpy(cl.players[player].shortname, cl.players[player].name + skip, sizeof(cl.players[player].shortname));
 
-	override_name = Nick_OverrideForName(cl.players[player].name);
+	override_name = Nick_OverrideForPlayer(&cl.players[player]);
 	if (override_name && override_name[0]) {
 		strlcpy(cl.players[player].shortname, override_name, sizeof(cl.players[player].shortname));
 	}
