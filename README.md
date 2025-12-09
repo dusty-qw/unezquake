@@ -52,6 +52,11 @@ unezQuake has all of the latest ezQuake features, plus:
  * `hud_[element]_border x` - sets a border of "x" thickness around any hud element  
     * `hud_[element]_border_color "R G B A"` - set color of border
     * `hud_[element]_border_radius` - give your hud elements rounded corners
+ * `nick <alias> "name[, name2, name3]` - nickname overrides for scoreboard, tracker, teaminfo
+    * `nicklist`
+    * `nickedit`
+    * `nick_clear`
+    * `nick_clearall`
  * `scr_autoid_ingame` - see autoID for teammates while playing
     * `scr_autoid_ingame_namelength`
     * `scr_autoid_ingame_weapon`
