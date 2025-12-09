@@ -1213,7 +1213,7 @@
     "description": "HUD element - icon displayed when network traffic is experiencing problems like lost packets, large delay, etc."
   },
   "nick": {
-    "description": "Overrides how specific player names appear in the scoreboard, tracker, HUD frags and teaminfo displays. Provide an alias followed by one or more comma separated names to map to that alias.\nExample:\nnick \"bob\" \"rob, robert, bobby\"",
+    "description": "Overrides how specific player names appear in the scoreboard and HUD. Provide an alias followed by one or more comma separated names or userids.\nNumbers are treated as userids automatically. Wrapping a name in curly braces forces an exact name match (for example `{43}` matches the literal player named \"43\").\nExample:\nnick \"bob\" \"rob, robert, bobby, 43\"",
     "syntax": "<alias> \"name[, ...]\""
   },
   "nick_clearall": {

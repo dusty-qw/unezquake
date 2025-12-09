@@ -10,8 +10,11 @@
 #define MAX_NICK_OVERRIDE_MATCH_STRING 256
 
 typedef struct nick_match_s {
+	// A single match entry can either target a normalized name or a userid.
 	char original[MAX_SCOREBOARDNAME];
 	char normalized[MAX_SCOREBOARDNAME];
+	int userid;
+	qbool match_userid;
 } nick_match_t;
 
 typedef struct nick_override_s {
@@ -30,6 +33,108 @@ typedef struct nick_parsed_list_s {
 
 static nick_override_t *nick_overrides = NULL;
 
+// Strips leading/trailing whitespace from the token we are currently parsing.
+static void Nick_TrimWhitespace(char *text)
+{
+	char *start = text;
+	char *end;
+
+	if (!text) {
+		return;
+	}
+
+	while (*start && isspace((unsigned char)*start)) {
+		start++;
+	}
+
+	end = start + strlen(start);
+	while (end > start && isspace((unsigned char)*(end - 1))) {
+		end--;
+	}
+
+	if (start != text) {
+		memmove(text, start, end - start);
+	}
+
+	text[end - start] = '\0';
+}
+
+// Returns true if the token is purely digits and therefore should match by userid.
+static qbool Nick_IsUseridToken(const char *text, int *userid_out)
+{
+	size_t len;
+	size_t i;
+	int userid;
+
+	if (!text || !text[0]) {
+		return false;
+	}
+
+	len = strlen(text);
+	for (i = 0; i < len; ++i) {
+		if (!isdigit((unsigned char)text[i])) {
+			return false;
+		}
+	}
+
+	userid = atoi(text);
+	if (userid <= 0) {
+		return false;
+	}
+
+	if (userid_out) {
+		*userid_out = userid;
+	}
+
+	return true;
+}
+
+// If the token is wrapped in braces, remove them so we can force an exact name match.
+static qbool Nick_UnwrapForcedName(char *text)
+{
+	size_t len;
+
+	if (!text) {
+		return false;
+	}
+
+	len = strlen(text);
+	if (len < 2 || text[0] != '{' || text[len - 1] != '}') {
+		return false;
+	}
+
+	text[len - 1] = '\0';
+	memmove(text, text + 1, len - 1);
+	Nick_TrimWhitespace(text);
+	return true;
+}
+
+// Helper used while parsing to avoid storing duplicate matches.
+static qbool Nick_ParsedListContains(const nick_parsed_list_t *parsed, qbool match_userid, const char *normalized, int userid)
+{
+	int i;
+
+	for (i = 0; i < parsed->count; ++i) {
+		const nick_match_t *match = &parsed->matches[i];
+
+		if (match->match_userid != match_userid) {
+			continue;
+		}
+
+		if (match_userid) {
+			if (match->userid == userid) {
+				return true;
+			}
+		} else {
+			if (!strcmp(match->normalized, normalized)) {
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
 static nick_override_t *Nick_FindByAlias(const char *alias)
 {
 	nick_override_t *entry;
@@ -47,6 +152,7 @@ static nick_override_t *Nick_FindByAlias(const char *alias)
 	return NULL;
 }
 
+// Produces a lowercase, colorless version of a player name for comparison.
 static void Nick_NormalizeName(const char *input, char *output, size_t output_size)
 {
 	size_t len = 0;
@@ -89,21 +195,32 @@ static void Nick_NormalizeName(const char *input, char *output, size_t output_si
 	Q_free(stripped);
 }
 
-static nick_override_t *Nick_FindMatchingEntry(const char *name)
+// Searches the override list for either a userid match or a normalized name match.
+static nick_override_t *Nick_FindMatchingEntryForPlayer(const player_info_t *player)
 {
 	char normalized[MAX_SCOREBOARDNAME];
 	int i;
 	nick_override_t *entry;
+	int userid;
 
-	Nick_NormalizeName(name, normalized, sizeof(normalized));
-	if (!normalized[0]) {
+	if (!player) {
 		return NULL;
 	}
 
+	Nick_NormalizeName(player->name, normalized, sizeof(normalized));
+	userid = player->userid;
+
 	for (entry = nick_overrides; entry; entry = entry->next) {
 		for (i = 0; i < entry->match_count; ++i) {
-			if (!strcmp(entry->matches[i].normalized, normalized)) {
-				return entry;
+			if (entry->matches[i].match_userid) {
+				if (userid > 0 && entry->matches[i].userid == userid) {
+					return entry;
+				}
+			}
+			else {
+				if (!strcmp(entry->matches[i].normalized, normalized)) {
+					return entry;
+				}
 			}
 		}
 	}
@@ -111,9 +228,9 @@ static nick_override_t *Nick_FindMatchingEntry(const char *name)
 	return NULL;
 }
 
-const char *Nick_OverrideForName(const char *name)
+const char *Nick_OverrideForPlayer(const player_info_t *player)
 {
-	nick_override_t *entry = Nick_FindMatchingEntry(name);
+	nick_override_t *entry = Nick_FindMatchingEntryForPlayer(player);
 	return entry ? entry->alias : NULL;
 }
 
@@ -125,7 +242,7 @@ const char *Nick_PlayerDisplayName(const player_info_t *player)
 		return "";
 	}
 
-	alias = Nick_OverrideForName(player->name);
+	alias = Nick_OverrideForPlayer(player);
 	return alias ? alias : player->name;
 }
 
@@ -176,6 +293,7 @@ static void Nick_ReportEntry(const nick_override_t *entry)
 	}
 }
 
+// Tokenizes the argument list for /nick and converts it into match entries.
 static qbool Nick_ParseMatchString(const char *match_string, nick_parsed_list_t *parsed)
 {
 	char buffer[MAX_NICK_OVERRIDE_MATCH_STRING];
@@ -194,10 +312,13 @@ static qbool Nick_ParseMatchString(const char *match_string, nick_parsed_list_t 
 
 	while (*cursor && parsed->count < MAX_NICK_OVERRIDE_MATCHES) {
 		size_t token_len = 0;
-		char *token_cursor;
+		char processed[MAX_NICK_OVERRIDE_MATCH_STRING];
 		char normalized[MAX_SCOREBOARDNAME];
-		int i;
-		qbool duplicate;
+		char display_token[MAX_NICK_OVERRIDE_MATCH_STRING];
+		qbool forced_name;
+		qbool is_userid;
+		int userid = 0;
+		nick_match_t *out_match;
 
 		while (*cursor && (isspace((unsigned char)*cursor) || *cursor == ',' || *cursor == ';')) {
 			cursor++;
@@ -214,37 +335,42 @@ static qbool Nick_ParseMatchString(const char *match_string, nick_parsed_list_t 
 		}
 		token[token_len] = '\0';
 
-		token_cursor = token;
-		while (*token_cursor && isspace((unsigned char)*token_cursor)) {
-			token_cursor++;
-		}
-		token_len = strlen(token_cursor);
-		while (token_len > 0 && isspace((unsigned char)token_cursor[token_len - 1])) {
-			token_cursor[--token_len] = '\0';
-		}
-
-		if (!token_cursor[0]) {
+		strlcpy(processed, token, sizeof(processed));
+		Nick_TrimWhitespace(processed);
+		if (!processed[0]) {
 			continue;
 		}
 
-		Nick_NormalizeName(token_cursor, normalized, sizeof(normalized));
-		if (!normalized[0]) {
+		strlcpy(display_token, processed, sizeof(display_token));
+		forced_name = Nick_UnwrapForcedName(processed);
+
+		if (!processed[0]) {
 			continue;
 		}
 
-		duplicate = false;
-		for (i = 0; i < parsed->count; ++i) {
-			if (!strcmp(parsed->matches[i].normalized, normalized)) {
-				duplicate = true;
-				break;
+		is_userid = !forced_name && Nick_IsUseridToken(processed, &userid);
+		out_match = &parsed->matches[parsed->count];
+
+		if (is_userid) {
+			if (Nick_ParsedListContains(parsed, true, NULL, userid)) {
+				continue;
 			}
-		}
-		if (duplicate) {
-			continue;
+
+			out_match->match_userid = true;
+			out_match->userid = userid;
+			out_match->normalized[0] = '\0';
+		} else {
+			Nick_NormalizeName(processed, normalized, sizeof(normalized));
+			if (!normalized[0] || Nick_ParsedListContains(parsed, false, normalized, 0)) {
+				continue;
+			}
+
+			out_match->match_userid = false;
+			out_match->userid = 0;
+			strlcpy(out_match->normalized, normalized, sizeof(out_match->normalized));
 		}
 
-		strlcpy(parsed->matches[parsed->count].original, token_cursor, sizeof(parsed->matches[parsed->count].original));
-		strlcpy(parsed->matches[parsed->count].normalized, normalized, sizeof(parsed->matches[parsed->count].normalized));
+		strlcpy(out_match->original, display_token, sizeof(out_match->original));
 		parsed->count++;
 	}
 
@@ -272,6 +398,8 @@ static void Nick_ApplyParsedMatches(nick_override_t *entry, const nick_parsed_li
 	for (i = 0; i < parsed->count; ++i) {
 		strlcpy(entry->matches[i].original, parsed->matches[i].original, sizeof(entry->matches[i].original));
 		strlcpy(entry->matches[i].normalized, parsed->matches[i].normalized, sizeof(entry->matches[i].normalized));
+		entry->matches[i].match_userid = parsed->matches[i].match_userid;
+		entry->matches[i].userid = parsed->matches[i].userid;
 	}
 }
 
