@@ -35,6 +35,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "sbar.h"
 #include "keys.h"
 #include "common_draw.h"
+#include "nick_override.h"
 
 #include "qsound.h"
 
@@ -1731,6 +1732,8 @@ static void Sbar_DeathmatchOverlay(int start)
 
 		x += 5 * FONT_WIDTH * scale;
 
+		const char *scoreboard_name = Nick_PlayerDisplayName(s);
+
 		// draw spectator
 		if (s->spectator) {
 			if (cl.teamplay) {
@@ -1753,7 +1756,7 @@ static void Sbar_DeathmatchOverlay(int start)
 				formatstr = tmp;
 				
 				// truncate name to specified width
-				snprintf(tracked, sizeof(tracked), "%s", tr->name);
+				snprintf(tracked, sizeof(tracked), "%s", Nick_PlayerDisplayName(tr));
 				tracked[bound(1, spectrack_maxname, sizeof(tracked)-1)] = '\0';
 				
 				fstart = strstr(formatstr, "%n"); // check format string for "%n"
@@ -1792,12 +1795,13 @@ static void Sbar_DeathmatchOverlay(int start)
 				}
 			}
 			else {
-				Draw_SStringAligned(x, y, s->name, scale, alpha, proportional, text_align_left, x + FONT_WIDTH * 15 * scale);
+				Draw_SStringAligned(x, y, scoreboard_name, scale, alpha, proportional, text_align_left, x + FONT_WIDTH * 15 * scale);
 			}
 
 			if (istracking)
 			{
-				x += strlen(s->name) * FONT_WIDTH * scale;
+				const char *tracked_display = (s->loginname[0] && scr_scoreboard_login_names.integer) ? s->loginname : scoreboard_name;
+				x += strlen(tracked_display) * FONT_WIDTH * scale;
 				Draw_SStringAligned(x+spectrack_x, y + spectrack_y * scale, tracking, scale*scr_scoreboard_showtracking_scale.value, alpha, proportional, text_align_left, x + FONT_WIDTH * 10 * scale);
 			}
 
@@ -1862,7 +1866,7 @@ static void Sbar_DeathmatchOverlay(int start)
 			}
 		}
 		else {
-			Draw_SColoredStringAligned(x, y, s->name, &color, 1, scale, alpha * ca_alpha, proportional, text_align_left, x + FONT_WIDTH * 15 * scale);
+			Draw_SColoredStringAligned(x, y, scoreboard_name, &color, 1, scale, alpha * ca_alpha, proportional, text_align_left, x + FONT_WIDTH * 15 * scale);
 		}
 
 		if (!is_classic && statswidth) {

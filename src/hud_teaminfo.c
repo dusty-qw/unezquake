@@ -172,7 +172,7 @@ void SCR_HUD_DrawTeamInfo(hud_t *hud)
 		}
 
 		// dynamically guess max length of name/location
-		nick = (ti_clients[i].nick[0] ? ti_clients[i].nick : cl.players[i].name); // we use nick or name
+		nick = (ti_clients[i].nick[0] ? ti_clients[i].nick : cl.players[i].shortname); // we use nick or name
 		maxname = max(maxname, strlen(TP_ParseFunChars(nick, false)));
 
 		strlcpy(tmp, TP_LocationName(ti_clients[i].org), sizeof(tmp));
@@ -708,7 +708,7 @@ void SCR_Draw_TeamInfo(void)
 			continue;
 
 		// dynamically guess max length of name/location
-		nick = (ti_clients[i].nick[0] ? ti_clients[i].nick : cl.players[i].name); // we use nick or name
+		nick = (ti_clients[i].nick[0] ? ti_clients[i].nick : cl.players[i].shortname); // we use nick or name
 		maxname = max(maxname, strlen(TP_ParseFunChars(nick, false)));
 
 		strlcpy(tmp, TP_LocationName(ti_clients[i].org), sizeof(tmp));
