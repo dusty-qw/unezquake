@@ -233,7 +233,7 @@ qbool Rulesets_RestrictPogo(void)
 
 qbool Rulesets_RestrictIPC(void)
 {
-	return cls.state == ca_active && !cl.spectator && !cls.demoplayback && !cl.standby && rulesetDef.restrictIPC;
+	return cls.state == ca_active && !cl.spectator && !cls.demoplayback && !cl.standby && rulesetDef.restrictIPC && cls.server_adr.type != NA_LOOPBACK;;
 }
 
 qbool Rulesets_RestrictExec(void)
