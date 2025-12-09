@@ -831,7 +831,7 @@ void VX_TrackerFragXvsY(int player, int killer, int weapon, int player_wcount, i
 	}
 
 	if (cl.playernum == killer || (killer == Cam_TrackNum() && cl.spectator)) {
-		VX_OwnFragNew(cl.players[player].name);
+		VX_OwnFragNew(cl.players[player].shortname);
 	}
 }
 
@@ -1062,7 +1062,7 @@ void VX_TrackerStreak (int player, int count)
 	else {
 		snprintf(outstring, sizeof(outstring), "is %s (%i kills)", streak->spreestring, count);
 
-		VX_TrackerAddSegmented(cl.players[player].name, color_white, outstring, color940, "", NULL);
+		VX_TrackerAddSegmented(cl.players[player].shortname, color_white, outstring, color940, "", NULL);
 	}
 }
 
@@ -1089,34 +1089,34 @@ void VX_TrackerStreakEnd(int player, int killer, int count)
 		}
 		else if (gender == gender_male) {
 			snprintf(outstring, sizeof(outstring), " was looking good until he killed himself (%i kills)", count);
-			VX_TrackerAddSegmented(cl.players[player].name, color_white, outstring, color940, "", NULL);
+			VX_TrackerAddSegmented(cl.players[player].shortname, color_white, outstring, color940, "", NULL);
 		}
 		else if (gender == gender_female) {
 			snprintf(outstring, sizeof(outstring), " was looking good until she killed herself (%i kills)", count);
-			VX_TrackerAddSegmented(cl.players[player].name, color_white, outstring, color940, "", NULL);
+			VX_TrackerAddSegmented(cl.players[player].shortname, color_white, outstring, color940, "", NULL);
 		}
 		else if (gender == gender_neutral) {
 			snprintf(outstring, sizeof(outstring), " was looking good until it killed itself (%i kills)", count);
-			VX_TrackerAddSegmented(cl.players[player].name, color_white, outstring, color940, "", NULL);
+			VX_TrackerAddSegmented(cl.players[player].shortname, color_white, outstring, color940, "", NULL);
 		}
 		else {
 			snprintf(outstring, sizeof(outstring), " was looking good, then committed suicide (%i kills)", count);
-			VX_TrackerAddSegmented(cl.players[player].name, color_white, outstring, color940, "", NULL);
+			VX_TrackerAddSegmented(cl.players[player].shortname, color_white, outstring, color940, "", NULL);
 		}
 	}
 	else {
 		// non suicide
 		if (cl.playernum == player || (player == Cam_TrackNum() && cl.spectator)) {
 			snprintf(outstring, sizeof(outstring), " (%i kills)", count);
-			VX_TrackerAddSegmented("Your streak was ended by ", color940, cl.players[killer].name, color_white, outstring, color940);
+			VX_TrackerAddSegmented("Your streak was ended by ", color940, cl.players[killer].shortname, color_white, outstring, color940);
 		}
 		else if (cl.playernum == killer || (killer == Cam_TrackNum() && cl.spectator)) {
 			snprintf(outstring, sizeof(outstring), "'s streak was ended by you (%i kills)", count);
-			VX_TrackerAddSegmented(cl.players[player].name, color_white, outstring, color940, "", NULL);
+			VX_TrackerAddSegmented(cl.players[player].shortname, color_white, outstring, color940, "", NULL);
 		}
 		else {
 			snprintf(outstring, sizeof(outstring), " (%i kills)", count);
-			VX_TrackerAddSegmented4(cl.players[player].name, color_white, "'s streak was ended by ", color940, cl.players[killer].name, color_white, outstring, color940);
+			VX_TrackerAddSegmented4(cl.players[player].shortname, color_white, "'s streak was ended by ", color940, cl.players[killer].shortname, color_white, outstring, color940);
 		}
 	}
 }
@@ -1142,7 +1142,7 @@ void VX_TrackerStreakEndOddTeamkilled(int player, int count)
 	else {
 		snprintf(outstring, sizeof(outstring), "'s streak was ended by teammate (%i kills)", count);
 
-		VX_TrackerAddSegmented(cl.players[player].name, color_white, outstring, color940, "", NULL);
+		VX_TrackerAddSegmented(cl.players[player].shortname, color_white, outstring, color940, "", NULL);
 	}
 }
 

@@ -38,6 +38,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "Ctrl.h"
 #include "console.h"
 #include "teamplay.h"
+#include "nick_override.h"
 #include "mvd_utils.h"
 #include "mvd_utils_common.h"
 #include "fonts.h"
@@ -1068,10 +1069,15 @@ void CL_RemovePrefixFromName(int player)
 	char normalized_list[256];
 	char normalized_name[MAX_SCOREBOARDNAME];
 	const char* prefixes_list = hud_name_remove_prefixes.string;
+	const char* override_name;
 
 	strlcpy(cl.players[player].shortname, cl.players[player].name, sizeof(cl.players[player].shortname));
 
 	if (!prefixes_list || !prefixes_list[0]) {
+		override_name = Nick_OverrideForName(cl.players[player].name);
+		if (override_name && override_name[0]) {
+			strlcpy(cl.players[player].shortname, override_name, sizeof(cl.players[player].shortname));
+		}
 		return;
 	}
 
@@ -1100,6 +1106,11 @@ void CL_RemovePrefixFromName(int player)
 	}
 
 	strlcpy(cl.players[player].shortname, cl.players[player].name + skip, sizeof(cl.players[player].shortname));
+
+	override_name = Nick_OverrideForName(cl.players[player].name);
+	if (override_name && override_name[0]) {
+		strlcpy(cl.players[player].shortname, override_name, sizeof(cl.players[player].shortname));
+	}
 }
 
 static void OnRemovePrefixesChange(cvar_t* var, char* value, qbool* cancel)

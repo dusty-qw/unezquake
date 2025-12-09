@@ -1212,6 +1212,24 @@
   "netproblem": {
     "description": "HUD element - icon displayed when network traffic is experiencing problems like lost packets, large delay, etc."
   },
+  "nick": {
+    "description": "Overrides how specific player names appear in the scoreboard, tracker, HUD frags and teaminfo displays. Provide an alias followed by one or more comma separated names to map to that alias.\nExample:\nnick \"bob\" \"rob, robert, bobby\"",
+    "syntax": "<alias> \"name[, ...]\""
+  },
+  "nick_clearall": {
+    "description": "Removes every nickname override entry."
+  },
+  "nick_clear": {
+    "description": "Deletes one or more nickname override entries.",
+    "syntax": "<alias> [alias2 ...]"
+  },
+  "nickedit": {
+    "description": "Opens the console input pre-filled with the selected nickname override so it can be edited.",
+    "syntax": "<alias>"
+  },
+  "nicklist": {
+    "description": "Lists all defined nickname overrides."
+  },
   "noclip": {
     "description": "You can fly and go thru objects free mode as spectator",
     "remarks": "Needs cheats support by server."

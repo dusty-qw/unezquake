@@ -40,6 +40,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "gl_model.h"
 #include "rulesets.h"
 #include "teamplay.h"
+#include "nick_override.h"
 #include "pmove.h"
 #include "version.h"
 #include "qsound.h"
@@ -548,6 +549,8 @@ static void Commands_For_Configs_Init (void)
 
 	Cmd_AddCommand ("sb_sourceunmarkall", SB_SourceUnmarkAll);
 	Cmd_AddCommand ("sb_sourcemark", SB_SourceMark);
+
+	Nick_Init();
 }
 
 // meag: try to move all renamed cvars here so they exist prior to config load, and
