@@ -919,52 +919,71 @@ void Draw_AlphaRoundedRectangleRGB(float x, float y, float w, float h, float rad
 	}
 
 	if (fill) {
-		// Fill the main rectangles
-		float top_rect_x = max(radius_tl, radius_bl);
-		float top_rect_w = w - max(radius_tl, radius_bl) - max(radius_tr, radius_br);
-		float left_rect_y = max(radius_tl, radius_tr);
-		float left_rect_h = h - max(radius_tl, radius_tr) - max(radius_bl, radius_br);
-		
-		// Center rectangle
-		Draw_AlphaFillRGB(x + top_rect_x, y + left_rect_y, top_rect_w, left_rect_h, color);
-		
-		// Top rectangle
-		if (left_rect_y > 0)
-			Draw_AlphaFillRGB(x + radius_tl, y, w - radius_tl - radius_tr, left_rect_y, color);
-		
-		// Bottom rectangle
-		if (left_rect_y + left_rect_h < h)
-			Draw_AlphaFillRGB(x + radius_bl, y + left_rect_y + left_rect_h, w - radius_bl - radius_br, h - left_rect_y - left_rect_h, color);
-		
-		// Left rectangle
-		if (top_rect_x > 0)
-			Draw_AlphaFillRGB(x, y + radius_tl, top_rect_x, h - radius_tl - radius_bl, color);
-		
-		// Right rectangle
-		if (top_rect_x + top_rect_w < w)
-			Draw_AlphaFillRGB(x + top_rect_x + top_rect_w, y + radius_tr, w - top_rect_x - top_rect_w, h - radius_tr - radius_br, color);
+		float left_band = max(radius_tl, radius_bl);
+		float right_band = max(radius_tr, radius_br);
+		float top_band = max(radius_tl, radius_tr);
+		float bottom_band = max(radius_bl, radius_br);
+		float center_w = w - left_band - right_band;
+		float center_h = h - top_band - bottom_band;
+		float band_start, band_end_gap, band_height;
 
-		// Fill the corners with pie slices
-		// The pie slice rendering multiplies by overall_alpha but rectangles don't seem to,
-		// so we need to temporarily adjust overall_alpha
-		float saved_alpha = overall_alpha;
-		byte color_bytes[4];
-		COLOR_TO_RGBA(color, color_bytes);
-		
-		// Set overall_alpha to match what the rectangles are using
-		// If rectangles are showing at the correct opacity, we want pie slices to match
-		overall_alpha = (color_bytes[3] / 255.0f);
+		// Center rectangle
+		if (center_w > 0 && center_h > 0) {
+			Draw_AlphaFillRGB(x + left_band, y + top_band, center_w, center_h, color);
+		}
+
+		// Top rectangle
+		if (top_band > 0) {
+			float top_width = w - radius_tl - radius_tr;
+			if (top_width > 0) {
+				Draw_AlphaFillRGB(x + radius_tl, y, top_width, top_band, color);
+			}
+		}
+
+		// Bottom rectangle
+		if (bottom_band > 0) {
+			float bottom_width = w - radius_bl - radius_br;
+			if (bottom_width > 0) {
+				Draw_AlphaFillRGB(x + radius_bl, y + h - bottom_band, bottom_width, bottom_band, color);
+			}
+		}
+
+		// Left rectangle - skip areas already filled by top/bottom strips when corner radius is zero.
+		if (left_band > 0) {
+			band_start = (radius_tl > 0) ? radius_tl : top_band;
+			band_end_gap = (radius_bl > 0) ? radius_bl : bottom_band;
+			band_height = h - band_start - band_end_gap;
+			if (band_height > 0) {
+				Draw_AlphaFillRGB(x, y + band_start, left_band, band_height, color);
+			}
+		}
+
+		// Right rectangle - same treatment to avoid overdrawing non-rounded corners.
+		if (right_band > 0) {
+			band_start = (radius_tr > 0) ? radius_tr : top_band;
+			band_end_gap = (radius_br > 0) ? radius_br : bottom_band;
+			band_height = h - band_start - band_end_gap;
+			if (band_height > 0) {
+				Draw_AlphaFillRGB(x + w - right_band, y + band_start, right_band, band_height, color);
+			}
+		}
+
+		// Fill the corners with pie slices; convert to premultiplied color so their shading matches the rectangles.
+		color_t corner_color = color;
+		if (radius_tl > 0 || radius_tr > 0 || radius_br > 0 || radius_bl > 0) {
+			byte corner_bytes[4];
+			COLOR_TO_RGBA(color, corner_bytes);
+			corner_color = RGBAVECT_TO_COLOR_PREMULT(corner_bytes);
+		}
 		
 		if (radius_tl > 0)
-			Draw_AlphaPieSliceRGB(x + radius_tl, y + radius_tl, radius_tl, 0.5 * M_PI, M_PI, 1, true, color);
+			Draw_AlphaPieSliceRGB(x + radius_tl, y + radius_tl, radius_tl, 0.5 * M_PI, M_PI, 1, true, corner_color);
 		if (radius_tr > 0)
-			Draw_AlphaPieSliceRGB(x + w - radius_tr, y + radius_tr, radius_tr, 0, 0.5 * M_PI, 1, true, color);
+			Draw_AlphaPieSliceRGB(x + w - radius_tr, y + radius_tr, radius_tr, 0, 0.5 * M_PI, 1, true, corner_color);
 		if (radius_br > 0)
-			Draw_AlphaPieSliceRGB(x + w - radius_br, y + h - radius_br, radius_br, 1.5 * M_PI, 2 * M_PI, 1, true, color);
+			Draw_AlphaPieSliceRGB(x + w - radius_br, y + h - radius_br, radius_br, 1.5 * M_PI, 2 * M_PI, 1, true, corner_color);
 		if (radius_bl > 0)
-			Draw_AlphaPieSliceRGB(x + radius_bl, y + h - radius_bl, radius_bl, M_PI, 1.5 * M_PI, 1, true, color);
-		
-		overall_alpha = saved_alpha;
+			Draw_AlphaPieSliceRGB(x + radius_bl, y + h - radius_bl, radius_bl, M_PI, 1.5 * M_PI, 1, true, corner_color);
 	} else {
 		// For outline/border, we need to draw just the curved parts
 		// Since Draw_AlphaPieSliceRGB draws full pie slices with lines to center,
