@@ -20099,6 +20099,12 @@
       "group-id": "0",
       "system-generated": true
     },
+    "scr_scoreboard_nick_color": {
+      "default": "191 255 255",
+      "desc": "Text color used for scoreboard names that are displayed via /nick overrides.",
+      "group-id": "0",
+      "type": "color"
+    },
     "scr_scoreboard_posx": {
       "default": "0",
       "desc": "Controls the X-offset of the scoreboard.",
