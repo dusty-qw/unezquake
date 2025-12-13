@@ -20099,6 +20099,12 @@
       "group-id": "0",
       "system-generated": true
     },
+    "scr_scoreboard_nick_names": {
+      "default": "1",
+      "desc": "When enabled, scoreboard entries honor /nick overrides. Disable to show actual player names in the scoreboard.",
+      "group-id": "0",
+      "type": "boolean"
+    },
     "scr_scoreboard_nick_color": {
       "default": "191 255 255",
       "desc": "Text color used for scoreboard names that are displayed via /nick overrides.",
