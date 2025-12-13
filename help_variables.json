@@ -2651,9 +2651,9 @@
       "min-value": 0,
       "remarks": "Useful for debugging player prediction issues. Shows player name and error distance."
     },
-    "cl_predict_velocity_scale": {
+    "cl_predict_scale": {
       "default": "1",
-      "desc": "Scales player prediction based on velocity to reduce jitter during rapid direction changes. At low speeds (< 320 units/s), prediction time is reduced to minimize overcorrection when players quickly change direction.",
+      "desc": "Scales player prediction based on velocity to reduce jitter during rapid direction changes. At low speeds (< cl_predict_scale_threshold, default 320 units/s), prediction time is reduced to minimize overcorrection when players quickly change direction.",
       "group-id": "21",
       "type": "integer",
       "values": [
@@ -2662,18 +2662,18 @@
           "name": "0"
         },
         {
-          "description": "Normal",
+          "description": "Enabled",
           "name": "1"
-        },
-        {
-          "description": "Aggressive",
-          "name": "2"
-        },
-        {
-          "description": "Very aggressive",
-          "name": "3"
         }
       ]
+    },
+    "cl_predict_scale_threshold": {
+      "default": "320",
+      "desc": "Velocity threshold (in units/second) used by cl_predict_scale. When player speed is below this value, the selected scaling curve reduces prediction time to remove jitter.",
+      "group-id": "21",
+      "type": "float",
+      "min-value": 1,
+      "remarks": "Increase the threshold to restrict prediction scaling to faster movement. Values <= 0 are clamped to 1."
     },
     "cl_predict_buffer": {
       "default": "1",
