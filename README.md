@@ -57,6 +57,8 @@ unezQuake has all of the latest ezQuake features, plus:
     * `nickedit`
     * `nick_clear`
     * `nick_clearall`
+    * `scr_scoreboard_nick_names` - show /nick overrides in scoreboard
+    * `scr_scoreboard_nick_color` - text color used for /nick overrides
  * `scr_autoid_ingame` - see autoID for teammates while playing
     * `scr_autoid_ingame_namelength`
     * `scr_autoid_ingame_weapon`
