@@ -30,7 +30,8 @@ static int MVD_TranslateFlags(int src);
 void TP_ParsePlayerInfo(player_state_t *, player_state_t *, player_info_t *info);	
 
 extern cvar_t cl_predict_players, cl_solid_players, cl_rocket2grenade;
-extern cvar_t cl_predict_half, cl_predict_velocity_scale, cl_predict_lerp;
+extern cvar_t cl_predict_half, cl_predict_scale, cl_predict_lerp;
+extern cvar_t cl_predict_scale_threshold;
 extern cvar_t cl_predict_show_errors;
 extern cvar_t cl_model_bobbing;		
 extern cvar_t cl_model_height;
@@ -1989,37 +1990,20 @@ static void CL_LinkPlayers(void)
 		msec = (cl_predict_half.value ? 500 : 1000) * (cl.paused ? predicted_players[j].paused_sec : (playertime - state->state_time));
 		
 		// Scale prediction based on velocity to reduce jitter at low speeds
-		if (cl_predict_velocity_scale.value) {
+		if (cl_predict_scale.value) {
 			float speed = 0;
-			float scale_threshold = 320.0f;
+			float scale_threshold = cl_predict_scale_threshold.value;
 			float scale;
 			int k;
+			if (scale_threshold <= 0.0f)
+				scale_threshold = 1.0f;
 			for (k = 0; k < 3; k++)
 				speed += fabs(state->velocity[k]);
 			
-			// Different scaling modes
-			if (cl_predict_velocity_scale.value == 1) {
-				// Normal scaling
-				if (speed < scale_threshold) {
-					scale = speed / scale_threshold;
-					msec = (int)(msec * scale);
-				}
-			}
-			else if (cl_predict_velocity_scale.value == 2) {
-				// Aggressive scaling
-				if (speed < scale_threshold) {
-					scale = speed / scale_threshold;
-					scale = scale * scale; // More aggressive reduction
-					msec = (int)(msec * scale);
-				}
-			}
-			else if (cl_predict_velocity_scale.value >= 3) {
-				// Very aggressive scaling
-				if (speed < scale_threshold) {
-					scale = speed / scale_threshold;
-					scale = scale * scale * scale; // Very aggressive reduction
-					msec = (int)(msec * scale);
-				}
+			// Normal scaling (linear)
+			if (speed < scale_threshold) {
+				scale = speed / scale_threshold;
+				msec = (int)(msec * scale);
 			}
 		}
 		if (msec <= 0 || !cl_predict_players.value || cls.mvdplayback) {
@@ -2344,37 +2328,20 @@ void CL_SetUpPlayerPrediction(qbool dopred)
 			msec = (cl_predict_half.value ? 500 : 1000) * (playertime - state->state_time);
 			
 			// Scale prediction based on velocity to reduce jitter at low speeds
-			if (cl_predict_velocity_scale.value) {
+			if (cl_predict_scale.value) {
 				float speed = 0;
-				float scale_threshold = 320.0f;
+				float scale_threshold = cl_predict_scale_threshold.value;
 				float scale;
 				int k;
+				if (scale_threshold <= 0.0f)
+					scale_threshold = 1.0f;
 				for (k = 0; k < 3; k++)
 					speed += fabs(state->velocity[k]);
 				
-				// Different scaling modes
-				if (cl_predict_velocity_scale.value == 1) {
-					// Normal scaling (linear)
-					if (speed < scale_threshold) {
-						scale = speed / scale_threshold;
-						msec = (int)(msec * scale);
-					}
-				}
-				else if (cl_predict_velocity_scale.value == 2) {
-					// Aggressive scaling (quadratic)
-					if (speed < scale_threshold) {
-						scale = speed / scale_threshold;
-						scale = scale * scale; // More aggressive reduction
-						msec = (int)(msec * scale);
-					}
-				}
-				else if (cl_predict_velocity_scale.value >= 3) {
-					// Very aggressive scaling (cubic)
-					if (speed < scale_threshold) {
-						scale = speed / scale_threshold;
-						scale = scale * scale * scale; // Very aggressive reduction
-						msec = (int)(msec * scale);
-					}
+				// Normal scaling (linear)
+				if (speed < scale_threshold) {
+					scale = speed / scale_threshold;
+					msec = (int)(msec * scale);
 				}
 			}
 			
