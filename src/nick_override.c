@@ -246,6 +246,11 @@ const char *Nick_PlayerDisplayName(const player_info_t *player)
 	return alias ? alias : player->name;
 }
 
+qbool Nick_HasOverrideForPlayer(const player_info_t *player)
+{
+	return Nick_FindMatchingEntryForPlayer(player) != NULL;
+}
+
 void Nick_RefreshShortnames(void)
 {
 	int i;

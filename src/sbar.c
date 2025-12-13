@@ -92,6 +92,7 @@ cvar_t  hud_faderankings               = { "scr_scoreboard_fadescreen", "0" };
 cvar_t  scr_scoreboard_login_names     = { "scr_scoreboard_login_names", "1" };
 cvar_t  scr_scoreboard_login_indicator = { "scr_scoreboard_login_indicator", "&cffc*&r" };
 cvar_t  scr_scoreboard_login_color     = { "scr_scoreboard_login_color", "255 255 192" };
+cvar_t  scr_scoreboard_nick_color      = { "scr_scoreboard_nick_color", "153 204 255", CVAR_COLOR };
 cvar_t  scr_scoreboard_login_flagfile  = { "scr_scoreboard_login_flagfile", "flags", 0, OnChange_scr_scoreboard_login_flagfile };
 
 //cvar_t  hud_ranks_separate  = {"scr_ranks_separate",   "1"};
@@ -331,6 +332,7 @@ void Sbar_Init(void)
 	Cvar_Register(&scr_scoreboard_login_indicator);
 	Cvar_Register(&scr_scoreboard_login_color);
 	Cvar_Register(&scr_scoreboard_login_flagfile);
+	Cvar_Register(&scr_scoreboard_nick_color);
 	//Cvar_Register (&hud_ranks_separate);
 	// <-- mqwcl 0.96 oldhud customisation
 
@@ -1734,6 +1736,10 @@ static void Sbar_DeathmatchOverlay(int start)
 		x += 5 * FONT_WIDTH * scale;
 
 		const char *scoreboard_name = Nick_PlayerDisplayName(s);
+		qbool name_is_override = Nick_HasOverrideForPlayer(s);
+		clrinfo_t override_name_color;
+		override_name_color.c = RGBAVECT_TO_COLOR(scr_scoreboard_nick_color.color);
+		override_name_color.i = 0;
 
 		// draw spectator
 		if (s->spectator) {
@@ -1796,7 +1802,12 @@ static void Sbar_DeathmatchOverlay(int start)
 				}
 			}
 			else {
-				Draw_SStringAligned(x, y, scoreboard_name, scale, alpha, proportional, text_align_left, x + FONT_WIDTH * 15 * scale);
+				if (name_is_override) {
+					Draw_SColoredStringAligned(x, y, scoreboard_name, &override_name_color, 1, scale, alpha, proportional, text_align_left, x + FONT_WIDTH * 15 * scale);
+				}
+				else {
+					Draw_SStringAligned(x, y, scoreboard_name, scale, alpha, proportional, text_align_left, x + FONT_WIDTH * 15 * scale);
+				}
 			}
 
 			if (istracking)
@@ -1867,7 +1878,12 @@ static void Sbar_DeathmatchOverlay(int start)
 			}
 		}
 		else {
-			Draw_SColoredStringAligned(x, y, scoreboard_name, &color, 1, scale, alpha * ca_alpha, proportional, text_align_left, x + FONT_WIDTH * 15 * scale);
+			if (name_is_override) {
+				Draw_SColoredStringAligned(x, y, scoreboard_name, &override_name_color, 1, scale, alpha * ca_alpha, proportional, text_align_left, x + FONT_WIDTH * 15 * scale);
+			}
+			else {
+				Draw_SColoredStringAligned(x, y, scoreboard_name, &color, 1, scale, alpha * ca_alpha, proportional, text_align_left, x + FONT_WIDTH * 15 * scale);
+			}
 		}
 
 		if (!is_classic && statswidth) {
