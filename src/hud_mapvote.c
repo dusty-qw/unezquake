@@ -29,11 +29,13 @@ $Id: hud_mapvote.c,v 1.0 2025-09-25 Bance $
 
 static cvar_t hud_mapvote_frame_color  = { "scr_mapvote_frame_color", "10 10 10 160", CVAR_COLOR };
 static qbool vote_active = false;
+static double vote_expire_time = 0.0; // absolute time when HUD element should disappear
 static char map_vote_str[512];
 char map_vote_map[64];
 
 void SCR_MapVote(char *str) {
     vote_active = true;
+    vote_expire_time = cls.realtime + 10.0; // 10 second lifetime per vote
 
     char *triggers[] = { "suggests map", "would rather play on" };
     int n_triggers = sizeof(triggers) / sizeof(triggers[0]);
@@ -69,6 +71,7 @@ void SCR_MapVote(char *str) {
 
 void SCR_FinishMapVote(void) {
     vote_active = false;
+    vote_expire_time = 0.0;
 }
 
 void SCR_HUD_DrawMapVote(hud_t *hud)
@@ -76,8 +79,14 @@ void SCR_HUD_DrawMapVote(hud_t *hud)
     if (!vote_active)
         return;
 
+    if (cls.realtime >= vote_expire_time) {
+        vote_active = false;
+        return;
+    }
+
     if (!cl.standby) {
         vote_active = false;
+        vote_expire_time = 0.0;
         return;
     }
 
