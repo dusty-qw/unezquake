@@ -73,6 +73,7 @@ unezQuake has all of the latest ezQuake features, plus:
     * `scr_scoreboard_showtracking_y`
  * `scr_teaminfo_mega_color` - change color of health in teamoverlay value if > 100 hp
  * `scr_teaminlay` - KTX independent teamoverlay with experimental MM2 enhancements
+ * `vid_gammafontfix` - Keep text unaffected by gamma/contrast changes
 
 ### Other Miscellaneous Fixes
 
