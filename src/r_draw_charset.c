@@ -33,11 +33,18 @@ $Id: gl_draw.c,v 1.104 2007-10-18 05:28:23 dkure Exp $
 
 static void OnChange_gl_consolefont(cvar_t *, char *, qbool *);
 void Draw_InitFont(void);
+static void Draw_TextCacheSetColor(const byte* color);
 
 cvar_t gl_alphafont    = { "gl_alphafont", "1" };
 cvar_t gl_consolefont  = { "gl_consolefont", "povo5", CVAR_AUTO, OnChange_gl_consolefont };
 cvar_t scr_coloredText = { "scr_coloredText", "1" };
 cvar_t gl_charsets_min = { "gl_charsets_min", "1" };
+cvar_t vid_gammafontfix = { "vid_gammafontfix", "1" };
+
+extern cvar_t v_gamma;
+extern cvar_t v_contrast;
+extern float vid_gamma;
+qbool R_OldGammaBehaviour(void);
 
 static byte *draw_chars; // 8*8 graphic characters
 
@@ -689,6 +696,7 @@ void Draw_Charset_Init(void)
 		Cvar_Register(&gl_alphafont);
 		Cvar_Register(&gl_charsets_min);
 		Cvar_Register(&scr_coloredText);
+		Cvar_Register(&vid_gammafontfix);
 		Cvar_ResetCurrentGroup();
 	}
 
@@ -733,12 +741,43 @@ void Draw_SetCrosshairTextMode(qbool enabled)
 
 static void Draw_TextCacheInit(float x, float y, float scale)
 {
-	memcpy(cache_currentColor, color_white, sizeof(cache_currentColor));
+	Draw_TextCacheSetColor(color_white);
 }
 
 static void Draw_TextCacheSetColor(const byte* color)
 {
-	memcpy(cache_currentColor, color, sizeof(cache_currentColor));
+	float contrast;
+	float gamma;
+	qbool precomp;
+	byte adjusted[4];
+
+	contrast = 1.0f;
+	gamma = 1.0f;
+	precomp = (vid_hwgamma_enabled && vid_gammafontfix.integer);
+
+	if (precomp) {
+		contrast = bound(1.0f, v_contrast.value, 3.0f);
+		gamma = bound(0.3f, v_gamma.value, 3.0f);
+
+		if (R_OldGammaBehaviour() && vid_gamma != 1.0f) {
+			contrast = pow(contrast, vid_gamma);
+			gamma /= vid_gamma;
+		}
+	}
+
+	if (!precomp || (contrast <= 1.0f && gamma == 1.0f)) {
+		// Skip precompensation when software postprocess is active or the fix is disabled.
+		memcpy(cache_currentColor, color, sizeof(cache_currentColor));
+		return;
+	}
+
+	// Precompensate colors when hardware gamma/contrast is active.
+	adjusted[0] = bound(0, Q_rint(pow(color[0] / 255.0f, 1.0f / gamma) * (1.0f / contrast) * 255.0f), 255);
+	adjusted[1] = bound(0, Q_rint(pow(color[1] / 255.0f, 1.0f / gamma) * (1.0f / contrast) * 255.0f), 255);
+	adjusted[2] = bound(0, Q_rint(pow(color[2] / 255.0f, 1.0f / gamma) * (1.0f / contrast) * 255.0f), 255);
+	adjusted[3] = color[3];
+
+	memcpy(cache_currentColor, adjusted, sizeof(cache_currentColor));
 }
 
 static float Draw_TextCacheAddCharacter(float x, float y, wchar ch, float scale, qbool proportional)

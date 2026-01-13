@@ -23147,6 +23147,13 @@
         }
       ]
     },
+    "vid_gammafontfix": {
+      "default": "1",
+      "desc": "Keep charset text unaffected by software gamma/contrast postprocessing.",
+      "group-id": "40",
+      "remarks": "Disable to restore legacy behavior where text is affected by gl_gamma/gl_contrast.",
+      "type": "boolean"
+    },
     "vid_gl_core_profile": {
       "default": "0",
       "desc": "Controls the level of backwards compatibility of the Classic Renderer with legacy OpenGL features.",

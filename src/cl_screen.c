@@ -58,6 +58,7 @@ void WeaponStats_CommandInit(void);
 void SCR_DrawHud(void);
 void SCR_DrawClocks(void);
 void R_SetupFrame(void);
+extern cvar_t vid_gammafontfix;
 void SCR_Draw_TeamInfo(void);
 void SCR_Draw_Inlay(void);
 void SCR_Draw_ShowNick(void);
@@ -994,7 +995,13 @@ void SCR_UpdateScreenHudOnly(void)
 
 		// Actual rendering...
 		if (r_drawhud.integer != 2) {
-			R_FlushImageDraw();
+			// Draw non-text HUD now; text is rendered after postprocess to avoid gamma/contrast.
+			if (vid_gammafontfix.integer) {
+				R_FlushImageDrawNonText();
+			}
+			else {
+				R_FlushImageDraw();
+			}
 		}
 		R_TraceLeaveNamedRegion();
 	}
@@ -1005,6 +1012,10 @@ void SCR_UpdateScreenPostPlayerView(void)
 	SCR_UpdateScreenHudOnly();
 
 	renderer.PostProcessScreen();
+	if (r_drawhud.integer && r_drawhud.integer != 2 && vid_gammafontfix.integer) {
+		// Flush text after postprocess so charset rendering stays neutral.
+		R_FlushImageDrawText();
+	}
 
 	SCR_CheckAutoScreenshot();
 

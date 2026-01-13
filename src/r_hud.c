@@ -23,6 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "r_local.h"
 #include "tr_types.h"
 #include "r_matrix.h"
+#include "glsl/constants.glsl"
 
 #define MAX_2D_ELEMENTS 4096
 
@@ -45,6 +46,12 @@ typedef struct hud_api_s {
 } hud_api_t;
 
 static hud_api_t hud;
+
+typedef enum {
+	hud_draw_all = -1,
+	hud_draw_nontext = 0,
+	hud_draw_text = 1
+} hud_draw_mode_t;
 
 #define HudSetFunctionPointers(prefix) \
 { \
@@ -95,6 +102,90 @@ static void R_PrepareImageDraw(void)
 	R_IdentityProjectionView();
 }
 
+static void R_DrawImageRangeFiltered(texture_ref texture, int start, int end, qbool draw_text)
+{
+	int i = start;
+
+	while (i <= end) {
+		// Flags are stored per-image (4 verts per image), so read from the first quad vertex.
+		qbool is_text = (imageData.images[i * 4].flags & IMAGEPROG_FLAGS_TEXT) != 0;
+
+		if (is_text != draw_text) {
+			++i;
+			continue;
+		}
+
+		start = i;
+		while (i <= end) {
+			// Group contiguous images with the same text/non-text classification.
+			qbool next_text = (imageData.images[i * 4].flags & IMAGEPROG_FLAGS_TEXT) != 0;
+
+			if (next_text != draw_text) {
+				break;
+			}
+
+			++i;
+		}
+
+		hud.types[imagetype_image].Draw(texture, start, i - 1);
+	}
+}
+
+static void R_FlushImageDrawInternal(hud_draw_mode_t mode, qbool finalize)
+{
+	R_PrepareImageDraw();
+
+	if (hud.count > 0 && glConfig.initialized) {
+		// When filtering, split recorded HUD elements into text and non-text batches.
+		texture_ref currentTexture = null_texture_reference;
+		r_image_type_t type = imagetype_image;
+		int start = 0;
+		int i;
+
+		for (i = 0; i < hud.count; ++i) {
+			qbool texture_changed = (R_TextureReferenceIsValid(currentTexture) && R_TextureReferenceIsValid(hud.elements[i].texture) && !R_TextureReferenceEqual(currentTexture, hud.elements[i].texture));
+
+			if (i && (hud.elements[i].type != type || texture_changed)) {
+				if (type == imagetype_image) {
+					if (mode == hud_draw_all) {
+						hud.types[imagetype_image].Draw(currentTexture, hud.elements[start].index, hud.elements[i - 1].index);
+					}
+					else {
+						R_DrawImageRangeFiltered(currentTexture, hud.elements[start].index, hud.elements[i - 1].index, mode == hud_draw_text);
+					}
+				}
+				else if (mode != hud_draw_text) {
+					hud.types[type].Draw(currentTexture, hud.elements[start].index, hud.elements[i - 1].index);
+				}
+
+				start = i;
+			}
+
+			if (R_TextureReferenceIsValid(hud.elements[i].texture)) {
+				currentTexture = hud.elements[i].texture;
+			}
+			type = hud.elements[i].type;
+		}
+
+		if (type == imagetype_image) {
+			if (mode == hud_draw_all) {
+				hud.types[imagetype_image].Draw(currentTexture, hud.elements[start].index, hud.elements[hud.count - 1].index);
+			}
+			else {
+				R_DrawImageRangeFiltered(currentTexture, hud.elements[start].index, hud.elements[hud.count - 1].index, mode == hud_draw_text);
+			}
+		}
+		else if (mode != hud_draw_text) {
+			hud.types[type].Draw(currentTexture, hud.elements[start].index, hud.elements[hud.count - 1].index);
+		}
+	}
+
+	if (finalize) {
+		R_EmptyImageQueue();
+		hud.OnComplete();
+	}
+}
+
 void R_DrawRectangle(float x, float y, float width, float height, byte* color);
 
 void R_DrawAlphaRectangleRGB(int x, int y, int w, int h, float thickness, qbool fill, byte* bytecolor)
@@ -129,35 +220,17 @@ void R_EmptyImageQueue(void)
 
 void R_FlushImageDraw(void)
 {
-	R_PrepareImageDraw();
+	R_FlushImageDrawInternal(hud_draw_all, true);
+}
 
-	if (hud.count > 0 && glConfig.initialized) {
-		texture_ref currentTexture = null_texture_reference;
-		r_image_type_t type = imagetype_image;
-		int start = 0;
-		int i;
+void R_FlushImageDrawNonText(void)
+{
+	R_FlushImageDrawInternal(hud_draw_nontext, false);
+}
 
-		for (i = 0; i < hud.count; ++i) {
-			qbool texture_changed = (R_TextureReferenceIsValid(currentTexture) && R_TextureReferenceIsValid(hud.elements[i].texture) && !R_TextureReferenceEqual(currentTexture, hud.elements[i].texture));
-
-			if (i && (hud.elements[i].type != type || texture_changed)) {
-				hud.types[type].Draw(currentTexture, hud.elements[start].index, hud.elements[i - 1].index);
-
-				start = i;
-			}
-
-			if (R_TextureReferenceIsValid(hud.elements[i].texture)) {
-				currentTexture = hud.elements[i].texture;
-			}
-			type = hud.elements[i].type;
-		}
-
-		hud.types[type].Draw(currentTexture, hud.elements[start].index, hud.elements[hud.count - 1].index);
-	}
-
-	R_EmptyImageQueue();
-
-	hud.OnComplete();
+void R_FlushImageDrawText(void)
+{
+	R_FlushImageDrawInternal(hud_draw_text, true);
 }
 
 qbool R_LogCustomImageType(r_image_type_t type, int index)

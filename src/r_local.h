@@ -33,6 +33,8 @@ void R_StateDefault3D(void);
 
 // 2d rendering
 void R_FlushImageDraw(void);
+void R_FlushImageDrawNonText(void);
+void R_FlushImageDrawText(void);
 void R_EmptyImageQueue(void);
 
 // culling
