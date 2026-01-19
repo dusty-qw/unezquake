@@ -88,6 +88,7 @@ static int active_track = 0;
 static int max_active_tracks = 0;
 
 static void VXSCR_DrawTrackerString(float x_pos, float y_pos, float width, int name_width, qbool proportional, float scale, float image_scale, qbool align_right);
+static void OnChange_TrackerIconOverlay(cvar_t* var, char* value, qbool* cancel);
 static void OnChange_TrackerNameWidth(cvar_t* var, char* value, qbool* cancel);
 
 cvar_t r_tracker                                   = {"r_tracker", "1"};
@@ -106,6 +107,7 @@ static cvar_t amf_tracker_x                        = {"r_tracker_x", "0"};
 static cvar_t amf_tracker_y                        = {"r_tracker_y", "0"};
 static cvar_t amf_tracker_frame_color              = {"r_tracker_frame_color", "0 0 0 0", CVAR_COLOR};
 static cvar_t amf_tracker_images_scale             = {"r_tracker_images_scale", "1"};
+static cvar_t r_tracker_iconoverlay                = {"r_tracker_iconoverlay", "0", 0, OnChange_TrackerIconOverlay};
 static cvar_t amf_tracker_color_good               = {"r_tracker_color_good",     "090", CVAR_TRACKERCOLOR }; // good news
 static cvar_t amf_tracker_color_bad                = {"r_tracker_color_bad",      "900", CVAR_TRACKERCOLOR }; // bad news
 static cvar_t amf_tracker_color_tkgood             = {"r_tracker_color_tkgood",   "990", CVAR_TRACKERCOLOR }; // team kill, not on ur team
@@ -200,6 +202,7 @@ void InitTracker(void)
 	Cvar_Register(&amf_tracker_frame_color);
 	Cvar_Register(&amf_tracker_scale);
 	Cvar_Register(&amf_tracker_images_scale);
+	Cvar_Register(&r_tracker_iconoverlay);
 	Cvar_Register(&amf_tracker_pickups);
 
 	Cvar_Register(&amf_tracker_color_good);
@@ -1150,6 +1153,7 @@ void VXSCR_MeasureTracker(float* width, float* height, float scale, qbool propor
 {
 	int i;
 	int padded_width = 8 * bound(name_width, 0, MAX_SCOREBOARDNAME - 1) * scale;
+	qbool overlay = r_tracker_iconoverlay.integer;
 
 	*width = *height = 0;
 
@@ -1180,9 +1184,12 @@ void VXSCR_MeasureTracker(float* width, float* height, float scale, qbool propor
 		// Draw the segments.
 		for (s = 0; s < trackermsg[i].segments; ++s) {
 			mpic_t* pic = trackermsg[i].images[s];
+			qbool overlay_skip = overlay && pic && s > 0 && trackermsg[i].images[s - 1];
 
 			if (pic) {
-				x += 8 * 2 * scale;
+				if (!overlay_skip) {
+					x += 8 * 2 * scale;
+				}
 			}
 			else {
 				if (trackermsg[i].pad && padded_width && !trackermsg[i].text_flags[s]) {
@@ -1193,7 +1200,9 @@ void VXSCR_MeasureTracker(float* width, float* height, float scale, qbool propor
 				}
 			}
 
-			x += 8 * scale;
+			if (!overlay_skip) {
+				x += 8 * scale;
+			}
 		}
 
 		*width = max(*width, x);
@@ -1208,6 +1217,7 @@ static void VXSCR_DrawTrackerString(float x_pos, float y_pos, float width, int n
 	int		i, printable_chars, s;
 	float	alpha = 1, width_one_char;
 	int     padded_width = 8 * bound(name_width, 0, MAX_SCOREBOARDNAME - 1) * scale;
+	qbool   overlay = r_tracker_iconoverlay.integer;
 
 	scale = bound(0.1, scale, 10);
 	image_scale = bound(0.1, image_scale, 10);
@@ -1248,17 +1258,34 @@ static void VXSCR_DrawTrackerString(float x_pos, float y_pos, float width, int n
 		initial_position = Draw_ImagePosition();
 		for (s = 0; s < trackermsg[i].segments; ++s) {
 			mpic_t* pic = trackermsg[i].images[s];
+			qbool overlay_skip = overlay && pic && s > 0 && trackermsg[i].images[s - 1];
+
+			if (overlay_skip) {
+				continue;
+			}
 
 			if (pic) {
+				int end = s;
+				int k;
+
+				if (overlay) {
+					while (end + 1 < trackermsg[i].segments && trackermsg[i].images[end + 1]) {
+						++end;
+					}
+				}
+
 				// Draw pic
-				Draw_FitPicAlpha(
-					(float)x - 0.5 * 8 * 2 * (image_scale - 1) * scale,
-					(float)y - 0.5 * 8 * (image_scale - 1) * scale,
-					image_scale * 8 * 2 * scale,
-					image_scale * 8 * scale, pic, alpha
-				);
+				for (k = s; k <= end; ++k) {
+					Draw_FitPicAlpha(
+						(float)x - 0.5 * 8 * 2 * (image_scale - 1) * scale,
+						(float)y - 0.5 * 8 * (image_scale - 1) * scale,
+						image_scale * 8 * 2 * scale,
+						image_scale * 8 * scale, trackermsg[i].images[k], alpha
+					);
+				}
 
 				x += 8 * 2 * scale;
+				s = end;
 			}
 			else {
 				// Draw text
@@ -1293,11 +1320,16 @@ static void VX_PreProcessMessage(trackmsg_t* msg)
 {
 	int s;
 	int padded_chars = bound(amf_tracker_name_width.integer, 0, MAX_SCOREBOARDNAME - 1);
+	qbool overlay = r_tracker_iconoverlay.integer;
 
 	msg->printable_characters = msg->image_characters = 0;
 	for (s = 0; s < msg->segments; ++s) {
+		qbool overlay_skip = overlay && msg->images[s] && s > 0 && msg->images[s - 1];
+
 		if (msg->images[s]) {
-			msg->image_characters += 2;
+			if (!overlay_skip) {
+				msg->image_characters += 2;
+			}
 		}
 		else  {
 			int length = 0;
@@ -1310,10 +1342,27 @@ static void VX_PreProcessMessage(trackmsg_t* msg)
 			}
 			msg->printable_characters += length;
 		}
-		++msg->printable_characters;
+		if (!overlay_skip) {
+			++msg->printable_characters;
+		}
 	}
 
 	--msg->printable_characters;
+}
+
+static void OnChange_TrackerIconOverlay(cvar_t* var, char* value, qbool* cancel)
+{
+	int i;
+
+	Cvar_SetIgnoreCallback(var, value);
+
+	for (i = 0; i < max_active_tracks; ++i) {
+		if (trackermsg[i].die < cl.time) {
+			continue;
+		}
+
+		VX_PreProcessMessage(&trackermsg[i]);
+	}
 }
 
 static void OnChange_TrackerNameWidth(cvar_t* var, char* value, qbool* cancel)
