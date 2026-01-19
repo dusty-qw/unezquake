@@ -42,6 +42,7 @@ $Id: cl_parse.c,v 1.135 2007-10-28 19:56:44 qqshka Exp $
 #include "keys.h"
 #include "hud.h"
 #include "hud_common.h"
+#include "nick_override.h"
 #include "mvd_utils.h"
 #include "input.h"
 #include "qtv.h"
@@ -2647,6 +2648,8 @@ extern cvar_t con_highlight, con_highlight_mark, name;
 extern cvar_t cl_showFragsMessages;
 extern cvar_t scr_coloredfrags;
 
+static const wchar *CL_ApplyNickOverrideToChat(const wchar *text, const char *source);
+
 // For CL_ParsePrint
 static void FlushString (const wchar *s, int level, qbool team, int offset) 
 {
@@ -2732,6 +2735,10 @@ static void FlushString (const wchar *s, int level, qbool team, int offset)
 	// Colorize player names here
 	if (scr_coloredfrags.value && cff.isFragMsg && cff.p1len) {
 		text = CL_ColorizeFragMessage(text, &cff);
+	}
+
+	if (level == PRINT_CHAT) {
+		text = CL_ApplyNickOverrideToChat(text, s0);
 	}
 
 	/* FIXME
@@ -2838,6 +2845,119 @@ int SeparateChat(char *chat, int *out_type, char **out_msg)
         *out_type = type;
 
     return classified;
+}
+
+static const wchar *CL_ApplyNickOverrideToChat(const wchar *text, const char *source)
+{
+	static wchar display_buf[4096];
+	char *msg = NULL;
+	const char *alias;
+	size_t prefix_len;
+	size_t text_len;
+	size_t out_len;
+	int type = 0;
+	int client;
+	int name_start;
+	int name_len;
+	qbool apply_red;
+	size_t i;
+	const size_t display_size = sizeof(display_buf) / sizeof(display_buf[0]);
+
+	// Only operate on valid chat text and a matching raw source string.
+	if (!text || !source || !source[0]) {
+		return text;
+	}
+
+	// Identify the speaking client and split the source into "<prefix>message".
+	client = SeparateChat((char *)source, &type, &msg);
+	if (client < 0 || client >= MAX_CLIENTS) {
+		return text;
+	}
+
+	// Only rewrite when a nick override exists.
+	if (!Nick_HasOverrideForPlayer(&cl.players[client])) {
+		return text;
+	}
+
+	// Use the override (or the player name if it maps to the same value).
+	alias = Nick_PlayerDisplayName(&cl.players[client]);
+	if (!alias || !alias[0]) {
+		return text;
+	}
+
+	// prefix_len is the count of characters before the chat message body.
+	prefix_len = (size_t)(msg - source);
+	if (prefix_len == 0) {
+		return text;
+	}
+
+	// Compute where the speaker name lives within the prefix for each chat type.
+	switch (type) {
+	case CHAT_MM1:
+		// "name: " -> name starts at 0, suffix is ": ".
+		name_start = 0;
+		name_len = (int)prefix_len - 2;
+		break;
+	case CHAT_MM2:
+		// "(name): " -> name starts after "(", suffix is "): ".
+		name_start = 1;
+		name_len = (int)prefix_len - 4;
+		break;
+	case CHAT_SPEC:
+		// "[SPEC] name: " -> name follows "[SPEC] ", suffix is ": ".
+		name_start = (int)strlen("[SPEC] ");
+		name_len = (int)prefix_len - 9;
+		break;
+	default:
+		return text;
+	}
+
+	// Guard against malformed prefixes.
+	if (name_len <= 0 || prefix_len < (size_t)(name_start + name_len)) {
+		return text;
+	}
+
+	// Work on a wchar copy that will be shown in the console/notify paths.
+	text_len = qwcslen(text);
+	if (text_len < prefix_len || display_size == 0) {
+		return text;
+	}
+
+	// Copy any leading text before the name (e.g. "[SPEC] " or "(").
+	out_len = 0;
+	if (name_start > 0) {
+		size_t copy_len = (size_t)name_start;
+		if (copy_len >= display_size) {
+			return text;
+		}
+		memcpy(display_buf, text, copy_len * sizeof(wchar));
+		out_len = copy_len;
+	}
+
+	// Preserve "red text" styling used by TP_ParseWhiteText.
+	apply_red = (name_start < (int)text_len) && ((text[name_start] & 0x80) != 0);
+	for (i = 0; alias[i] && out_len + 1 < display_size; ++i) {
+		wchar ch = (wchar)(unsigned char)alias[i];
+		if (apply_red && ch <= 0x7F && ch != '\n' && ch != '\r') {
+			ch |= 0x80;
+		}
+		display_buf[out_len++] = ch;
+	}
+
+	// Copy the remainder of the line (suffix + message body) after the name.
+	if ((size_t)(name_start + name_len) < text_len && out_len + 1 < display_size) {
+		size_t remaining = text_len - (size_t)(name_start + name_len);
+		size_t copy_len = remaining;
+		if (out_len + copy_len + 1 > display_size) {
+			copy_len = display_size - out_len - 1;
+		}
+		memcpy(display_buf + out_len, text + name_start + name_len, copy_len * sizeof(wchar));
+		out_len += copy_len;
+	}
+
+	// Ensure null termination and return the modified view.
+	display_buf[out_len] = 0;
+	return display_buf;
 }
 
 // QTV chat formed like #qtv2_id:qtv2_name: #qtv1_id:qtv1_name: #qtvClient_id:qtvClient_name: chat text

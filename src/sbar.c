@@ -93,7 +93,7 @@ cvar_t  scr_scoreboard_login_names     = { "scr_scoreboard_login_names", "1" };
 cvar_t  scr_scoreboard_login_indicator = { "scr_scoreboard_login_indicator", "&cffc*&r" };
 cvar_t  scr_scoreboard_login_color     = { "scr_scoreboard_login_color", "255 255 192" };
 cvar_t  scr_scoreboard_nick_names      = { "scr_scoreboard_nick_names", "1" };
-cvar_t  scr_scoreboard_nick_color      = { "scr_scoreboard_nick_color", "153 204 255", CVAR_COLOR };
+cvar_t  scr_scoreboard_nick_color      = { "scr_scoreboard_nick_color", "180 225 255", CVAR_COLOR };
 cvar_t  scr_scoreboard_login_flagfile  = { "scr_scoreboard_login_flagfile", "flags", 0, OnChange_scr_scoreboard_login_flagfile };
 
 //cvar_t  hud_ranks_separate  = {"scr_ranks_separate",   "1"};
