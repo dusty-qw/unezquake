@@ -17769,6 +17769,22 @@
         }
       ]
     },
+    "r_tracker_iconoverlay": {
+      "default": "0",
+      "desc": "When enabled, powerup icons are drawn on top of the weapon icon in the tracker (images only).",
+      "group-id": "40",
+      "type": "boolean",
+      "values": [
+        {
+          "description": "Keep separate icons in the tracker.",
+          "name": "0"
+        },
+        {
+          "description": "Draw powerup icon over the weapon icon in the tracker.",
+          "name": "1"
+        }
+      ]
+    },
     "r_tracker_inconsole": {
       "default": "0",
       "desc": "Controls how tracker messages will appear in the console/notify area.",
