@@ -1725,6 +1725,29 @@
       "remarks": "See cl_gameclock for detailed info about the clock.",
       "type": "float"
     },
+    "cl_gameclock_style": {
+      "default": "0",
+      "group-id": "40",
+      "type": "enum",
+      "values": [
+        {
+          "description": "White numbers",
+          "name": "0"
+        },
+        {
+          "description": "Red numbers",
+          "name": "1"
+        },
+        {
+          "description": "Green numbers (high bit)",
+          "name": "2"
+        },
+        {
+          "description": "Green numbers (low bit)",
+          "name": "3"
+        }
+      ]
+    },
     "cl_gibFilter": {
       "default": "0",
       "group-id": "8",
@@ -17925,6 +17948,12 @@
           "name": "*"
         }
       ]
+    },
+    "r_tracker_weapon_first": {
+      "default": "0",
+      "desc": "Print the weapon icon or name before the player name.",
+      "group-id": "40",
+      "type": "boolean"
     },
     "r_tracker_x": {
       "default": "0",
