@@ -58,7 +58,7 @@ void WeaponStats_CommandInit(void);
 void SCR_DrawHud(void);
 void SCR_DrawClocks(void);
 void R_SetupFrame(void);
-extern cvar_t vid_gammafontfix;
+extern cvar_t vid_postprocess_text;
 void SCR_Draw_TeamInfo(void);
 void SCR_Draw_Inlay(void);
 void SCR_Draw_ShowNick(void);
@@ -621,6 +621,8 @@ static void SCR_DrawCursor(void)
 
 	// Always draw the cursor if fullscreen
 	if (IN_QuakeMouseCursorRequired()) {
+		Draw_PushLayer(draw_layer_top);
+
 		float x_coord = scr_pointer_state.x;
 		float y_coord = scr_pointer_state.y;
 
@@ -639,6 +641,8 @@ static void SCR_DrawCursor(void)
 			Draw_AlphaLineRGB(x_coord, y_coord, x_coord, y_coord + 20 * scale, 10 * scale, c);
 			Draw_AlphaLineRGB(x_coord + (20 * scale), y_coord, x_coord, y_coord + (20 * scale), 10 * scale, c);
 		}
+
+		Draw_PopLayer();
 	}
 
 	// remember the position for future
@@ -995,9 +999,9 @@ void SCR_UpdateScreenHudOnly(void)
 
 		// Actual rendering...
 		if (r_drawhud.integer != 2) {
-			// Draw non-text HUD now; text is rendered after postprocess to avoid gamma/contrast.
-			if (vid_gammafontfix.integer) {
-				R_FlushImageDrawNonText();
+			// When text is not postprocessed, draw base before postprocess; overlay/top layers follow after.
+			if (!vid_postprocess_text.integer) {
+				R_FlushImageDrawLayer(draw_layer_base, false);
 			}
 			else {
 				R_FlushImageDraw();
@@ -1012,9 +1016,10 @@ void SCR_UpdateScreenPostPlayerView(void)
 	SCR_UpdateScreenHudOnly();
 
 	renderer.PostProcessScreen();
-	if (r_drawhud.integer && r_drawhud.integer != 2 && vid_gammafontfix.integer) {
-		// Flush text after postprocess so charset rendering stays neutral.
-		R_FlushImageDrawText();
+	if (r_drawhud.integer && r_drawhud.integer != 2 && !vid_postprocess_text.integer) {
+		// Flush overlay and top layers after postprocess so text stays neutral.
+		R_FlushImageDrawLayer(draw_layer_overlay, false);
+		R_FlushImageDrawLayer(draw_layer_top, true);
 	}
 
 	SCR_CheckAutoScreenshot();

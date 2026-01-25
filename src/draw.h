@@ -77,6 +77,12 @@ typedef int color_t;
 
 extern const color_t COLOR_WHITE;
 
+typedef enum {
+	draw_layer_base = 0,
+	draw_layer_overlay = 1,
+	draw_layer_top = 2
+} draw_layer_t;
+
 color_t RGBA_TO_COLOR(byte r, byte g, byte b, byte a);
 color_t RGBAVECT_TO_COLOR(byte rgba[4]);
 color_t RGBAVECT_TO_COLOR_PREMULT(byte rgba[4]);
@@ -86,6 +92,16 @@ byte* COLOR_TO_RGBA_PREMULT(color_t i, byte rgba[4]);
 float* COLOR_TO_FLOATVEC_PREMULT(color_t i, float rgba[4]);
 void Draw_SetOverallAlpha(float opacity);
 float Draw_MultiplyOverallAlpha(float alpha);
+void Draw_SetLayer(draw_layer_t layer);
+draw_layer_t Draw_GetLayer(void);
+void Draw_PushLayer(draw_layer_t layer);
+void Draw_PopLayer(void);
+void Draw_SetTextLayer(draw_layer_t layer);
+draw_layer_t Draw_GetTextLayer(void);
+void Draw_PushTextLayer(draw_layer_t layer);
+void Draw_PopTextLayer(void);
+void Draw_SetConsoleTextMode(qbool enabled);
+void Draw_SetConsoleAlignedHud(qbool enabled);
 
 void Draw_Init(void);
 void Draw_Shutdown(void);

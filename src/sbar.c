@@ -2505,6 +2505,23 @@ void Sbar_FinaleOverlay (void) {
 	Draw_TransPic ( (vid.width-pic->width)/2, 16, pic);
 }
 
+static void Sbar_DrawScoreboardLayered(void)
+{
+	qbool console_visible = (scr_con_current > 0);
+
+	if (console_visible) {
+		Draw_PushLayer(draw_layer_base);
+		Draw_PushTextLayer(draw_layer_base);
+	}
+
+	Sbar_SoloScoreboard();
+
+	if (console_visible) {
+		Draw_PopTextLayer();
+		Draw_PopLayer();
+	}
+}
+
 /********************************* INTERFACE *********************************/
 void Sbar_Draw(void) {
 	qbool headsup;
@@ -2546,7 +2563,7 @@ void Sbar_Draw(void) {
 			}
 			else {
 				if (sb_showscores || sb_showteamscores || cl.stats[STAT_HEALTH] <= 0)
-					Sbar_SoloScoreboard ();
+					Sbar_DrawScoreboardLayered();
 
 				else if (scr_compactHud.value == 4)
 					Sbar_DrawCompact_WithIcons();
@@ -2562,7 +2579,7 @@ void Sbar_Draw(void) {
 				Sbar_DrawTrackingString();
 			}
 		} else if (sb_showscores || sb_showteamscores || cl.stats[STAT_HEALTH] <= 0) {
-			Sbar_SoloScoreboard();
+			Sbar_DrawScoreboardLayered();
 		} else if (scr_compactHud.value == 4) {
 			Sbar_DrawCompact_WithIcons();
 		} else if (scr_compactHud.value == 3) {
@@ -2577,7 +2594,7 @@ void Sbar_Draw(void) {
 	}
 	if (sb_lines > 0 && scr_newHud.value == 1 && cl.deathmatch == 0
 			&& (sb_showscores || sb_showteamscores || cl.stats[STAT_HEALTH] <= 0)) {
-		Sbar_SoloScoreboard();
+		Sbar_DrawScoreboardLayered();
 	}
 
 	//VULT STAT LOSS

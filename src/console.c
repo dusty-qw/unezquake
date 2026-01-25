@@ -912,6 +912,8 @@ void Con_DrawConsole (int lines) {
 	if (lines <= 0 || Con_MenuWillDrawConsole())
 		return;
 
+	Draw_SetConsoleTextMode(true);
+
 	// draw the background
 	Draw_ConsoleBackground (lines);
 
@@ -969,7 +971,7 @@ void Con_DrawConsole (int lines) {
 		} else if (is_probing) {
 			text = "probing";
 		} else
-			return;
+			goto finish_draw;
 
 		x = con_linewidth - ((con_linewidth * 7) / 40);
 		y = x - strlen(text) - 8;
@@ -1019,7 +1021,7 @@ void Con_DrawConsole (int lines) {
 		else if (is_probing)
 			snprintf (dlbar + i, sizeof (dlbar) - i, " %02d%%", probing_progress);
 		else
-			return;
+			goto finish_draw;
 
 		// draw it
 		y = con_vislines - 22 + 8;
@@ -1028,5 +1030,7 @@ void Con_DrawConsole (int lines) {
 
 	// draw the input prompt, user text, and cursor if desired
 	Con_DrawInput ();
-}
 
+finish_draw:
+	Draw_SetConsoleTextMode(false);
+}

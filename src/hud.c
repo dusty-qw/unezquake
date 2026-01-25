@@ -1677,9 +1677,16 @@ void HUD_DrawObject(hud_t *hud)
 	//
 	// Let the HUD element draw itself - updates last_draw_sequence itself.
 	//
+	// Do not fade text for elements aligned to the console
+	if (hud->align_y_num == HUD_ALIGN_CONSOLE) {
+		Draw_SetConsoleAlignedHud(true);
+	}
 	Draw_SetOverallAlpha(hud->opacity->value);
 	hud->draw_func(hud);
 	Draw_SetOverallAlpha(1.0);
+	if (hud->align_y_num == HUD_ALIGN_CONSOLE) {
+		Draw_SetConsoleAlignedHud(false);
+	}
 
 	// last_draw_sequence is update by HUD_PrepareDraw
 	// if object was succesfully drawn (wasn't outside area etc..)
