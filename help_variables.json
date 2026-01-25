@@ -23094,11 +23094,11 @@
         }
       ]
     },
-    "vid_gammafontfix": {
-      "default": "1",
-      "desc": "Keep charset text unaffected by software gamma/contrast postprocessing.",
+    "vid_postprocess_text": {
+      "default": "0",
+      "desc": "Controls whether charset text is affected by gamma/contrast postprocessing.",
       "group-id": "40",
-      "remarks": "Disable to restore legacy behavior where text is affected by gl_gamma/gl_contrast.",
+      "remarks": "0 keeps text neutral; 1 restores legacy behavior where text is affected by gl_gamma/gl_contrast.",
       "type": "boolean"
     },
     "vid_gl_core_profile": {

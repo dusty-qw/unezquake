@@ -30,6 +30,7 @@ $Id: gl_draw.c,v 1.104 2007-10-18 05:28:23 dkure Exp $
 #include "r_texture.h"
 #include "r_draw.h"
 #include "r_trace.h"
+#include "keys.h"
 
 static void OnChange_gl_consolefont(cvar_t *, char *, qbool *);
 void Draw_InitFont(void);
@@ -39,11 +40,12 @@ cvar_t gl_alphafont    = { "gl_alphafont", "1" };
 cvar_t gl_consolefont  = { "gl_consolefont", "povo5", CVAR_AUTO, OnChange_gl_consolefont };
 cvar_t scr_coloredText = { "scr_coloredText", "1" };
 cvar_t gl_charsets_min = { "gl_charsets_min", "1" };
-cvar_t vid_gammafontfix = { "vid_gammafontfix", "1" };
+cvar_t vid_postprocess_text = { "vid_postprocess_text", "0" };
 
 extern cvar_t v_gamma;
 extern cvar_t v_contrast;
 extern float vid_gamma;
+extern cvar_t scr_conalpha;
 qbool R_OldGammaBehaviour(void);
 
 static byte *draw_chars; // 8*8 graphic characters
@@ -53,8 +55,28 @@ int char_mapping[256]; // need to expand in future...
 
 static byte cache_currentColor[4];
 static qbool nextCharacterIsCrosshair = false;
+static qbool draw_console_text = false;
+static qbool draw_console_aligned_hud = false;
 
 static const byte color_white[4] = { 255, 255, 255, 255 };
+
+static qbool Draw_TextUnderConsole(float y)
+{
+	if (vid_postprocess_text.integer) {
+		return false;
+	}
+	if (draw_console_text) {
+		return false;
+	}
+	if (draw_console_aligned_hud) {
+		return false;
+	}
+	if (scr_con_current <= 0 || key_dest != key_console) {
+		return false;
+	}
+
+	return (y < scr_con_current);
+}
 
 /*
 * Load_LMP_Charset
@@ -696,7 +718,7 @@ void Draw_Charset_Init(void)
 		Cvar_Register(&gl_alphafont);
 		Cvar_Register(&gl_charsets_min);
 		Cvar_Register(&scr_coloredText);
-		Cvar_Register(&vid_gammafontfix);
+		Cvar_Register(&vid_postprocess_text);
 		Cvar_ResetCurrentGroup();
 	}
 
@@ -739,6 +761,16 @@ void Draw_SetCrosshairTextMode(qbool enabled)
 	nextCharacterIsCrosshair = enabled;
 }
 
+void Draw_SetConsoleTextMode(qbool enabled)
+{
+	draw_console_text = enabled;
+}
+
+void Draw_SetConsoleAlignedHud(qbool enabled)
+{
+	draw_console_aligned_hud = enabled;
+}
+
 static void Draw_TextCacheInit(float x, float y, float scale)
 {
 	Draw_TextCacheSetColor(color_white);
@@ -753,7 +785,7 @@ static void Draw_TextCacheSetColor(const byte* color)
 
 	contrast = 1.0f;
 	gamma = 1.0f;
-	precomp = (vid_hwgamma_enabled && vid_gammafontfix.integer);
+	precomp = (vid_hwgamma_enabled && !vid_postprocess_text.integer);
 
 	if (precomp) {
 		contrast = bound(1.0f, v_contrast.value, 3.0f);
@@ -766,7 +798,7 @@ static void Draw_TextCacheSetColor(const byte* color)
 	}
 
 	if (!precomp || (contrast <= 1.0f && gamma == 1.0f)) {
-		// Skip precompensation when software postprocess is active or the fix is disabled.
+		// Skip precompensation when text is postprocessed or hardware gamma isn't used.
 		memcpy(cache_currentColor, color, sizeof(cache_currentColor));
 		return;
 	}
@@ -785,6 +817,7 @@ static float Draw_TextCacheAddCharacter(float x, float y, wchar ch, float scale,
 	int new_charset = (ch >> 8) & 0xFF;
 	charset_t* texture = &char_textures[0];
 	mpic_t* pic;
+	byte color[4];
 
 #ifdef EZ_FREETYPE_SUPPORT
 	if (proportional) {
@@ -817,6 +850,12 @@ static float Draw_TextCacheAddCharacter(float x, float y, wchar ch, float scale,
 		texture = &char_textures[0];
 		pic = &texture->glyphs['*'];
 	}
+	memcpy(color, cache_currentColor, sizeof(color));
+	if (Draw_TextUnderConsole(y)) {
+		float conalpha = SCR_NEED_CONSOLE_BACKGROUND ? 1.0f : bound(0.0f, scr_conalpha.value, 1.0f);
+		float alpha = (color[3] / 255.0f) * (1.0f - conalpha);
+		color[3] = bound(0, Q_rint(alpha * 255.0f), 255);
+	}
 	R_TraceAPI("R_DrawChar(%d %c = %d[%d], pic[%d/%s] %0.3f %0.3f, %0.3f", ch, (ch < 256 ? ch : '?'), new_charset, ch & 0xFF, pic->texnum.index, R_TextureIdentifier(pic->texnum), texture->custom_scale_x, texture->custom_scale_y, scale);
 	R_TraceAPI(
 		"-> %f,%f %f,%f [%d,%d %d,%d]",
@@ -826,7 +865,7 @@ static float Draw_TextCacheAddCharacter(float x, float y, wchar ch, float scale,
 		(int)((pic->sh - pic->sl) * R_TextureWidth(pic->texnum)),
 		(int)((pic->th - pic->tl) * R_TextureHeight(pic->texnum))
 	);
-	R_DrawImage(x, y, texture->custom_scale_x * scale * 8, texture->custom_scale_y * scale * 8, pic->sl, pic->tl, pic->sh - pic->sl, pic->th - pic->tl, cache_currentColor, false, pic->texnum, true, nextCharacterIsCrosshair);
+	R_DrawImage(x, y, texture->custom_scale_x * scale * 8, texture->custom_scale_y * scale * 8, pic->sl, pic->tl, pic->sh - pic->sl, pic->th - pic->tl, color, false, pic->texnum, true, nextCharacterIsCrosshair);
 	return FontCharacterWidthWide(ch, scale, proportional);
 }
 
