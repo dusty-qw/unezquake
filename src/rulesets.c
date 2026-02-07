@@ -46,7 +46,7 @@ typedef struct rulesetDef_s {
 } rulesetDef_t;
 
 static rulesetDef_t rulesetDef = {
-	rs_modern2020, 	// ruleset
+	rs_modern, 		// ruleset
 	77.0,			// maxfps
 	false,			// restrict triggers
 	true,			// restrict /packet command
@@ -57,8 +57,8 @@ static rulesetDef_t rulesetDef = {
 	false,			// retrict pogo
 	true,			// restrict rollangle
 	true,			// restrict IPC
-	true,			// restrict /exec command
-	true,			// restrict /set_calc command
+	false,			// restrict /exec command
+	false,			// restrict /set_calc command
 	true,			// restrict /set_eval command
 	true			// restrict /set_ex command
 };
@@ -145,7 +145,7 @@ qbool Rulesets_AllowTimerefresh(void)
 		case rs_smackdown:
 		case rs_smackdrive:
 		case rs_thunderdome:
-		case rs_modern2020:
+		case rs_modern:
 		case rs_qcon:
 			return (cl.standby || cl.spectator || cls.demoplayback);
 		default:
@@ -160,7 +160,7 @@ qbool Rulesets_AllowNoShadows(void)
 		case rs_smackdown:
 		case rs_smackdrive:
 		case rs_thunderdome:
-		case rs_modern2020:
+		case rs_modern:
 		case rs_qcon:
 			return false;
 		default:
@@ -262,7 +262,7 @@ qbool Rulesets_RestrictTCL(void)
 		case rs_smackdown:
 		case rs_smackdrive:
 		case rs_thunderdome:
-		case rs_modern2020:
+		case rs_modern:
 		case rs_qcon:
 			return true;
 		case rs_mtfl:
@@ -282,7 +282,7 @@ const char *Rulesets_Ruleset(void)
 			return "thunderdome";
 		case rs_qcon:
 			return "qcon";
-		case rs_modern2020:
+		case rs_modern:
 			return "modern2020";
 		case rs_smackdrive:
 			return "smackdrive";
@@ -612,7 +612,7 @@ qbool Ruleset_BlockHudPicChange(void)
 	case rs_smackdown:
 	case rs_smackdrive:
 	case rs_thunderdome:
-	case rs_modern2020:
+	case rs_modern:
 		return cls.state != ca_disconnected && !(cl.standby || cl.spectator || cls.demoplayback);
 	default:
 		return false;
