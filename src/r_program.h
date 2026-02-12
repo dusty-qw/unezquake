@@ -29,6 +29,9 @@ typedef enum {
 	r_program_lightmap_compute,
 
 	r_program_fx_world_geometry,
+	r_program_fx_outline_seed,
+	r_program_fx_outline_jfa,
+	r_program_fx_outline_effect,
 	r_program_brushmodel_alphatested,
 	r_program_simple,
 	r_program_simple3d,
@@ -120,6 +123,11 @@ typedef enum {
 	r_program_uniform_aliasmodel_outline_color_enemy,
 	r_program_uniform_aliasmodel_outline_use_player_color,
 	r_program_uniform_aliasmodel_outline_scale,
+	r_program_uniform_outline_jfa_step,
+	r_program_uniform_outline_effect_thickness,
+	r_program_uniform_outline_effect_mode,
+	r_program_uniform_outline_effect_inside,
+	r_program_uniform_outline_effect_color,
 	r_program_uniform_count
 } r_program_uniform_id;
 

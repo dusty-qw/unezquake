@@ -71,6 +71,10 @@ void main()
 			fsBaseColor = models[_instanceId].color;
 		}
 	}
+	else if (mode == EZQ_ALIAS_MODE_OUTLINE_MASK) {
+		gl_Position = projectionMatrix * models[_instanceId].modelView * vec4(position, 1);
+		fsTextureCoord = vec2(tex.x, tex.y);
+	}
 	else if (mode == EZQ_ALIAS_MODE_OUTLINES || mode == EZQ_ALIAS_MODE_OUTLINES_SPEC) {
 		gl_Position = projectionMatrix * models[_instanceId].modelView * vec4(position + /*models[_instanceId].outlineNormalScale **/ normalCoords * outline_scale, 1);
 		fsTextureCoord = vec2(tex.x, tex.y);

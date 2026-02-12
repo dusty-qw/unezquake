@@ -60,6 +60,18 @@ void main()
 		frag_colour = vec4(outline_color, 1.0f);
 	}
 
+	if (mode == EZQ_ALIAS_MODE_OUTLINE_MASK) {
+		// Reserve alpha==0 for "no mask" so we can still mark far-depth pixels.
+		const float depth_epsilon = 1.0 / 1024.0;
+		float encoded_depth = gl_FragCoord.z * (1.0 - depth_epsilon) + depth_epsilon;
+
+		// Mask payload consumed by JFA passes:
+		//   rgb = resolved outline color for this model fragment
+		//   a   = encoded depth (alpha 0 means "empty")
+		frag_colour = vec4(frag_colour.rgb, encoded_depth);
+		return;
+	}
+
 	if (mode != EZQ_ALIAS_MODE_OUTLINES && mode != EZQ_ALIAS_MODE_OUTLINES_SPEC) {
 		vec4 tex = texture(samplers[fsMaterialSampler], fsTextureCoord.st);
 		vec4 altTex = texture(samplers[fsMaterialSampler], fsAltTextureCoord.st);

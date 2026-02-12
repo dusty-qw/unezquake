@@ -39,6 +39,9 @@ typedef enum {
 	fbtex_depth,
 	fbtex_bloom,
 	fbtex_worldnormals,
+	// Per-model outline mask for the JFA pipeline.
+	// Stores outline RGB in .rgb and encoded depth in .a.
+	fbtex_modelmask,
 	fbtex_count
 } fbtex_id;
 
@@ -60,6 +63,10 @@ qbool GL_FramebufferEnabled3D(void);
 
 qbool GL_FramebufferStartWorldNormals(framebuffer_id id);
 qbool GL_FramebufferEndWorldNormals(framebuffer_id id);
+// Redirect COLOR_ATTACHMENT1 to fbtex_modelmask and clear it for outline-mask rendering.
+qbool GL_FramebufferStartModelMask(framebuffer_id id);
+// Restore default draw target and resolve multisample data for fbtex_modelmask when needed.
+qbool GL_FramebufferEndModelMask(framebuffer_id id);
 
 int GL_FramebufferMultisamples(framebuffer_id framebuffer);
 void GL_FramebufferDeleteAll(void);

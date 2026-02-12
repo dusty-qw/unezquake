@@ -190,6 +190,7 @@ extern cvar_t mvd_autotrack, mvd_moreinfo, mvd_status, cl_weaponpreselect, cl_we
 	ignore_qizmo_spec, ignore_spec, msg_filter, crosshair, crosshairsize, cl_smartjump, cl_smartspawn, scr_coloredText,
 	cl_rollangle, cl_rollspeed, v_gunkick, v_kickpitch, v_kickroll, v_kicktime, v_viewheight, match_auto_sshot, match_auto_record, match_auto_logconsole,
 	r_fastturb, r_grenadetrail, cl_drawgun, r_viewmodelsize, r_viewmodeloffset, gl_outline, scr_clock, scr_gameclock, show_fps, rate, cl_c2sImpulseBackup,
+	gl_outline_method, gl_outline_style,
 	name, team, skin, topcolor, bottomcolor, cl_teamtopcolor, cl_teambottomcolor, cl_teamquadskin, cl_teampentskin, cl_teambothskin, /*cl_enemytopcolor, cl_enemybottomcolor, */
 	cl_enemyquadskin, cl_enemypentskin, cl_enemybothskin, demo_dir, qizmo_dir, qwdtools_dir, cl_fakename, cl_fakename_suffix,
 	cl_chatsound, con_sound_mm1_volume, con_sound_mm2_volume, con_sound_spec_volume, con_sound_other_volume, s_khz, s_desiredsamples,
@@ -363,6 +364,12 @@ const char* muzzleflashes_enum[] =
 
 const char* outline_enum[] =
 { "off", "models", "world", "models+world" };
+
+const char* outline_method_enum[] =
+{ "legacy", "new (experimental)" };
+
+const char* outline_style_enum[] =
+{ "outline", "glow", "halftone" };
 
 const char* simpleitemsorientation_enum[] =
 {"Parallel upright", "Facing upright", "Parallel", "Oriented"};
@@ -970,6 +977,8 @@ setting settfps_arr[] = {
 	ADDSET_NUMBER	("Weapon Shift", r_viewmodeloffset, -10, 10, 1),
 	ADDSET_NAMED	("Weapon Muzzleflashes", cl_muzzleflash, muzzleflashes_enum),
 	ADDSET_NAMED	("Outline", gl_outline, outline_enum),
+	ADDSET_NAMED	("Outline Method", gl_outline_method, outline_method_enum), 
+	ADDSET_NAMED	("Outline Style", gl_outline_style, outline_style_enum),
 	ADDSET_BASIC_SECTION(),
 	
 	ADDSET_SEPARATOR("Environment"),

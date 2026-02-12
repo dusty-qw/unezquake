@@ -283,6 +283,12 @@ if(RENDERER_MODERN_OPENGL)
             ${MODERN_GLSL_DIR}/draw_world.vertex.glsl
             ${MODERN_GLSL_DIR}/fx_world_geometry.fragment.glsl
             ${MODERN_GLSL_DIR}/fx_world_geometry.vertex.glsl
+            ${MODERN_GLSL_DIR}/fx_outline_seed.fragment.glsl
+            ${MODERN_GLSL_DIR}/fx_outline_seed.vertex.glsl
+            ${MODERN_GLSL_DIR}/fx_outline_jfa.fragment.glsl
+            ${MODERN_GLSL_DIR}/fx_outline_jfa.vertex.glsl
+            ${MODERN_GLSL_DIR}/fx_outline_effect.fragment.glsl
+            ${MODERN_GLSL_DIR}/fx_outline_effect.vertex.glsl
             ${MODERN_GLSL_DIR}/hud_draw_circle.fragment.glsl
             ${MODERN_GLSL_DIR}/hud_draw_circle.vertex.glsl
             ${MODERN_GLSL_DIR}/hud_draw_image.fragment.glsl

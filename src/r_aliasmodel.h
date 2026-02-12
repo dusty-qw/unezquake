@@ -12,6 +12,8 @@ void GLM_DrawAliasModelFrame(
 	entity_t* ent, model_t* model, int poseVertIndex, int poseVertIndex2, int vertsPerPose,
 	texture_ref texture, qbool outline, int effects, int render_effects, float lerp_fraction
 );
+qbool GLM_HasAliasModelOutlineMaskBatch(void);
+void GLM_DrawAliasModelOutlineMaskBatch(void);
 
 void* Mod_LoadAllSkins(model_t* loadmodel, int numskins, daliasskintype_t* pskintype);
 

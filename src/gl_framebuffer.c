@@ -100,6 +100,7 @@ static const char* framebuffer_texture_names[] = {
 	"depth", // fbtex_depth
 	"env", // fbtex_bloom,
 	"norms", // fbtex_worldnormals,
+	"modelmask", // fbtex_modelmask,
 };
 static qbool framebuffer_depth_buffer[] = {
 	false, // framebuffer_none
@@ -582,6 +583,83 @@ qbool GL_FramebufferEndWorldNormals(framebuffer_id id)
 		// Resolve multi-samples
 		GL_MultiSamplingResolve(framebuffer_std_ms, framebuffer_std, fbtex_worldnormals, framebuffer_std_blit_ms, framebuffer_std_blit);
 	}
+	return true;
+}
+
+qbool GL_FramebufferStartModelMask(framebuffer_id id)
+{
+	framebuffer_data_t* fb = NULL;
+	GLenum buffer = GL_COLOR_ATTACHMENT1;
+	// Clear to "no mask": rgb unused, alpha==0 marks empty pixel.
+	float clearValue[] = { 0.0f, 0.0f, 0.0f, 0.0f };
+
+	if (!(gl_outline.integer & 1) || !GL_Supported(R_SUPPORT_FRAMEBUFFERS)) {
+		return false;
+	}
+
+	id = VID_MultisampledAlternateId(id);
+	fb = &framebuffer_data[id];
+	if (!fb->glref) {
+		return false;
+	}
+
+	if (!R_TextureReferenceIsValid(fb->texture[fbtex_modelmask])) {
+		char label[128];
+
+		strlcpy(label, framebuffer_names[id], sizeof(label));
+		strlcat(label, "/", sizeof(label));
+		strlcat(label, framebuffer_texture_names[fbtex_modelmask], sizeof(label));
+
+		if (fb->samples) {
+			GL_CreateTexturesWithIdentifier(texture_type_2d_multisampled, 1, &fb->texture[fbtex_modelmask], label);
+			if (!R_TextureReferenceIsValid(fb->texture[fbtex_modelmask])) {
+				return false;
+			}
+			// RGBA16F: rgb carries resolved outline color, alpha carries encoded depth.
+			GL_TexStorage2DMultisample(fb->texture[fbtex_modelmask], fb->samples, GL_RGBA16F, fb->width, fb->height, EZ_USE_FIXED_SAMPLE_LOCATIONS);
+		}
+		else {
+			GL_CreateTexturesWithIdentifier(texture_type_2d, 1, &fb->texture[fbtex_modelmask], label);
+			if (!R_TextureReferenceIsValid(fb->texture[fbtex_modelmask])) {
+				return false;
+			}
+			// RGBA16F: rgb carries resolved outline color, alpha carries encoded depth.
+			GL_TexStorage2D(fb->texture[fbtex_modelmask], 1, GL_RGBA16F, fb->width, fb->height, false);
+			renderer.TextureSetFiltering(fb->texture[fbtex_modelmask], texture_minification_nearest, texture_magnification_nearest);
+			renderer.TextureWrapModeClamp(fb->texture[fbtex_modelmask]);
+		}
+		R_TextureSetFlag(fb->texture[fbtex_modelmask], R_TextureGetFlag(fb->texture[fbtex_modelmask]) | TEX_NO_TEXTUREMODE);
+	}
+
+	GL_FramebufferTexture(fb->glref, GL_COLOR_ATTACHMENT1, GL_TextureNameFromReference(fb->texture[fbtex_modelmask]), 0);
+	GL_Procedure(glDrawBuffers, 1, &buffer);
+	// With a single draw buffer list, draw buffer index 0 maps to COLOR_ATTACHMENT1 here.
+	GL_Procedure(glClearBufferfv, GL_COLOR, 0, clearValue);
+	return true;
+}
+
+qbool GL_FramebufferEndModelMask(framebuffer_id id)
+{
+	framebuffer_data_t* fb = NULL;
+	GLenum buffer = GL_COLOR_ATTACHMENT0;
+
+	if (!GL_Supported(R_SUPPORT_FRAMEBUFFERS)) {
+		return false;
+	}
+
+	id = VID_MultisampledAlternateId(id);
+	fb = &framebuffer_data[id];
+	if (!fb->glref) {
+		return false;
+	}
+
+	GL_FramebufferTexture(fb->glref, GL_COLOR_ATTACHMENT1, 0, 0);
+	GL_Procedure(glDrawBuffers, 1, &buffer);
+
+	if (fb->samples && id == framebuffer_std_ms) {
+		GL_MultiSamplingResolve(framebuffer_std_ms, framebuffer_std, fbtex_modelmask, framebuffer_std_blit_ms, framebuffer_std_blit);
+	}
+
 	return true;
 }
 

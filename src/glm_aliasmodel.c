@@ -40,6 +40,7 @@ void GLM_StateBeginAliasOutlineBatch(void);
 
 extern vec3_t r_origin;
 extern cvar_t gl_outline;
+extern cvar_t gl_outline_method;
 
 // MAX_STANDARD_ENTITIES used to be 512, so lets pretend like
 // there can't be more aliasmodel entities, as that will cause
@@ -53,6 +54,7 @@ typedef enum aliasmodel_draw_type_s {
 	aliasmodel_draw_std,
 	aliasmodel_draw_alpha,
 	aliasmodel_draw_outlines,
+	aliasmodel_draw_outline_mask,
 	aliasmodel_draw_outlines_spec,
 	aliasmodel_draw_shells,
 	aliasmodel_draw_postscene,
@@ -85,6 +87,12 @@ typedef struct aliasmodel_draw_data_s {
 
 static aliasmodel_draw_instructions_t alias_draw_instructions[aliasmodel_draw_max];
 static int alias_draw_count;
+
+static qbool GLM_UseJfaModelOutlines(void)
+{
+	// Method 1 uses a post-process outline, so alias models render to a mask first.
+	return gl_outline_method.integer == 1 && GL_Supported(R_SUPPORT_FRAMEBUFFERS);
+}
 
 typedef struct uniform_block_aliasmodel_s {
 	float modelViewMatrix[16];
@@ -384,7 +392,9 @@ static void GLM_QueueAliasModelDrawImpl(
 		if (!strstr(model->name, "player.mdl") && R_PointInsideModelBounds(ent, r_origin)) {
 			// Skip outline - POV is inside model bounds
 		} else {
-			GLM_QueueDrawCall(aliasmodel_draw_outlines, vbo_start, vbo_count, alias_draw_count);
+			// Legacy style draws inflated geometry directly.
+			// JFA style draws only a mask here; the visible outline is composed later in GLM_DrawModelOutlinesJFA().
+			GLM_QueueDrawCall(GLM_UseJfaModelOutlines() ? aliasmodel_draw_outline_mask : aliasmodel_draw_outlines, vbo_start, vbo_count, alias_draw_count);
 		}
 	}
 	if (shell) {
@@ -491,10 +501,13 @@ void GLM_PrepareAliasModelBatches(void)
 static void GLM_RenderPreparedEntities(aliasmodel_draw_type_t type)
 {
 	aliasmodel_draw_instructions_t* instr = &alias_draw_instructions[type];
-	GLint mode = (type == aliasmodel_draw_shells || type == aliasmodel_draw_postscene_shells ? EZQ_ALIAS_MODE_SHELLS : EZQ_ALIAS_MODE_NORMAL);
+	GLint mode =
+		(type == aliasmodel_draw_shells || type == aliasmodel_draw_postscene_shells ? EZQ_ALIAS_MODE_SHELLS :
+		type == aliasmodel_draw_outline_mask ? EZQ_ALIAS_MODE_OUTLINE_MASK :
+		EZQ_ALIAS_MODE_NORMAL);
 	unsigned int extra_offset = 0;
 	int i;
-	qbool translucent = (type != aliasmodel_draw_std && type != aliasmodel_draw_postscene_additive);
+	qbool translucent = (type != aliasmodel_draw_std && type != aliasmodel_draw_postscene_additive && type != aliasmodel_draw_outline_mask);
 	qbool additive = (type == aliasmodel_draw_postscene_additive);
 	qbool shells = (type == aliasmodel_draw_shells || type == aliasmodel_draw_postscene_shells);
 
@@ -561,7 +574,7 @@ static void GLM_RenderPreparedEntities(aliasmodel_draw_type_t type)
 		R_TraceLeaveNamedRegion();
 	}
 
-	if (type == aliasmodel_draw_std && alias_draw_instructions[aliasmodel_draw_outlines].num_calls) {
+	if (type == aliasmodel_draw_std && !GLM_UseJfaModelOutlines() && alias_draw_instructions[aliasmodel_draw_outlines].num_calls) {
 		instr = &alias_draw_instructions[aliasmodel_draw_outlines];
 
 		R_TraceEnterNamedRegion("GLM_DrawOutlineBatch");
@@ -593,6 +606,16 @@ void GLM_DrawAliasModelPostSceneBatches(void)
 	GLM_RenderPreparedEntities(aliasmodel_draw_postscene);
 	GLM_RenderPreparedEntities(aliasmodel_draw_postscene_additive);
 	GLM_RenderPreparedEntities(aliasmodel_draw_postscene_shells);
+}
+
+qbool GLM_HasAliasModelOutlineMaskBatch(void)
+{
+	return alias_draw_instructions[aliasmodel_draw_outline_mask].num_calls > 0;
+}
+
+void GLM_DrawAliasModelOutlineMaskBatch(void)
+{
+	GLM_RenderPreparedEntities(aliasmodel_draw_outline_mask);
 }
 
 void GLM_InitialiseAliasModelBatches(void)

@@ -350,6 +350,16 @@ static r_program_uniform_t program_uniforms[] = {
 	{ r_program_aliasmodel, "outline_use_player_color", 1, false },
 	// r_program_uniform_aliasmodel_outline_scale
 	{ r_program_aliasmodel, "outline_scale", 1, false },
+	// r_program_uniform_outline_jfa_step
+	{ r_program_fx_outline_jfa, "step", 1, false },
+	// r_program_uniform_outline_effect_thickness
+	{ r_program_fx_outline_effect, "thickness", 1, false },
+	// r_program_uniform_outline_effect_mode
+	{ r_program_fx_outline_effect, "mode", 1, false },
+	// r_program_uniform_outline_effect_inside
+	{ r_program_fx_outline_effect, "inside", 1, false },
+	// r_program_uniform_outline_effect_color
+	{ r_program_fx_outline_effect, "outline_color", 1, false },
 };
 
 #ifdef C_ASSERT
@@ -1370,6 +1380,9 @@ static void GL_BuildCoreDefinitions(void)
 	GL_DefineProgram_VF(r_program_post_process, "post-process-screen", true, post_process_screen, renderer_modern, GLM_CompilePostProcessProgram, STDOPTIONS_NONE);
 	GL_DefineProgram_CS(r_program_lightmap_compute, "lightmaps", false, lighting, renderer_modern, GLM_CompileLightmapComputeProgram, STDOPTIONS_NONE);
 	GL_DefineProgram_VF(r_program_fx_world_geometry, "world-geometry", true, fx_world_geometry, renderer_modern, GLM_CompileWorldGeometryProgram, STDOPTIONS_NONE);
+	GL_DefineProgram_VF(r_program_fx_outline_seed, "outline-seed", false, fx_outline_seed, renderer_modern, GLM_CompileModelOutlineSeedProgram, STDOPTIONS_NONE);
+	GL_DefineProgram_VF(r_program_fx_outline_jfa, "outline-jfa", false, fx_outline_jfa, renderer_modern, GLM_CompileModelOutlineJfaProgram, STDOPTIONS_NONE);
+	GL_DefineProgram_VF(r_program_fx_outline_effect, "outline-effect", false, fx_outline_effect, renderer_modern, GLM_CompileModelOutlineEffectProgram, STDOPTIONS_NONE);
 	GL_DefineProgram_VF(r_program_simple, "simple", false, simple, renderer_modern, GLM_CompileSimpleProgram, STDOPTIONS_NONE);
 	GL_DefineProgram_VF(r_program_simple3d, "simple3d", false, simple3d, renderer_modern, GLM_CompileSimple3dProgram, STDOPTIONS_NONE);
 #endif

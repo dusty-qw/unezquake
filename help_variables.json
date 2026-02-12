@@ -5615,6 +5615,44 @@
         }
       ]
     },
+    "gl_outline_method": {
+      "default": "0",
+      "desc": "Selects the rendering path for model outlines.",
+      "group-id": "35",
+      "remarks": "Jump-flood outlines require vid_framebuffer 1|2 and vid_renderer 1.",
+      "type": "enum",
+      "values": [
+        {
+          "description": "Legacy geometry-expanded outline rendering",
+          "name": "0"
+        },
+        {
+          "description": "Experimental Jump-flood rendering (very expensive)",
+          "name": "1"
+        }
+      ]
+    },
+    "gl_outline_style": {
+      "default": "0",
+      "desc": "Selects the effect variant used by the modern model outline implementation.",
+      "group-id": "35",
+      "remarks": "Used only when gl_outline_method is set to 1.",
+      "type": "enum",
+      "values": [
+        {
+          "description": "Outline",
+          "name": "0"
+        },
+        {
+          "description": "Glow",
+          "name": "1"
+        },
+        {
+          "description": "Halftone",
+          "name": "2"
+        }
+      ]
+    },
     "gl_outline_color_enemy": {
       "default": "",
       "desc": "Determines the outline color of enemy players. Set to \"\" to use the value of gl_outline_color_model.",

@@ -553,9 +553,23 @@ void Help_VarDescription (const char *varname, char* buf, size_t bufsize)
 	extern cvar_t menu_advanced;
 	const json_variable_t *var;
 
-	var = JSON_Variable_Load (varname);
+	if (!buf || !bufsize || !varname) {
+		return;
+	}
+
+	var = JSON_Variable_Load(varname);
+
+	if (!var) {
+		if (menu_advanced.integer && strlen(varname)) {
+			strlcat(buf, CharsToBrownStatic("Variable Name: "), bufsize);
+			strlcat(buf, varname, bufsize);
+			strlcat(buf, "\n", bufsize);
+			strlcat(buf, "Further info not available...\n", bufsize);
+		}
+		return;
+	}
 	
-	if(menu_advanced.integer && strlen(varname)){
+	if (menu_advanced.integer && strlen(varname)) {
 		strlcat(buf, CharsToBrownStatic("Variable Name: "), bufsize);
 		strlcat(buf, varname, bufsize);
 		strlcat(buf, "\n", bufsize);
@@ -567,9 +581,6 @@ void Help_VarDescription (const char *varname, char* buf, size_t bufsize)
 		}
 	}
 	
-	if (!var)
-		return;
-
 	if (var->description && strlen (var->description) > 1) {
 		strlcat (buf, var->description, bufsize);
 		strlcat (buf, "\n", bufsize);
@@ -593,21 +604,21 @@ void Help_VarDescription (const char *varname, char* buf, size_t bufsize)
 			case t_string:
 			case t_integer:
 			case t_float:
-				strlcat (buf, description, bufsize);
+				strlcat (buf, description ? description : "", bufsize);
 				strlcat (buf, "\n", bufsize);
 				break;
 			case t_boolean:
 			case t_enum:
 			default:
-				if (var->value_type == t_boolean && !strcmp(name, "false"))
+				if (var->value_type == t_boolean && name && !strcmp(name, "false"))
 					strlcat (buf, CharsToBrownStatic("0"), bufsize);
-				else if (var->value_type == t_boolean && !strcmp(name, "true"))
+				else if (var->value_type == t_boolean && name && !strcmp(name, "true"))
 					strlcat (buf, CharsToBrownStatic("1"), bufsize);
 				else
-					strlcat (buf, CharsToBrownStatic((char*)name), bufsize);
+					strlcat (buf, CharsToBrownStatic((char*)(name ? name : "")), bufsize);
 
 				strlcat (buf, " - ", bufsize);
-				strlcat (buf, description, bufsize);
+				strlcat (buf, description ? description : "", bufsize);
 				strlcat (buf, "\n", bufsize);
 				break;
 			}
