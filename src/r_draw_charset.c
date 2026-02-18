@@ -40,7 +40,7 @@ cvar_t gl_alphafont    = { "gl_alphafont", "1" };
 cvar_t gl_consolefont  = { "gl_consolefont", "povo5", CVAR_AUTO, OnChange_gl_consolefont };
 cvar_t scr_coloredText = { "scr_coloredText", "1" };
 cvar_t gl_charsets_min = { "gl_charsets_min", "1" };
-cvar_t vid_postprocess_text = { "vid_postprocess_text", "0" };
+cvar_t vid_postprocess_text = { "vid_postprocess_text", "1" };
 
 extern cvar_t v_gamma;
 extern cvar_t v_contrast;

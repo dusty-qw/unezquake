@@ -23111,10 +23111,10 @@
       ]
     },
     "vid_postprocess_text": {
-      "default": "0",
+      "default": "1",
       "desc": "Controls whether charset text is affected by gamma/contrast postprocessing.",
       "group-id": "40",
-      "remarks": "0 keeps text neutral; 1 restores legacy behavior where text is affected by gl_gamma/gl_contrast.",
+      "remarks": "0 keeps text neutral; 1 allows text to be affected by gl_gamma/gl_contrast.",
       "type": "boolean"
     },
     "vid_gl_core_profile": {
