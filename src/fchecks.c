@@ -39,6 +39,7 @@ f_skins_reply_time,
 f_server_reply_time;
 
 cvar_t allow_f_cmdline = {"allow_f_cmdline", "1"};
+cvar_t allow_f_system  = {"allow_f_system",  "1"};
 
 extern cvar_t enemyforceskins;
 extern cvar_t cl_independentPhysics;
@@ -350,7 +351,7 @@ static qbool FChecks_SystemRequest (const char *s)
 	if (Util_F_Match(s, "f_system")) {
 		char *sys_string;
 
-		sys_string = SYSINFO_GetString();
+		sys_string = (allow_f_system.integer) ? SYSINFO_GetString() : "disabled";
 
 		//if (sys_string != NULL && sys_string[0]) {
 		Cbuf_AddText("say ");
@@ -387,6 +388,7 @@ void FChecks_Init (void)
 {
 	Cvar_SetCurrentGroup (CVAR_GROUP_CHAT);
 	Cvar_Register (&allow_f_cmdline);
+	Cvar_Register (&allow_f_system);
 	Cvar_ResetCurrentGroup();
 
 	FMod_Init();
