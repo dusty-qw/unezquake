@@ -2183,6 +2183,7 @@ void CL_Init (void)
 	CL_FixupModelNames ();
 	CL_InitInput ();
 	CL_InitEnts ();
+	CL_InitTEntCommands();
 	CL_InitTEnts ();
 	CL_InitTEntsCvar();
 	CL_InitPrediction ();

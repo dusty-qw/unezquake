@@ -1721,6 +1721,9 @@
   "speed2": {
     "description": "An alternative speed-o-meter that is drawn as a half-circle."
   },
+  "startstopwatch": {
+    "description": "Starts a stopwatch and stops it on the next explosion temp entity seen by the client, then prints the elapsed time to the console."
+  },
   "status": {
     "description": "Reports information on the current connected clients and the server."
   },

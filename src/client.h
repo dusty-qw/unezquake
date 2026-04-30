@@ -1116,6 +1116,7 @@ void	CL_SendChunkDownloadReq(void);
 void CL_InitWepSounds(void);
 
 // cl_tent.c
+void CL_InitTEntCommands(void);
 void CL_InitTEnts (void);
 void CL_InitTEntsCvar(void);
 void CL_ClearTEnts (void);

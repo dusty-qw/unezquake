@@ -58,6 +58,46 @@ cvar_t r_rlbloodColor_big = {"r_rlbloodColor_big", "73"};
 cvar_t r_sgbloodColor = {"r_sgbloodColor", "73"};
 cvar_t r_shiftbeam = {"r_shiftbeam", "0"};
 
+static qbool cl_stopwatch_active;
+static double cl_stopwatch_start_time;
+
+static double CL_StopwatchNow(void)
+{
+	return cls.demoplayback ? cls.demotime : cls.realtime;
+}
+
+static void CL_StopwatchStop(const char *explosion_name)
+{
+	double elapsed;
+
+	if (!cl_stopwatch_active) {
+		return;
+	}
+
+	elapsed = CL_StopwatchNow() - cl_stopwatch_start_time;
+	cl_stopwatch_active = false;
+
+	Com_Printf("Stopwatch stopped on %s: %.3f seconds (%.1f ms)\n", explosion_name, elapsed, elapsed * 1000.0);
+}
+
+static void CL_StartStopwatch_f(void)
+{
+	if (Cmd_Argc() != 1) {
+		Com_Printf("Usage: %s\nStarts a stopwatch and stops it on the next explosion.\n", Cmd_Argv(0));
+		return;
+	}
+
+	cl_stopwatch_start_time = CL_StopwatchNow();
+	cl_stopwatch_active = true;
+
+	Com_Printf("Stopwatch started. Waiting for the next explosion...\n");
+}
+
+void CL_InitTEntCommands(void)
+{
+	Cmd_AddCommand("startstopwatch", CL_StartStopwatch_f);
+}
+
 void CL_InitTEnts(void)
 {
 	cl_sfx_wizhit = S_PrecacheSound ("wizard/hit.wav");
@@ -85,6 +125,8 @@ void CL_ClearTEnts(void)
 	int i;
 
 	cl_explo_mod = cl_bolt1_mod = cl_bolt2_mod = cl_bolt3_mod = cl_beam_mod = NULL;
+	cl_stopwatch_active = false;
+	cl_stopwatch_start_time = 0;
 
 	memset (&cl_beams, 0, sizeof(cl_beams));
 	memset (&cl_explosions, 0, sizeof(cl_explosions));
@@ -721,6 +763,8 @@ static void CL_Parse_TE_EXPLOSION(vec3_t pos)
 		return;
 	}
 
+	CL_StopwatchStop("explosion");
+
 	if (r_explosiontype.value == 2) {
 		if (amf_part_teleport.value) {
 			VXTeleport(pos);
@@ -803,6 +847,8 @@ static void CL_Parse_TE_EXPLOSION(vec3_t pos)
 
 static void CL_Parse_TE_TAREXPLOSION(vec3_t pos)
 {
+	CL_StopwatchStop("tar explosion");
+
 	if (amf_part_blobexplosion.value) {
 		VXBlobExplosion(pos);
 	}
@@ -876,6 +922,8 @@ static void CL_Parse_TE_BLOOD(vec3_t pos)
 		if (CL_Demo_SkipMessage(true)) {
 			return;
 		}
+
+		CL_StopwatchStop("explosion");
 
 		dl = CL_AllocDlight(0);
 		VectorCopy(pos, dl->origin);
@@ -1440,4 +1488,3 @@ void CL_UpdateTEnts (void)
 	CL_UpdateExplosions();
 	CL_UpdateFakeProjectiles();
 }
-
