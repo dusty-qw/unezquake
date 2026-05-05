@@ -1418,6 +1418,12 @@
       "group-id": "21",
       "type": "boolean"
     },
+    "cl_debug_antilag_projection": {
+      "default": "0",
+      "desc": "Prints rocket spawn position deltas to the console on each new server projectile: the offset from the expected spawn point, and (if client-side projectile prediction is enabled) the offset from the predicted client-side position.",
+      "group-id": "21",
+      "type": "boolean"
+    },
     "cl_debug_antilag_self": {
       "default": "0",
       "desc": "Chooses whether to include the currently tracked player in antilag debugging.",

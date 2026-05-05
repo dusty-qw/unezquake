@@ -285,11 +285,12 @@ cvar_t cl_username              = {"cl_username", "", CVAR_QUEUED_TRIGGER, AuthU
 static void CL_Authenticate_f(void);
 
 // antilag debugging
-cvar_t cl_debug_antilag_view    = { "cl_debug_antilag_view", "0" };
-cvar_t cl_debug_antilag_ghost   = { "cl_debug_antilag_ghost", "0" };
-cvar_t cl_debug_antilag_self    = { "cl_debug_antilag_self", "0" };
-cvar_t cl_debug_antilag_lines   = { "cl_debug_antilag_lines", "0" };
-cvar_t cl_debug_antilag_send    = { "cl_debug_antilag_send", "0" };
+cvar_t cl_debug_antilag_view       = { "cl_debug_antilag_view", "0" };
+cvar_t cl_debug_antilag_ghost      = { "cl_debug_antilag_ghost", "0" };
+cvar_t cl_debug_antilag_self       = { "cl_debug_antilag_self", "0" };
+cvar_t cl_debug_antilag_lines      = { "cl_debug_antilag_lines", "0" };
+cvar_t cl_debug_antilag_send       = { "cl_debug_antilag_send", "0" };
+cvar_t cl_debug_antilag_projection = { "cl_debug_antilag_projection", "0" };
 
 // weapon-switching debugging
 cvar_t cl_debug_weapon_view     = { "cl_debug_weapon_view", "0" };
@@ -2025,6 +2026,7 @@ static void CL_InitLocal(void)
 	Cvar_Register(&cl_debug_antilag_self);
 	Cvar_Register(&cl_debug_antilag_lines);
 	Cvar_Register(&cl_debug_antilag_send);
+	Cvar_Register(&cl_debug_antilag_projection);
 
 	// debugging weapons
 	Cvar_Register(&cl_debug_weapon_view);
