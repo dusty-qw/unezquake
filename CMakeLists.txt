@@ -135,6 +135,15 @@ check_dependency(SpeexDSP "speexdsp"   "SpeexDSP"           "SPEEX::SPEEXDSP"   
 check_dependency(cURL     "libcurl"    "CURL"               "CURL::libcurl"                REQUIRED CONFIG)
 check_dependency(zlib     "zlib"       "ZLIB"               "ZLIB::ZLIB"                   REQUIRED)
 
+if(USE_SYSTEM_LIBS AND HAVE_MINIZIP)
+    find_path(EZQUAKE_MINIZIP_INCLUDE_DIR
+            NAMES unzip.h
+            HINTS ${MiniZip_INCLUDE_DIRS}
+            PATH_SUFFIXES minizip
+            REQUIRED
+    )
+endif()
+
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     find_library(FRAMEWORK_APPKIT AppKit REQUIRED)
     find_library(FRAMEWORK_FOUNDATION Foundation REQUIRED)
@@ -586,6 +595,7 @@ set(client_headers
         ${SOURCE_DIR}/config_manager.h
         ${SOURCE_DIR}/console.h
         ${SOURCE_DIR}/demo_controls.h
+        ${SOURCE_DIR}/demo_extension_voice.h
         ${SOURCE_DIR}/document_rendering.h
         ${SOURCE_DIR}/ez_button.h
         ${SOURCE_DIR}/ez_controls.h
@@ -623,6 +633,7 @@ set(client_headers
         ${SOURCE_DIR}/screen.h
         ${SOURCE_DIR}/settings.h
         ${SOURCE_DIR}/settings_page.h
+        ${SOURCE_DIR}/demo_spawnwarn.h
         ${SOURCE_DIR}/stats_grid.h
         ${SOURCE_DIR}/sys.h
         ${SOURCE_DIR}/teamplay.h
@@ -676,6 +687,8 @@ set(client
         ${SOURCE_DIR}/config_manager.c
         ${SOURCE_DIR}/console.c
         ${SOURCE_DIR}/demo_controls.c
+        ${SOURCE_DIR}/demo_extension.c
+        ${SOURCE_DIR}/demo_extension_voice.c
         ${SOURCE_DIR}/document_rendering.c
         ${SOURCE_DIR}/ez_button.c
         ${SOURCE_DIR}/ez_controls.c
@@ -711,6 +724,7 @@ set(client
         ${SOURCE_DIR}/mvd_utils.c
         ${SOURCE_DIR}/nick_override.c
         ${SOURCE_DIR}/mvd_xmlstats.c
+        ${SOURCE_DIR}/demo_spawnwarn.c
         ${SOURCE_DIR}/qtv.c
         ${SOURCE_DIR}/rulesets.c
         ${SOURCE_DIR}/sbar.c
@@ -719,6 +733,7 @@ set(client
         ${SOURCE_DIR}/snd_main.c
         ${SOURCE_DIR}/snd_mem.c
         ${SOURCE_DIR}/snd_mix.c
+        ${SOURCE_DIR}/snd_qizmo.c
         ${SOURCE_DIR}/snd_voip.c
         ${SOURCE_DIR}/stats_grid.c
         ${SOURCE_DIR}/sys_sdl2.c
@@ -831,6 +846,7 @@ add_executable(unezquake ${TARGET_TYPE}
 
 target_include_directories(unezquake PRIVATE
         ${SOURCE_DIR}/qwprot/src
+        ${EZQUAKE_MINIZIP_INCLUDE_DIR}
 )
 
 target_compile_definitions(unezquake PRIVATE

@@ -1102,7 +1102,7 @@ void S_LocalSoundWithVol(char *sound, float volume)
 // This is useful when there is one source, and the sound is to be played with no attenuation.
 //===================================================================
 
-#define MAX_RAW_CACHE (1024 * 32) // have no idea which size it actually should be.
+#define MAX_RAW_CACHE (1024 * 256)
 
 typedef struct
 {
@@ -1113,7 +1113,7 @@ typedef struct
 
 static void S_RawClearStream(streaming_t *s);
 
-#define MAX_RAW_SOURCES (MAX_CLIENTS+1)
+#define MAX_RAW_SOURCES (MAX_CLIENTS + 1 + RAW_SOURCE_DEMO_VOICE_COUNT)
 
 streaming_t s_streamers[MAX_RAW_SOURCES] = {{0}};
 
@@ -1155,8 +1155,9 @@ static void S_RawClearStream(streaming_t *s)
 	}
 
 	// free cache.
-	//if (s->sfx.buf)
-	//	Cache_Free(&s->sfx.cache);
+	if (s->sfx.buf) {
+		Q_free(s->sfx.buf);
+	}
 
 	// clear whole struct.
 	memset(s, 0, sizeof(*s));
@@ -1198,11 +1199,17 @@ void S_RawAudio(int sourceid, byte *data, unsigned int speed, unsigned int sampl
 	int				prepadl;
 	int				spare;
 	int				outsamples;
+	int				raw_flags;
+	float			raw_volume;
 	double			speedfactor;
 	sfxcache_t *	currentcache;
 	streaming_t *	s;
 
 	S_LockMixer();
+
+	raw_flags = ((sourceid >= 0 && sourceid <= RAW_SOURCE_QIZMO_VOICE) ||
+		(sourceid >= RAW_SOURCE_DEMO_VOICE_BASE && sourceid <= RAW_SOURCE_DEMO_VOICE_MAX)) ? CHANNEL_FLAG_VOICE : 0;
+	raw_volume = (raw_flags & CHANNEL_FLAG_VOICE) ? 1 : s_raw_volume.value;
 
 	// search for free slot or re-use previous one with the same sourceid.
 	s = S_RawGetFreeStream(sourceid);
@@ -1360,7 +1367,8 @@ void S_RawAudio(int sourceid, byte *data, unsigned int speed, unsigned int sampl
 #else
 			channels[i].pos -= prepadl; // * channels[i].rate;
 			channels[i].end += outsamples;
-			channels[i].master_vol = (int) (s_raw_volume.value * 255); // this should changed volume on alredy playing sound.
+			channels[i].master_vol = (int) (raw_volume * 255); // this should changed volume on alredy playing sound.
+			channels[i].flags = raw_flags;
 
 			if (channels[i].end < shw->paintedtime)
 			{
@@ -1374,7 +1382,13 @@ void S_RawAudio(int sourceid, byte *data, unsigned int speed, unsigned int sampl
 
 	//this one wasn't playing, lets start it then.
 	if (i == total_channels) {
-		S_StartSound(SELF_SOUND_ENTITY, 0, &s->sfx, r_origin, s_raw_volume.value, 0);
+		S_StartSound(SELF_SOUND_ENTITY, 0, &s->sfx, r_origin, raw_volume, 0);
+		for (i = 0; i < total_channels; i++) {
+			if (channels[i].sfx == &s->sfx) {
+				channels[i].flags = raw_flags;
+				break;
+			}
+		}
 	}
 
 	S_UnlockMixer();
