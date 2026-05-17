@@ -23,6 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "cl_slist.h"
 #include "movie.h"
 #include "logging.h"
+#include "demo_extension.h"
 #include "ignore.h"
 #include "fchecks.h"
 #include "config_manager.h"
@@ -71,6 +72,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "r_renderer.h"
 #include "r_performance.h"
 #include "r_program.h"
+#include "demo_spawnwarn.h"
 
 extern qbool ActiveApp, Minimized;
 
@@ -114,7 +116,7 @@ cvar_t  cl_pext = {"cl_pext", "1"};					// allow/disallow protocol extensions at
 cvar_t  cl_pext_limits = { "cl_pext_limits", "1" }; // enhanced protocol limits
 cvar_t  cl_pext_other = {"cl_pext_other", "0"};		// extensions which does not have own variables should be controlled by this variable.
 cvar_t  cl_pext_warndemos = { "cl_pext_warndemos", "1" }; // if set, user will be warned when saving demos that are not backwards compatible
-cvar_t  cl_pext_lagteleport = { "cl_pext_lagteleport", "0" }; // server-side adjustment of yaw angle through teleports
+cvar_t  cl_pext_lagteleport = { "cl_pext_lagteleport", "1" }; // server-side adjustment of yaw angle through teleports
 #ifdef MVD_PEXT1_SERVERSIDEWEAPON
 cvar_t  cl_pext_serversideweapon = { "cl_pext_serversideweapon", "0", 0, onchange_pext_serversideweapon }; // server-side weapon selection
 #endif
@@ -185,7 +187,7 @@ cvar_t	cl_muzzleflash = {"cl_muzzleflash", "1"};
 cvar_t	cl_rocket2grenade = {"cl_r2g", "0"};
 cvar_t	cl_demospeed = {"cl_demospeed", "1"};
 cvar_t	cl_staticsounds = {"cl_staticSounds", "1"};
-cvar_t	cl_fakeshaft = {"cl_fakeshaft", "0", 0, Rulesets_OnChange_cl_fakeshaft};
+cvar_t	cl_fakeshaft = {"cl_fakeshaft", "1", 0, Rulesets_OnChange_cl_fakeshaft};
 cvar_t	cl_fakeshaft_extra_updates = {"cl_fakeshaft_extra_updates", "1"};
 cvar_t	cl_parseWhiteText = {"cl_parseWhiteText", "1"};
 cvar_t	cl_filterdrawviewmodel = {"cl_filterdrawviewmodel", "0"};
@@ -1274,6 +1276,7 @@ void CL_ClearState (void)
 	memset(cl_lightstyle, 0, sizeof(cl_lightstyle));
 	memset(cl_entities, 0, sizeof(cl_entities));
 	memset(cl_static_entities, 0, sizeof(cl_static_entities));
+	CL_SpawnWarn_ClearPoints();
 
 	// Set entnum for all entity baselines
 	for (i = 0; i < sizeof(cl_entities) / sizeof(cl_entities[0]); ++i) {
@@ -1870,6 +1873,8 @@ static void CL_InitLocal(void)
 	Cvar_Register(&cl_nolerp_on_entity);
 	Cvar_Register(&cl_newlerp);
 	Cvar_Register(&cl_lerp_monsters);
+	Cvar_Register(&demo_spawnwarn);
+	Cvar_Register(&demo_spawnwarn_text);
 	Cvar_Register(&cl_maxfps);
 	Cvar_Register(&cl_maxfps_menu);
 	Cvar_Register(&cl_physfps);
@@ -2409,6 +2414,8 @@ void CL_LinkEntities (void)
 
 void CL_SoundFrame (void)
 {
+	DemoExtension_UpdateFrame();
+
 	if (cls.state == ca_active)
 	{
 		if (!ISPAUSED) {
@@ -2737,6 +2744,7 @@ void CL_Frame(double time)
 				first_view = false;
 
 				CL_LinkEntities();
+				CL_SpawnWarn_UpdateWarning();
 
 				SCR_CalcRefdef();
 
@@ -2784,6 +2792,7 @@ void CL_Frame(double time)
 	}
 	else {
 		CL_LinkEntities();
+		CL_SpawnWarn_UpdateWarning();
 
 		R_PerformanceBeginFrame();
 		SCR_UpdateScreen();

@@ -47,6 +47,7 @@ $Id: cl_parse.c,v 1.135 2007-10-28 19:56:44 qqshka Exp $
 #include "input.h"
 #include "qtv.h"
 #include "r_brushmodel_sky.h"
+#include "demo_spawnwarn.h"
 #include "central.h"
 #include <stdio.h>
 
@@ -614,6 +615,8 @@ void CL_Prespawn (void)
 
 	CL_TransmitModelCrc (cl_modelindices[mi_player], "pmodel");
 	CL_TransmitModelCrc (cl_modelindices[mi_eyes], "emodel");
+
+	CL_SpawnWarn_LoadPoints();
 
 #if 0
 //TEI: loading entitys from map, at clientside,
@@ -2623,6 +2626,57 @@ char *CL_Color2ConColor(int color)
 	return buf;
 }
 
+static char *CL_Color2ConColorOverride(int color)
+{
+	cvar_t *override;
+	byte rgb[4];
+	static char buf[6];
+	extern cvar_t cl_teamtopcolor, cl_enemytopcolor;
+	extern cvar_t scr_coloredfrags_team, scr_coloredfrags_enemy;
+
+	if (scr_coloredfrags_team.string[0] && color == cl_teamtopcolor.integer) {
+		override = &scr_coloredfrags_team;
+	}
+	else if (scr_coloredfrags_enemy.string[0] && color == cl_enemytopcolor.integer) {
+		override = &scr_coloredfrags_enemy;
+	}
+	else {
+		return CL_Color2ConColor(color);
+	}
+
+	if (StringToRGB_W(override->string, rgb) < 3) {
+		return CL_Color2ConColor(color);
+	}
+	buf[0] = '&';
+	buf[1] = 'c';
+	RGBToString(rgb, buf + 2);
+	buf[5] = 0;
+
+	return buf;
+}
+
+static void CL_CopyFragName(wchar *dest, const wchar *source, int len, int destlen)
+{
+	extern cvar_t scr_coloredfrags_normalize;
+
+	char name[MAX_SCOREBOARDNAME];
+	int i;
+
+	if (!scr_coloredfrags_normalize.integer) {
+		qwcslcpy(dest, source, bound(0, len + 1, destlen));
+		return;
+	}
+
+	len = bound(0, len, sizeof(name) - 1);
+	for (i = 0; i < len; i++) {
+		name[i] = source[i];
+	}
+	name[len] = 0;
+
+	Q_normalizetext(name);
+	qwcslcpy(dest, str2wcs(name), bound(0, len + 1, destlen));
+}
+
 // Will add colors to nicks in "ParadokS rides JohnNy_cz's rocket"
 // source - source frag message, dest - destination buffer, destlen - length of buffer
 // cff - see the cfrags_format definition 
@@ -2634,8 +2688,8 @@ static wchar* CL_ColorizeFragMessage (const wchar *source, cfrags_format *cff)
 
 	dest[0] = 0; // new string
 
-	qwcslcpy(col1, str2wcs(CL_Color2ConColor(cff->p1col)), sizeof(col1)/sizeof(wchar));
-	qwcslcpy(col2, str2wcs(CL_Color2ConColor(cff->p2col)), sizeof(col2)/sizeof(wchar));
+	qwcslcpy(col1, str2wcs(CL_Color2ConColorOverride(cff->p1col)), sizeof(col1)/sizeof(wchar));
+	qwcslcpy(col2, str2wcs(CL_Color2ConColorOverride(cff->p2col)), sizeof(col2)/sizeof(wchar));
 
 	// before 1st nick
 	qwcslcpy(dest, source, bound(0, cff->p1pos + 1, destlen));
@@ -2648,7 +2702,7 @@ static wchar* CL_ColorizeFragMessage (const wchar *source, cfrags_format *cff)
 	destlen -= (len = qwcslen(dest));
 	dest += len;
 	// 1st nick
-	qwcslcpy(dest, source + cff->p1pos, bound(0, cff->p1len + 1, destlen));
+	CL_CopyFragName(dest, source + cff->p1pos, cff->p1len, destlen);
 	destlen -= (len = qwcslen(dest));
 	dest += len;
 	// color off
@@ -2669,7 +2723,7 @@ static wchar* CL_ColorizeFragMessage (const wchar *source, cfrags_format *cff)
 		destlen -= (len = qwcslen(dest));
 		dest += len;
 		// 2nd nick
-		qwcslcpy(dest, source + cff->p2pos, bound(0, cff->p2len + 1, destlen));
+		CL_CopyFragName(dest, source + cff->p2pos, cff->p2len, destlen);
 		destlen -= (len = qwcslen(dest));
 		dest += len;
 		// color off
@@ -3624,6 +3678,7 @@ void CL_SetStat (int stat, int value)
 	// Reset safestrafe state when respawning (health goes from 0 or less to positive)
 	if (stat == STAT_HEALTH && value > 0 && cl.stats[stat] <= 0 && !cl.spectator) {
 		memset(&cl.safestrafe, 0, sizeof(cl.safestrafe));
+		CL_SpawnWarn_SuppressAfterRespawn();
 	}
 
 	cl.stats[stat] = value;
@@ -3794,28 +3849,23 @@ void CL_MuzzleFlash (void)
 
 void CL_ParseQizmoVoice (void) 
 {
-	/* hifi: removed unused warnings, kept null logic */
-	int i;
-	MSG_ReadByte();
-	MSG_ReadByte();
+	byte frame_data[33];
+	byte sequence_low;
+	int sequence;
+	int voice_id;
 
-	for (i = 0; i < 32; i++)
-		MSG_ReadByte();
-	/*
-	   int i, seq, bits;
+	// Qizmo prefixes each frame with one low sequence byte. The next byte is
+	// mixed: bits 4-5 extend the sequence, bits 6-7 identify the voice burst,
+	// and the low nibble remains GSM data restored before decoding.
+	sequence_low = MSG_ReadByte();
 
-	// Read the two-byte header.
-	seq = MSG_ReadByte();
-	bits = MSG_ReadByte();
+	MSG_ReadData(frame_data, sizeof(frame_data));
+	sequence = sequence_low | ((frame_data[0] & 0x30) << 4);
+	voice_id = frame_data[0] >> 6;
 
-	seq |= (bits & 0x30) << 4;	// 10-bit block sequence number, strictly increasing
-	num = bits >> 6;			// 2-bit sample number, bumped at the start of a new sample
-	unknown = bits & 0x0f;		// mysterious 4 bits.  volume multiplier maybe?
-
-	// 32 bytes of voice data follow
-	for (i = 0; i < 32; i++)
-	MSG_ReadByte();
-	*/
+	if (!CL_Demo_SkipMessage(true)) {
+		S_QizmoVoice_PlayFrame(sequence, voice_id, frame_data, sizeof(frame_data));
+	}
 }
 
 #define SHOWNET(x) {if (cl_shownet.value == 2) Com_Printf ("%3i:%s\n", msg_readcount - 1, x);}
