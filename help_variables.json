@@ -2638,6 +2638,55 @@
       "group-id": "53",
       "type": "float"
     },
+    "cl_spray_show": {
+      "default": "0.5",
+      "desc": "Controls the local display opacity of spray decals.",
+      "group-id": "50",
+      "remarks": "Set to 0 to hide all sprays, or use partial values to control opacity.",
+      "type": "float"
+    },
+    "cl_spray_colorize": {
+      "default": "",
+      "desc": "Colorizes all spray decals to the specified RGB color. Does not affect how others see the image.",
+      "group-id": "50",
+      "remarks": "Example: \"100 200 100\" gives sprays a green tint.",
+      "type": "string"
+    },
+    "cl_spray_distance": {
+      "default": "512",
+      "desc": "Maximum distance, in map units, that the spray command traces from your view before placing a spray.",
+      "group-id": "50",
+      "remarks": "",
+      "type": "float"
+    },
+    "cl_spray_image": {
+      "default": "spray",
+      "desc": "Filename of image to be used for spray, with extension omitted.",
+      "group-id": "50",
+      "remarks": "",
+      "type": "string"
+    },
+    "cl_spray_image_path": {
+      "default": "qw/sprays",
+      "desc": "Directory where spray images are loaded from.",
+      "group-id": "50",
+      "remarks": "",
+      "type": "string"
+    },
+    "cl_spray_preview_alpha": {
+      "default": "0.125",
+      "desc": "Opacity used for the +spray preview.",
+      "group-id": "50",
+      "remarks": "",
+      "type": "float"
+    },
+    "cl_spray_size": {
+      "default": "64",
+      "desc": "Maximum displayed axis size, in map units, of newly placed spray decals.",
+      "group-id": "50",
+      "remarks": "This affects the displayed decal size on the map, not the source image dimensions. Aspect ratio is preserved.",
+      "type": "float"
+    },
     "cl_safestrafe": {
       "default": "0",
       "desc": "Enables safestrafe mode in client regardless of server enforcement.",

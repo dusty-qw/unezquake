@@ -1174,6 +1174,11 @@ void CL_ParseProjectiles(qbool indexed);
 void CL_InitPrediction(void);
 void CL_PredictMove(qbool physframe);
 void CL_PredictUsercmd(player_state_t *from, player_state_t *to, usercmd_t *u, int local);
+void CL_InitSprays(void);
+void CL_SpraysAddToScene(void);
+void CL_SpraysDisconnect(void);
+void CL_SpraysParseServerMessage(void);
+void CL_SpraysUploadNext(void);
 void CL_DisableLerpMove(void);
 
 // cl_cam.c

@@ -680,6 +680,7 @@ set(client
         ${SOURCE_DIR}/cl_screenshot.c
         ${SOURCE_DIR}/cl_skygroups.c
         ${SOURCE_DIR}/cl_slist.c
+        ${SOURCE_DIR}/cl_sprays.c
         ${SOURCE_DIR}/cl_tent.c
         ${SOURCE_DIR}/cl_view.c
         ${SOURCE_DIR}/collision.c

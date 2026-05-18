@@ -1334,6 +1334,8 @@ void CL_SendCmd(void)
 		return;
 	}
 
+	CL_SpraysUploadNext();
+
 	SZ_Init(&buf, data, sizeof(data));
 
 	SZ_Write(&buf, cls.cmdmsg.data, cls.cmdmsg.cursize);
