@@ -32,6 +32,22 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "r_program.h"
 #include "r_renderer.h"
 
+extern cvar_t cl_spray_colorize;
+
+static void GLM_Set3DSpriteSprayTint(qbool enabled)
+{
+	float tint[4] = { 1, 1, 1, 0 };
+
+	if (enabled && cl_spray_colorize.string[0]) {
+		tint[0] = cl_spray_colorize.color[0] / 255.0f;
+		tint[1] = cl_spray_colorize.color[1] / 255.0f;
+		tint[2] = cl_spray_colorize.color[2] / 255.0f;
+		tint[3] = 1;
+	}
+
+	R_ProgramUniform4fv(r_program_uniform_sprite3d_spray_tint, tint);
+}
+
 static void GLM_Create3DSpriteVAO(void)
 {
 	R_Sprite3DCreateVBO();
@@ -158,6 +174,7 @@ void GLM_Draw3DSprites(void)
 		}
 		first_batch = false;
 
+		GLM_Set3DSpriteSprayTint(batch->id == SPRITE3D_DECALS);
 		R_ApplyRenderingState(batch->rendering_state);
 		if (R_TextureReferenceIsValid(batch->texture)) {
 			renderer.TextureUnitBind(0, batch->texture);

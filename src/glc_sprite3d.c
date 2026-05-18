@@ -30,8 +30,25 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "glc_vao.h"
 #include "tr_types.h"
 #include "glc_local.h"
+#include "r_program.h"
 #include "r_renderer.h"
 #include "r_texture.h"
+
+extern cvar_t cl_spray_colorize;
+
+static void GLC_Set3DSpriteSprayTint(qbool enabled)
+{
+	float tint[4] = { 1, 1, 1, 0 };
+
+	if (enabled && cl_spray_colorize.string[0]) {
+		tint[0] = cl_spray_colorize.color[0] / 255.0f;
+		tint[1] = cl_spray_colorize.color[1] / 255.0f;
+		tint[2] = cl_spray_colorize.color[2] / 255.0f;
+		tint[3] = 1;
+	}
+
+	R_ProgramUniform4fv(r_program_uniform_sprites_glc_sprayTint, tint);
+}
 
 static void GLC_Create3DSpriteVAO(void)
 {
@@ -225,6 +242,10 @@ void GLC_Draw3DSpritesInline(void)
 
 		if (!batch->count) {
 			continue;
+		}
+
+		if (R_ProgramInUse() == r_program_sprites_glc) {
+			GLC_Set3DSpriteSprayTint(batch->id == SPRITE3D_DECALS);
 		}
 
 		if (buffers.supported) {

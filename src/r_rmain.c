@@ -892,6 +892,7 @@ void R_RenderView(void)
 
 	// Adds 3d effects (particles, lights, chat icons etc)
 	R_Render3DEffects();
+	CL_SpraysAddToScene();
 
 	// Render billboards
 	renderer.Draw3DSpritesInline();

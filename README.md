@@ -4,6 +4,19 @@ unezQuake is a fork of the ezQuake client that aims to bring more permissive sta
 ## Features
 unezQuake has all of the latest ezQuake features, plus:
 
+### Spray Decals
+unezQuake now has full support for spray decals in game. Place a spray.png image in qw/sprays and bind a key to +spray. 
+128x128 maximum resolution. Larger images will be downscaled within the client.
+
+ * `+spray` - displays a preview of your spray, commits on release
+ * `cl_spray_show` - visibility of images. Use partial values to control opacity
+ * `cl_spray_image` - the name of the image you wish to use
+ * `cl_spray_image_path` - the path to your spray images
+ * `cl_spray_size` - how large you want your spray image to appear in game
+ * `cl_spray_preview_alpha` - how transparent your spray preview will appear
+ * `cl_spray_colorize` - tint all sprays to match your color scheme
+ * `cl_spray_distance` - how close you need to be from a surface to 
+
 ### Antilag Support
 
  * `cl_predict_buffer` - how many frames are buffered before prediction is used. `"0"` is the fastest but will result in more errors like phantom rockets
