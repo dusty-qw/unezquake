@@ -132,6 +132,11 @@ kbutton_t in_mlook, in_klook;
 kbutton_t in_left, in_right, in_forward, in_back;
 kbutton_t in_lookup, in_lookdown, in_moveleft, in_moveright;
 kbutton_t in_strafe, in_speed, in_use, in_jump, in_autohop, in_attack, in_attack2;
+
+static int in_ar_weapon_orders[MAX_ANTIROLLOVER_LEVELS][MAXWEAPONS];
+static int in_ar_keycodes[MAX_ANTIROLLOVER_LEVELS];
+static int in_ar_count;
+
 kbutton_t in_up, in_down;
 
 
@@ -327,17 +332,17 @@ static void IN_AntiRolloverFireKeyDown(int key_code)
 		int i;
 
 		// shouldn't happen, but prevent duplicates
-		for (i = 0; i < cl.ar_count; ++i) {
-			if (cl.ar_keycodes[i] == key_code) {
+		for (i = 0; i < in_ar_count; ++i) {
+			if (in_ar_keycodes[i] == key_code) {
 				return;
 			}
 		}
 
 		// add to the stack
-		if (cl.ar_count < sizeof(cl.ar_keycodes) / sizeof(cl.ar_keycodes[0])) {
-			cl.ar_keycodes[cl.ar_count] = key_code;
-			memcpy(cl.ar_weapon_orders[cl.ar_count], cl.weapon_order, sizeof(cl.ar_weapon_orders[cl.ar_count]));
-			++cl.ar_count;
+		if (in_ar_count < sizeof(in_ar_keycodes) / sizeof(in_ar_keycodes[0])) {
+			in_ar_keycodes[in_ar_count] = key_code;
+			memcpy(in_ar_weapon_orders[in_ar_count], cl.weapon_order, sizeof(in_ar_weapon_orders[in_ar_count]));
+			++in_ar_count;
 		}
 	}
 }
@@ -345,15 +350,16 @@ static void IN_AntiRolloverFireKeyDown(int key_code)
 static void IN_AntiRolloverFireKeyUp(int key_code)
 {
 	int i;
+	qbool removed = false;
 
-	if (cl.ar_count > 0 && cl.ar_keycodes[cl.ar_count - 1] == key_code) {
+	if (in_ar_count > 0 && in_ar_keycodes[in_ar_count - 1] == key_code) {
 		// Found in most recent position: use weaponlist from previously pressed button
-		--cl.ar_count;
+		--in_ar_count;
 
-		if (cl.ar_count > 0) {
-			int prev = cl.ar_count - 1;
+		if (in_ar_count > 0) {
+			int prev = in_ar_count - 1;
 
-			memcpy(cl.weapon_order, cl.ar_weapon_orders[prev], sizeof(cl.weapon_order));
+			memcpy(cl.weapon_order, in_ar_weapon_orders[prev], sizeof(cl.weapon_order));
 			in_impulse = IN_BestWeapon(false);
 			KeyDown_common(&in_attack, NULL_KEY);
 		}
@@ -364,13 +370,18 @@ static void IN_AntiRolloverFireKeyUp(int key_code)
 	}
 	else {
 		// Not the most recent, so just remove from the list silently
-		for (i = 0; i < cl.ar_count - 1; ++i) {
-			if (cl.ar_keycodes[i] == key_code) {
-				memcpy(&cl.ar_keycodes[i], &cl.ar_keycodes[i + 1], sizeof(cl.ar_keycodes[0]) * (cl.ar_count - 1 - i));
-				memcpy(&cl.ar_weapon_orders[i], &cl.ar_weapon_orders[i + 1], sizeof(cl.ar_weapon_orders[0]) * (cl.ar_count - 1 - i));
+		for (i = 0; i < in_ar_count - 1; ++i) {
+			if (in_ar_keycodes[i] == key_code) {
+				memcpy(&in_ar_keycodes[i], &in_ar_keycodes[i + 1], sizeof(in_ar_keycodes[0]) * (in_ar_count - 1 - i));
+				memcpy(&in_ar_weapon_orders[i], &in_ar_weapon_orders[i + 1], sizeof(in_ar_weapon_orders[0]) * (in_ar_count - 1 - i));
 				--i;
-				--cl.ar_count;
+				--in_ar_count;
+				removed = true;
 			}
+		}
+
+		if (!removed && in_ar_count <= 0 && KeyUp_common(&in_attack, NULL_KEY)) {
+			IN_AttackUp_CommonHide();
 		}
 	}
 }
