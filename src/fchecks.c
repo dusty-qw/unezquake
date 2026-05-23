@@ -58,7 +58,7 @@ extern cvar_t scr_allowsnap;
 
 static void FChecks_VersionResponse (void)
 {
-	Cbuf_AddText (va("say {unezQuake &c9f6%s&r &c777%s&r " QW_PLATFORM ":" QW_RENDERER "}\n", VERSION_NUMBER, VersionHash()));
+	Cbuf_AddText (va("say {unezQuake &cf44%s&r &c777%s&r " QW_PLATFORM ":" QW_RENDERER "}\n", VERSION_NUMBER, VersionHash()));
 }
 
 static char *FChecks_FServerResponse_Text(void)
