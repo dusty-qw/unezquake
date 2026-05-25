@@ -21,11 +21,31 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // snd_mem.c -- sound caching
 
 #include "quakedef.h"
+#include "builtin_sounds.h"
 #include "fmod.h"
 #include "qsound.h"
 #ifndef OLD_WAV_LOADING
 #include "sndfile.h"
 #endif
+
+static unsigned char *S_LoadSoundFileData(char *path, int *filesize)
+{
+	const byte *builtin;
+	unsigned char *copy;
+
+	builtin = S_BuiltinSoundData(path, filesize);
+	if (builtin) {
+		// Built-in assets are stored as const executable data. The old WAV
+		// loader can byte-swap/bias samples in-place, so hand sound loading a
+		// temporary writable copy just like FS_LoadTempFile would.
+		copy = Hunk_TempAlloc(*filesize + 1);
+		memcpy(copy, builtin, *filesize);
+		copy[*filesize] = 0;
+		return copy;
+	}
+
+	return FS_LoadTempFile(path, filesize);
+}
 
 #define LINEARUPSCALE(in, inrate, insamps, out, outrate, outlshift, outrshift) \
 	{ \
@@ -746,7 +766,7 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 	// load it in
 	snprintf(namebuffer, sizeof(namebuffer), "sound/%s", s->name);
 
-	if (!(data = FS_LoadTempFile(namebuffer, &filesize))) {
+	if (!(data = S_LoadSoundFileData(namebuffer, &filesize))) {
 		Com_Printf ("Couldn't load %s\n", namebuffer);
 		return NULL;
 	}
@@ -995,7 +1015,7 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 	// load it in
 	snprintf(namebuffer, sizeof(namebuffer), "sound/%s", s->name);
 
-	if (!(data = FS_LoadTempFile(namebuffer, &filesize))) {
+	if (!(data = S_LoadSoundFileData(namebuffer, &filesize))) {
 		Com_Printf ("Couldn't load %s\n", namebuffer);
 		return NULL;
 	}
