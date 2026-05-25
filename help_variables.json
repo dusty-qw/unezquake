@@ -2680,6 +2680,20 @@
       "remarks": "",
       "type": "float"
     },
+    "cl_spray_reject_sound": {
+      "default": "builtin/reject.flac",
+      "desc": "Sound played locally when a spray command is rejected.",
+      "group-id": "50",
+      "remarks": "Set to an empty string to disable the reject sound.",
+      "type": "string"
+    },
+    "cl_spray_sound": {
+      "default": "builtin/spray.flac",
+      "desc": "Sound played from the spray location when a spray decal is placed.",
+      "group-id": "50",
+      "remarks": "Set to an empty string to disable the placement sound.",
+      "type": "string"
+    },
     "cl_spray_size": {
       "default": "64",
       "desc": "Maximum displayed axis size, in map units, of newly placed spray decals.",

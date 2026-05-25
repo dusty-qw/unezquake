@@ -24,6 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "r_renderer.h"
 #include "r_sprite3d.h"
 #include "r_texture.h"
+#include "qsound.h"
 #include "image.h"
 
 cvar_t cl_spray_show = {"cl_spray_show", "0.5"};
@@ -33,6 +34,8 @@ cvar_t cl_spray_image_path = {"cl_spray_image_path", "qw/sprays"};
 cvar_t cl_spray_distance = {"cl_spray_distance", "512"};
 cvar_t cl_spray_size = {"cl_spray_size", "64"};
 cvar_t cl_spray_preview_alpha = {"cl_spray_preview_alpha", "0.125"};
+cvar_t cl_spray_sound = {"cl_spray_sound", "builtin/spray.flac"};
+cvar_t cl_spray_reject_sound = {"cl_spray_reject_sound", "builtin/reject.flac"};
 
 // Client-local only: these decals are visual state, not network/protocol state.
 #define CL_MAX_SPRAYS 64
@@ -163,10 +166,15 @@ static int cl_spray_upload_next_id = 1;
 static qbool cl_spray_preview_active;
 static model_t *cl_spray_worldmodel;
 static qbool cl_spray_warning;
+static sfx_t *cl_spray_sfx;
+static char cl_spray_sfx_name[MAX_QPATH];
+static sfx_t *cl_spray_reject_sfx;
+static char cl_spray_reject_sfx_name[MAX_QPATH];
 
 static void CL_SprayCancelUpload(void);
 static void CL_SprayClearServerImageCache(void);
 static void CL_SprayClearLocalTextureHashes(void);
+static void CL_SprayPlayRejectSound(void);
 
 #ifdef RENDERER_OPTION_MODERN_OPENGL
 void GL_AddTextureToArray(texture_ref arrayTexture, int index, texture_ref tex2dname, qbool tile);
@@ -317,6 +325,7 @@ static byte *CL_SprayLoadNormalizedPixels(const char *filename, int *width, int 
 	if (!source_pixels) {
 		if (!quiet) {
 			Com_Printf("spray: couldn't load image \"%s\"\n", filename);
+			CL_SprayPlayRejectSound();
 		}
 		return NULL;
 	}
@@ -325,6 +334,7 @@ static byte *CL_SprayLoadNormalizedPixels(const char *filename, int *width, int 
 		Q_free(source_pixels);
 		if (!quiet) {
 			Com_Printf("spray: image \"%s\" has invalid dimensions\n", filename);
+			CL_SprayPlayRejectSound();
 		}
 		return NULL;
 	}
@@ -424,6 +434,7 @@ static texture_ref CL_SprayCacheTexture(cl_spray_texture_t *cached, int *texture
 		if (!R_TextureReferenceIsValid(cached->texture)) {
 			if (!quiet) {
 				Com_Printf("spray: couldn't load image \"%s\"\n", cached->name);
+				CL_SprayPlayRejectSound();
 			}
 			return null_texture_reference;
 		}
@@ -530,6 +541,7 @@ static texture_ref CL_SprayTextureForRenderer(int *texture_index, int *width, in
 	if (cl_spray_texture_count == CL_MAX_SPRAY_TEXTURES) {
 		if (!quiet) {
 			Com_Printf("spray: too many spray images loaded\n");
+			CL_SprayPlayRejectSound();
 		}
 		return null_texture_reference;
 	}
@@ -912,6 +924,7 @@ static qbool CL_SprayCanUse(qbool quiet)
 	if (cls.state != ca_active || !cl.worldmodel) {
 		if (!quiet) {
 			Com_Printf("spray: not in a map\n");
+			CL_SprayPlayRejectSound();
 		}
 		return false;
 	}
@@ -919,6 +932,7 @@ static qbool CL_SprayCanUse(qbool quiet)
 	if (cl.spectator) {
 		if (!quiet) {
 			Com_Printf("spectators cannot spray\n");
+			CL_SprayPlayRejectSound();
 		}
 		return false;
 	}
@@ -958,6 +972,7 @@ static qbool CL_SprayCreateAtCrosshair(cl_spray_t *spray, qbool quiet)
 	if (trace.fraction == 1 || trace.e.entnum != 0) {
 		if (!quiet) {
 			Com_Printf("spray: no flat map surface under crosshair\n");
+			CL_SprayPlayRejectSound();
 		}
 		return false;
 	}
@@ -966,6 +981,7 @@ static qbool CL_SprayCreateAtCrosshair(cl_spray_t *spray, qbool quiet)
 	if (!surf) {
 		if (!quiet) {
 			Com_Printf("spray: no flat map surface under crosshair\n");
+			CL_SprayPlayRejectSound();
 		}
 		return false;
 	}
@@ -982,6 +998,7 @@ static qbool CL_SprayCreateAtCrosshair(cl_spray_t *spray, qbool quiet)
 	if (!CL_SprayPointFits(spray_center, normal, right, up, half_width, half_height)) {
 		if (!quiet) {
 			Com_Printf("spray: surface is too small\n");
+			CL_SprayPlayRejectSound();
 		}
 		return false;
 	}
@@ -1039,6 +1056,42 @@ static void CL_SprayRejectUpload(int id)
 		}
 		CL_SprayCancelUpload();
 		Com_Printf("spray: server denied spray\n");
+		CL_SprayPlayRejectSound();
+	}
+}
+
+static sfx_t *CL_SprayResolveSound(cvar_t *cvar, sfx_t **cache, char cache_name[MAX_QPATH])
+{
+	const char *sound = cvar->string;
+
+	if (!sound[0]) {
+		return NULL;
+	}
+
+	// Cache the configured sound lazily so changing the cvar takes effect
+	// without precaching every possible user-provided sample at startup.
+	if (!*cache || strcmp(cache_name, sound)) {
+		strlcpy(cache_name, sound, MAX_QPATH);
+		*cache = S_PrecacheSound((char *)sound);
+	}
+	return *cache;
+}
+
+static void CL_SprayPlayPlacementSound(vec3_t origin)
+{
+	sfx_t *sfx = CL_SprayResolveSound(&cl_spray_sound, &cl_spray_sfx, cl_spray_sfx_name);
+
+	if (sfx) {
+		S_StartSound(-1, 0, sfx, origin, 3, 1);
+	}
+}
+
+static void CL_SprayPlayRejectSound(void)
+{
+	sfx_t *sfx = CL_SprayResolveSound(&cl_spray_reject_sound, &cl_spray_reject_sfx, cl_spray_reject_sfx_name);
+
+	if (sfx) {
+		S_StartSound(cl.playernum + 1, -1, sfx, vec3_origin, 1, 0);
 	}
 }
 
@@ -1076,11 +1129,13 @@ static void CL_SprayQueueUpload(int placed_index)
 			Com_Printf("WARNING: spray decals not supported on this server. Only you can see them.\n");
 			cl_spray_warning = true;
 		}
+		CL_SprayPlayPlacementSound(spray->origin);
 		return;
 	}
 
 	if (cl_spray_upload.active) {
 		Com_Printf("spray: network upload already in progress\n");
+		CL_SprayPlayRejectSound();
 		memset(spray, 0, sizeof(*spray));
 		return;
 	}
@@ -1398,6 +1453,7 @@ static void CL_SprayCommitServerTexture(int id, texture_ref texture, vec3_t orig
 	spray.half_height = half_height;
 	spray.alpha = alpha;
 	CL_SprayCommit(&spray);
+	CL_SprayPlayPlacementSound(spray.origin);
 }
 
 static void CL_SprayPlaceServerImage(cl_server_spray_image_t *image)
@@ -1580,6 +1636,7 @@ void CL_SpraysParseServerMessage(void)
 			// not the short-lived local upload id.
 			if (placed_index >= 0 && placed_index < CL_MAX_SPRAYS && cl_sprays[placed_index].upload_id == id) {
 				cl_sprays[placed_index].upload_id = server_id;
+				CL_SprayPlayPlacementSound(cl_sprays[placed_index].origin);
 			}
 			if (!cl_spray_upload.send_pixels) {
 				CL_SprayCancelUpload();
@@ -1672,5 +1729,7 @@ void CL_InitSprays(void)
 	Cvar_Register(&cl_spray_distance);
 	Cvar_Register(&cl_spray_size);
 	Cvar_Register(&cl_spray_preview_alpha);
+	Cvar_Register(&cl_spray_sound);
+	Cvar_Register(&cl_spray_reject_sound);
 	Cvar_ResetCurrentGroup();
 }

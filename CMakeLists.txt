@@ -730,6 +730,7 @@ set(client
         ${SOURCE_DIR}/sbar.c
         ${SOURCE_DIR}/settings_page.c
         ${SOURCE_DIR}/skin.c
+        ${SOURCE_DIR}/builtin_sounds.c
         ${SOURCE_DIR}/snd_main.c
         ${SOURCE_DIR}/snd_mem.c
         ${SOURCE_DIR}/snd_mix.c
