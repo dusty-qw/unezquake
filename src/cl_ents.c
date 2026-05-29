@@ -31,6 +31,7 @@ static int MVD_TranslateFlags(int src);
 void TP_ParsePlayerInfo(player_state_t *, player_state_t *, player_info_t *info);	
 
 extern cvar_t cl_predict_players, cl_solid_players, cl_rocket2grenade;
+extern cvar_t cl_debug_antilag_projection;
 extern cvar_t cl_predict_half, cl_predict_scale, cl_predict_lerp;
 extern cvar_t cl_predict_scale_threshold;
 extern cvar_t cl_predict_show_errors;
@@ -647,8 +648,47 @@ void FlushEntityPacket (void) {
 	}
 }
 
+static void CL_DebugAntilagProjection(vec3_t origin, vec3_t forward, vec3_t cs_proj_origin)
+{
+	int i, best = -1;
+	float best_dist = 1e30f;
+
+	// Find nearest player to the origin
+	for (i = 0; i < MAX_CLIENTS; i++) {
+		player_state_t *ps = &cl.frames[cl.parsecountmod].playerstate[i];
+		if (!cl.players[i].name[0] || cl.players[i].spectator || !ps->modelindex)
+			continue;
+		vec3_t diff;
+		VectorSubtract(origin, ps->origin, diff);
+		float d = VectorLength(diff);
+		if (d < best_dist) { best_dist = d; best = i; }
+	}
+
+	if (best < 0) {
+		Con_Printf("antilag debug: no active players\n");
+		return;
+	}
+
+	// Compute expected rocket position based on ktx mod code
+	player_state_t *ps = &cl.frames[cl.parsecountmod].playerstate[best];
+	vec3_t expected, diff;
+	expected[0] = ps->origin[0] + forward[0] * 8;
+	expected[1] = ps->origin[1] + forward[1] * 8;
+	expected[2] = ps->origin[2] + forward[2] * 8 + 16;
+	VectorSubtract(origin, expected, diff);
+
+	// Additionally, if we have a client side projectile, include the delta between it and the server side projectile
+	if (cs_proj_origin) {
+		vec3_t cs_diff;
+		VectorSubtract(origin, cs_proj_origin, cs_diff);
+		Con_Printf("antilag debug deltas: spawn: %.1fu client: %.1fu\n", VectorLength(diff), VectorLength(cs_diff));
+	} else {
+		Con_Printf("antilag debug deltas: spawn: %.1f client: disabled\n", VectorLength(diff));
+	}
+}
+
 // An svc_packetentities has just been parsed, deal with the rest of the data stream.
-void CL_ParsePacketEntities (qbool delta) 
+void CL_ParsePacketEntities (qbool delta)
 {
 	int oldpacket, newpacket, oldindex, newindex, word, newnum, oldnum;
 	packet_entities_t *oldp, *newp, dummy;
@@ -822,7 +862,16 @@ void CL_ParsePacketEntities (qbool delta)
 				Host_Error ("CL_ParsePacketEntities: newindex == MAX_PACKET_ENTITIES");
 
 			CL_ParseDelta (&cl_entities[newnum].baseline, &newp->entities[newindex], word);
-			CL_SetupPacketEntity (newnum, &newp->entities[newindex], word > 511); 
+			if (cl_debug_antilag_projection.value) {
+				int idx = newp->entities[newindex].modelindex;
+				if (idx == cl_modelindices[mi_rocket]
+						&& cl.validsequence - cl_entities[newnum].sequence > 2) {
+					vec3_t fwd;
+					AngleVectors(newp->entities[newindex].angles, fwd, NULL, NULL);
+					CL_DebugAntilagProjection(newp->entities[newindex].origin, fwd, NULL);
+				}
+			}
+			CL_SetupPacketEntity (newnum, &newp->entities[newindex], word > 511);
 			newindex++;
 			continue;
 		}
@@ -1143,6 +1192,19 @@ void CL_ParsePacketSimpleProjectiles(void)
 		{
 			cs_sproj->fproj_number = -1;
 			cs_sproj->fproj_number = CL_SimpleProjectile_MatchFakeProj(cs_sproj, word);
+
+			if (cl_debug_antilag_projection.value && cs_sproj->modelindex == cl_modelindices[mi_rocket]) {
+				vec3_t fwd;
+				float speed = VectorLength(cs_sproj->velocity);
+				if (speed > 0) {
+					VectorScale(cs_sproj->velocity, 1.0f / speed, fwd);
+				} else {
+					AngleVectors(cs_sproj->angles, fwd, NULL, NULL);
+				}
+				float *cs_origin = (cs_sproj->fproj_number >= 0) ? cl_fakeprojectiles[cs_sproj->fproj_number].org : NULL;
+				CL_DebugAntilagProjection(cs_sproj->origin, fwd, cs_origin);
+			}
+
 			if (cs_sproj->fproj_number < 0)
 			{
 				mis_new = 2;
