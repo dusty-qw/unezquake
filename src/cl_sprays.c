@@ -109,6 +109,7 @@ typedef struct cl_spray_s {
 typedef struct cl_server_spray_image_s {
 	qbool active;
 	qbool have_begin;
+	qbool silent;
 
 	// Complete entries are an image cache, not just receive buffers. MVDSV may
 	// later send only placement data if it knows this client has the hash.
@@ -1758,7 +1759,7 @@ static void CL_SprayClearServerImageCache(void)
 	}
 }
 
-static void CL_SprayCommitServerTexture(int id, texture_ref texture, vec3_t origin, vec3_t right, vec3_t up, float half_width, float half_height, float alpha)
+static void CL_SprayCommitServerTexture(int id, texture_ref texture, vec3_t origin, vec3_t right, vec3_t up, float half_width, float half_height, float alpha, qbool silent)
 {
 	cl_spray_t spray;
 
@@ -1776,7 +1777,12 @@ static void CL_SprayCommitServerTexture(int id, texture_ref texture, vec3_t orig
 	spray.half_height = half_height;
 	spray.alpha = alpha;
 	CL_SprayCommit(&spray);
-	CL_SprayPlayPlacementSound(spray.origin);
+
+	// Existing-map backfill can finish long after the normal signon reaches
+	// ca_active, so sound suppression must come from the spray message itself.
+	if (!silent) {
+		CL_SprayPlayPlacementSound(spray.origin);
+	}
 }
 
 static void CL_SprayPlaceServerImage(cl_server_spray_image_t *image)
@@ -1795,10 +1801,10 @@ static void CL_SprayPlaceServerImage(cl_server_spray_image_t *image)
 	// Once the raw bytes are complete, convert the receive buffer into the same
 	// renderable spray representation used by local decals.
 	image->complete = true;
-	CL_SprayCommitServerTexture(image->id, texture, image->origin, image->right, image->up, image->half_width, image->half_height, image->alpha);
+	CL_SprayCommitServerTexture(image->id, texture, image->origin, image->right, image->up, image->half_width, image->half_height, image->alpha, image->silent);
 }
 
-static void CL_SprayTrackResolvedServerImage(int id, unsigned long long hash, int width, int height, int byte_count, texture_ref texture)
+static void CL_SprayTrackResolvedServerImage(int id, unsigned long long hash, int width, int height, int byte_count, texture_ref texture, qbool silent)
 {
 	cl_server_spray_image_t *image = CL_SprayServerImageForId(id);
 
@@ -1807,6 +1813,7 @@ static void CL_SprayTrackResolvedServerImage(int id, unsigned long long hash, in
 	// chunks can be consumed without being mistaken for an out-of-order upload.
 	image->active = true;
 	image->have_begin = true;
+	image->silent = silent;
 	image->complete = true;
 	image->id = id;
 	image->hash = hash;
@@ -1824,13 +1831,14 @@ void CL_SpraysParseServerMessage(qbool demo_tolerant)
 	int id, width, height, byte_count;
 	cl_server_spray_image_t *image;
 
-	if (sub == spraynet_begin) {
+	if (sub == spraynet_begin || sub == spraynet_begin_silent) {
 		unsigned long long hash;
 		vec3_t origin, right, up;
 		float half_width, half_height;
 		float alpha;
 		cl_server_spray_image_t *cached;
 		cl_spray_texture_t *local_cached;
+		qbool silent = (sub == spraynet_begin_silent);
 
 		id = MSG_ReadShort();
 		hash = CL_SprayMSGReadHash();
@@ -1873,8 +1881,8 @@ void CL_SpraysParseServerMessage(qbool demo_tolerant)
 					id,
 					hash,
 					va("size=%dx%d bytes=%d cached=server-image payload=metadata-only", width, height, byte_count));
-			CL_SprayTrackResolvedServerImage(id, hash, width, height, byte_count, cached->texture);
-			CL_SprayCommitServerTexture(id, cached->texture, origin, right, up, half_width, half_height, alpha);
+			CL_SprayTrackResolvedServerImage(id, hash, width, height, byte_count, cached->texture, silent);
+			CL_SprayCommitServerTexture(id, cached->texture, origin, right, up, half_width, half_height, alpha, silent);
 			return;
 		}
 		local_cached = CL_SprayTextureCacheForHash(hash);
@@ -1889,8 +1897,8 @@ void CL_SpraysParseServerMessage(qbool demo_tolerant)
 						id,
 						hash,
 						va("size=%dx%d bytes=%d cached=local-image payload=metadata-only", width, height, byte_count));
-				CL_SprayTrackResolvedServerImage(id, hash, width, height, byte_count, texture);
-				CL_SprayCommitServerTexture(id, texture, origin, right, up, half_width, half_height, alpha);
+				CL_SprayTrackResolvedServerImage(id, hash, width, height, byte_count, texture, silent);
+				CL_SprayCommitServerTexture(id, texture, origin, right, up, half_width, half_height, alpha, silent);
 				return;
 			}
 		}
@@ -1903,6 +1911,7 @@ void CL_SpraysParseServerMessage(qbool demo_tolerant)
 		image->received = 0;
 		memset(image->received_blocks, 0, sizeof(image->received_blocks));
 		image->have_begin = true;
+		image->silent = silent;
 		image->complete = false;
 		image->hash = hash;
 		image->width = width;
