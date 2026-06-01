@@ -1270,18 +1270,43 @@ static qbool CL_SprayCreateAtCrosshair(cl_spray_t *spray, qbool quiet)
 	return true;
 }
 
-// Ring buffer replacement keeps the feature bounded. Texture references are
-// cached separately and can be shared by many placed sprays.
+// Keep the feature bounded without treating every placement as a blind ring
+// write. Server clear messages leave holes; reusing them prevents one player's
+// high spray churn from overwriting unrelated active sprays locally.
 static int CL_SprayCommit(cl_spray_t *spray)
 {
-	int index;
+	int i, index;
 	cl_spray_t *placed;
 
 	if (!spray->active) {
 		return -1;
 	}
 
-	index = cl_spray_next++ % CL_MAX_SPRAYS;
+	index = -1;
+
+	// Authoritative server ids should occupy at most one visible client slot.
+	// This also protects against duplicate metadata/payload delivery.
+	if (spray->upload_id > 0) {
+		for (i = 0; i < CL_MAX_SPRAYS; ++i) {
+			if (cl_sprays[i].active && cl_sprays[i].upload_id == spray->upload_id) {
+				index = i;
+				break;
+			}
+		}
+	}
+
+	if (index < 0) {
+		for (i = 0; i < CL_MAX_SPRAYS; ++i) {
+			if (!cl_sprays[i].active) {
+				index = i;
+				break;
+			}
+		}
+	}
+
+	if (index < 0) {
+		index = cl_spray_next++ % CL_MAX_SPRAYS;
+	}
 	placed = &cl_sprays[index];
 	*placed = *spray;
 	cl_spray_worldmodel = cl.worldmodel;
