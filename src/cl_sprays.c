@@ -57,6 +57,7 @@ cvar_t cl_spray_reject_sound = {"cl_spray_reject_sound", "builtin/reject.flac"};
 // 512-byte chunks recover 1024-byte throughput while still checking space.
 #define CL_SPRAY_UPLOAD_CHUNKS_PER_FRAME 2
 #define CL_SPRAY_RELIABLE_RESERVE 256
+#define CL_SPRAY_RECEIVE_BLOCK_BYTES 512
 
 typedef struct cl_spray_texture_s {
 	char name[MAX_QPATH];
@@ -122,6 +123,11 @@ typedef struct cl_server_spray_image_s {
 	int height;
 	int byte_count;
 	int received;
+
+	// Demo/QTV hidden blocks can expose spray payload chunks out of order.
+	// Track which fixed-size ranges are present so playback can complete the
+	// image once all chunks arrive, without weakening live reliable parsing.
+	unsigned long long received_blocks[2];
 
 	vec3_t origin;
 	vec3_t right;
@@ -244,6 +250,51 @@ static qbool CL_SprayValidImageSize(int width, int height, int byte_count)
 	// Network spray images are RGBA and capped by qwprot. Source images may be
 	// larger; CL_SprayLoadNormalizedPixels scales them down before upload.
 	return width > 0 && height > 0 && width <= spraynet_max_width && height <= spraynet_max_height && byte_count == width * height * spraynet_bpp;
+}
+
+static int CL_SprayReceiveBlockCount(int byte_count)
+{
+	// The protocol caps sprays at 128x128 RGBA, so two 64-bit masks cover every
+	// 512-byte range in the largest possible payload.
+	return (byte_count + CL_SPRAY_RECEIVE_BLOCK_BYTES - 1) / CL_SPRAY_RECEIVE_BLOCK_BYTES;
+}
+
+static qbool CL_SprayReceiveBlockMarked(const cl_server_spray_image_t *image, int block)
+{
+	if (block < 0 || block >= CL_SprayReceiveBlockCount(image->byte_count)) {
+		return false;
+	}
+	return (image->received_blocks[block / 64] & (1ULL << (block % 64))) != 0;
+}
+
+static void CL_SprayMarkReceivedBytes(cl_server_spray_image_t *image, int offset, int len)
+{
+	int first = offset / CL_SPRAY_RECEIVE_BLOCK_BYTES;
+	int last = (offset + len - 1) / CL_SPRAY_RECEIVE_BLOCK_BYTES;
+	int block;
+
+	// Chunks are currently aligned to this block size, but marking the covered
+	// range keeps the bookkeeping correct if that ever changes.
+	for (block = first; block <= last; ++block) {
+		if (block >= 0 && block < CL_SprayReceiveBlockCount(image->byte_count)) {
+			image->received_blocks[block / 64] |= 1ULL << (block % 64);
+		}
+	}
+}
+
+static void CL_SprayUpdateContiguousReceive(cl_server_spray_image_t *image)
+{
+	// Advance the ordered frontier over any blocks that arrived early. The hash
+	// check still gates final use of the reconstructed image.
+	while (image->received < image->byte_count) {
+		int block = image->received / CL_SPRAY_RECEIVE_BLOCK_BYTES;
+		int next = min((block + 1) * CL_SPRAY_RECEIVE_BLOCK_BYTES, image->byte_count);
+
+		if (!CL_SprayReceiveBlockMarked(image, block)) {
+			return;
+		}
+		image->received = next;
+	}
 }
 
 static qbool CL_SprayReliableCanWrite(int needed)
@@ -1742,7 +1793,7 @@ static void CL_SprayTrackResolvedServerImage(int id, unsigned long long hash, in
 	image->texture_array = null_texture_reference;
 }
 
-void CL_SpraysParseServerMessage(void)
+void CL_SpraysParseServerMessage(qbool demo_tolerant)
 {
 	int sub = MSG_ReadByte();
 	int id, width, height, byte_count;
@@ -1825,6 +1876,7 @@ void CL_SpraysParseServerMessage(void)
 				va("size=%dx%d bytes=%d cached=no payload=full-payload", width, height, byte_count));
 		image = CL_SprayServerImageForId(id);
 		image->received = 0;
+		memset(image->received_blocks, 0, sizeof(image->received_blocks));
 		image->have_begin = true;
 		image->complete = false;
 		image->hash = hash;
@@ -1867,17 +1919,49 @@ void CL_SpraysParseServerMessage(void)
 			return;
 		}
 
-		// Chunks are expected in order. Accepting gaps would let an incomplete
-		// image be uploaded if the final chunk arrived first.
+		// Live reliable chunks are expected in order. Demo/QTV hidden streams
+		// may expose non-contiguous hidden blocks, so the demo path stores valid
+		// later chunks and waits until the byte stream is complete.
 		if (!image->have_begin || offset != image->received || offset < 0 || len < 0 || offset + len > image->byte_count) {
+			if (demo_tolerant && offset >= 0 && len >= 0 && len <= (int)sizeof(discarded)
+				&& (!image->have_begin || offset + len <= image->byte_count)) {
+				if (!image->have_begin) {
+					MSG_ReadData(discarded, len);
+					CL_SprayDebugHash("recv skipped-payload",
+							id,
+							image->hash,
+							va("offset=%d expected=%d len=%d have_begin=%d", offset, image->received, len, image->have_begin));
+					return;
+				}
+				MSG_ReadData(image->pixels + offset, len);
+				CL_SprayMarkReceivedBytes(image, offset, len);
+				CL_SprayUpdateContiguousReceive(image);
+				CL_SprayDebugHash("recv out-of-order-payload",
+						id,
+						image->hash,
+						va("offset=%d expected=%d len=%d have_begin=%d", offset, image->received, len, image->have_begin));
+				if (image->received == image->byte_count) {
+					if (CL_SprayHashBytes(image->pixels, image->width, image->height, image->byte_count) != image->hash) {
+						Host_Error("CL_SpraysParseServerMessage: spray hash mismatch");
+					}
+					CL_SprayDebugHash("recv complete",
+							id,
+							image->hash,
+							"full-payload");
+					CL_SprayPlaceServerImage(image);
+				}
+				return;
+			}
 			Host_Error("CL_SpraysParseServerMessage: bad spray chunk id=%d offset=%d expected=%d len=%d have_begin=%d", id, offset, image->received, len, image->have_begin);
 		}
 		MSG_ReadData(image->pixels + offset, len);
+		CL_SprayMarkReceivedBytes(image, offset, len);
 		CL_SprayDebugHash("recv payload",
 				id,
 				image->hash,
 				va("offset=%d len=%d total=%d", offset, len, image->byte_count));
 		image->received = offset + len;
+		CL_SprayUpdateContiguousReceive(image);
 
 		if (image->received == image->byte_count) {
 			if (CL_SprayHashBytes(image->pixels, image->width, image->height, image->byte_count) != image->hash) {
