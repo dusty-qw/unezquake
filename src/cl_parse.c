@@ -4279,7 +4279,7 @@ void CL_ParseServerMessage (void)
 #ifdef MVD_PEXT1_SPRAYS
 			case svc_spray:
 				{
-					CL_SpraysParseServerMessage();
+					CL_SpraysParseServerMessage(false);
 					break;
 				}
 #endif // MVD_PEXT1_SPRAYS
@@ -4493,7 +4493,7 @@ void CL_ParseHiddenDataMessage(void)
 		{
 			int end = MSG_GetReadCount() + size;
 
-			CL_SpraysParseServerMessage();
+			CL_SpraysParseServerMessage(true);
 			if (MSG_GetReadCount() < end) {
 				MSG_ReadSkip(end - MSG_GetReadCount());
 			}

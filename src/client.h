@@ -1111,7 +1111,7 @@ void CL_SpraysPreloadImages(void);
 void CL_SpraysRefreshRendererTextures(void);
 void CL_SpraysAddToScene(void);
 void CL_SpraysDisconnect(void);
-void CL_SpraysParseServerMessage(void);
+void CL_SpraysParseServerMessage(qbool demo_tolerant);
 void CL_SpraysUploadNext(void);
 void CL_DisableLerpMove(void);
 
