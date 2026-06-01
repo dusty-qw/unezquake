@@ -601,6 +601,7 @@ void CL_Prespawn (void)
 
 	CL_FindModelNumbers ();
 	R_NewMap (false);
+	CL_SpraysRefreshRendererTextures();
 	TP_NewMap();
 	MT_NewMap();
 	Stats_NewMap();

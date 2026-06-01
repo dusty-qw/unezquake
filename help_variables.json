@@ -2570,10 +2570,10 @@
       "type": "string"
     },
     "cl_spray_image_path": {
-      "default": "qw/sprays",
-      "desc": "Directory where spray images are loaded from.",
+      "default": "sprays",
+      "desc": "Directory, relative to the game folder, where spray images are loaded from.",
       "group-id": "50",
-      "remarks": "",
+      "remarks": "The default value loads images from qw/sprays.",
       "type": "string"
     },
     "cl_spray_preview_alpha": {

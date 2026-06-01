@@ -1107,6 +1107,8 @@ void CL_PredictMove(qbool physframe);
 void CL_PredictUsercmd(player_state_t *from, player_state_t *to, usercmd_t *u);
 
 void CL_InitSprays(void);
+void CL_SpraysPreloadImages(void);
+void CL_SpraysRefreshRendererTextures(void);
 void CL_SpraysAddToScene(void);
 void CL_SpraysDisconnect(void);
 void CL_SpraysParseServerMessage(void);

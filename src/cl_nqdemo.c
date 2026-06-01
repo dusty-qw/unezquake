@@ -579,6 +579,7 @@ static void NQD_ParseServerData(void)
 	Classic_InitParticles();
 	CL_FindModelNumbers();
 	R_NewMap(false);
+	CL_SpraysRefreshRendererTextures();
 	TP_NewMap();
 	MT_NewMap();
 	Stats_NewMap();

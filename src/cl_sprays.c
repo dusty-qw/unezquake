@@ -31,7 +31,7 @@ cvar_t cl_spray_show = {"cl_spray_show", "0.5"};
 cvar_t cl_spray_debug = {"cl_spray_debug", "0"};
 cvar_t cl_spray_colorize = {"cl_spray_colorize", "", CVAR_COLOR};
 cvar_t cl_spray_image = {"cl_spray_image", "spray"};
-cvar_t cl_spray_image_path = {"cl_spray_image_path", "qw/sprays"};
+cvar_t cl_spray_image_path = {"cl_spray_image_path", "sprays"};
 cvar_t cl_spray_distance = {"cl_spray_distance", "512"};
 cvar_t cl_spray_size = {"cl_spray_size", "64"};
 cvar_t cl_spray_preview_alpha = {"cl_spray_preview_alpha", "0.125"};
@@ -51,6 +51,7 @@ cvar_t cl_spray_reject_sound = {"cl_spray_reject_sound", "builtin/reject.flac"};
 #define CL_SPRAY_PLANE_EPSILON 0.999f
 #define CL_SPRAY_FIT_STEP 4.0f
 #define CL_SPRAY_PLACEMENT_ALPHA 1.0f
+#define CL_SPRAY_UPLOAD_CHUNK_BYTES 512
 
 typedef struct cl_spray_texture_s {
 	char name[MAX_QPATH];
@@ -61,9 +62,8 @@ typedef struct cl_spray_texture_s {
 	int width;
 	int height;
 
-	// Once this local file is uploaded, remember the hash the server will use
-	// for it. If the server later sends a placement-only spray for the same
-	// hash, the original sender can render it without receiving its own pixels.
+	// Hash identity for the normalized RGBA payload. Cached pixels and hash are
+	// created together; placement/upload/server cache checks rely on that.
 	unsigned long long hash;
 	qbool have_hash;
 
@@ -179,8 +179,9 @@ static char cl_spray_reject_sfx_name[MAX_QPATH];
 
 static void CL_SprayCancelUpload(void);
 static void CL_SprayClearServerImageCache(void);
-static void CL_SprayClearLocalTextureHashes(void);
 static void CL_SprayPlayRejectSound(void);
+static cl_spray_texture_t *CL_SprayTextureCacheForName(const char *filename);
+void FS_EnumerateFiles(char *match, int (*func)(char *, int, void *), void *parm);
 
 #ifdef RENDERER_OPTION_MODERN_OPENGL
 void GL_AddTextureToArray(texture_ref arrayTexture, int index, texture_ref tex2dname, qbool tile);
@@ -219,6 +220,18 @@ static unsigned long long CL_SprayHashBytes(const byte *pixels, int width, int h
 		hash *= CL_SPRAY_HASH_PRIME;
 	}
 	return hash;
+}
+
+// Store normalized image bytes and their identity as one operation. A cache
+// entry with pixels but no hash would break metadata-only spray reuse.
+static void CL_SprayCacheSetPixels(cl_spray_texture_t *cached, byte *pixels, int width, int height, int byte_count)
+{
+	cached->pixels = pixels;
+	cached->width = width;
+	cached->height = height;
+	cached->byte_count = byte_count;
+	cached->hash = CL_SprayHashBytes(cached->pixels, cached->width, cached->height, cached->byte_count);
+	cached->have_hash = true;
 }
 
 static qbool CL_SprayValidImageSize(int width, int height, int byte_count)
@@ -450,28 +463,35 @@ static texture_ref CL_SprayCacheTexture(cl_spray_texture_t *cached, int *texture
 	if (!R_TextureReferenceIsValid(cached->texture)) {
 		int width, height;
 		int byte_count;
-		byte *pixels = CL_SprayLoadNormalizedPixels(cached->name, &width, &height, &byte_count, quiet);
+		byte *texture_pixels;
 
-		if (!pixels) {
-			return null_texture_reference;
+		if (!cached->pixels) {
+			byte *pixels = CL_SprayLoadNormalizedPixels(cached->name, &width, &height, &byte_count, quiet);
+			if (!pixels) {
+				return null_texture_reference;
+			}
+
+			// Cache normalized bytes, dimensions, and hash together. Modern
+			// OpenGL texture arrays use these dimensions, not source file size.
+			CL_SprayCacheSetPixels(cached, pixels, width, height, byte_count);
 		}
 
-		// Cache the normalized dimensions so modern OpenGL texture arrays match
-		// the scaled texture, not the source file size.
-		cached->width = width;
-		cached->height = height;
-		cached->pixels = pixels;
-		cached->byte_count = byte_count;
-		cached->texture = R_LoadTexturePixels(cached->pixels, va("spray:%s", cached->name), width, height, TEX_ALPHA | TEX_PREMUL_ALPHA | TEX_NOSCALE | TEX_NO_TEXTUREMODE);
+		// R_LoadTexturePixels can premultiply/mutate its input. Keep the cached
+		// CPU payload canonical for hashing/upload and texture rebuilds.
+		texture_pixels = (byte *)Q_malloc(cached->byte_count);
+		memcpy(texture_pixels, cached->pixels, cached->byte_count);
+		cached->texture = R_LoadTexturePixels(texture_pixels, va("spray:%s", cached->name), cached->width, cached->height, TEX_ALPHA | TEX_PREMUL_ALPHA | TEX_NOSCALE | TEX_NO_TEXTUREMODE);
+		Q_free(texture_pixels);
 		if (!R_TextureReferenceIsValid(cached->texture)) {
-			Q_free(cached->pixels);
-			cached->pixels = NULL;
-			cached->byte_count = 0;
 			if (!quiet) {
 				Com_Printf("spray: couldn't load image \"%s\"\n", cached->name);
 				CL_SprayPlayRejectSound();
 			}
 			return null_texture_reference;
+		}
+		if (cl_spray_debug.value) {
+			Con_Printf("spray debug: image renderer texture created name=\"%s\" size=%dx%d\n",
+					cached->name, cached->width, cached->height);
 		}
 		renderer.TextureSetFiltering(cached->texture, texture_minification_linear, texture_magnification_linear);
 	}
@@ -483,6 +503,10 @@ static texture_ref CL_SprayCacheTexture(cl_spray_texture_t *cached, int *texture
 			if (R_TextureReferenceIsValid(cached->texture_array)) {
 				GL_AddTextureToArray(cached->texture_array, 0, cached->texture, false);
 				renderer.TextureSetFiltering(cached->texture_array, texture_minification_linear, texture_magnification_linear);
+				if (cl_spray_debug.value) {
+					Con_Printf("spray debug: image renderer texture array created name=\"%s\" size=%dx%d\n",
+							cached->name, cached->width, cached->height);
+				}
 			}
 		}
 		return cached->texture_array;
@@ -507,16 +531,6 @@ static void CL_SprayClearPlaced(qbool clear_server_images)
 	cl_spray_worldmodel = cl.worldmodel;
 }
 
-static void CL_SprayClearLocalTextureHashes(void)
-{
-	int i;
-
-	for (i = 0; i < cl_spray_texture_count; ++i) {
-		cl_spray_textures[i].hash = 0;
-		cl_spray_textures[i].have_hash = false;
-	}
-}
-
 static qbool CL_SprayImagePath(char *path, size_t path_size)
 {
 	const char *filename = COM_SkipPath(cl_spray_image.string);
@@ -529,32 +543,33 @@ static qbool CL_SprayImagePath(char *path, size_t path_size)
 	}
 
 	if (directory[0]) {
-		written = snprintf(path, path_size, "%s/%s", directory, filename);
+		written = snprintf(path, path_size, "%s/%s/%s", com_gamedirfile, directory, filename);
 	}
 	else {
-		written = snprintf(path, path_size, "%s", filename);
+		written = snprintf(path, path_size, "%s/%s", com_gamedirfile, filename);
 	}
 
 	return written > 0 && (size_t)written < path_size;
 }
 
-// Look up the current cvar image, adding it to the cache on first use. The cvar
-// value omits the extension, matching normal R_LoadTextureImage behavior.
-static texture_ref CL_SprayTextureForRenderer(int *texture_index, int *width, int *height, qbool quiet)
+// Look up a spray image path, adding it to the cache on first use. Cache keys
+// deliberately omit the extension, matching normal R_LoadImagePixels behavior
+// and the cl_spray_image cvar.
+static texture_ref CL_SprayTextureForPath(const char *filename, int *texture_index, int *width, int *height, qbool quiet)
 {
-	char filename[MAX_QPATH];
 	int i;
+	int local_texture_index;
 	cl_spray_texture_t *cached;
 
+	if (!texture_index) {
+		texture_index = &local_texture_index;
+	}
 	*texture_index = 0;
 	if (width) {
 		*width = 0;
 	}
 	if (height) {
 		*height = 0;
-	}
-	if (!CL_SprayImagePath(filename, sizeof(filename))) {
-		return null_texture_reference;
 	}
 
 	for (i = 0; i < cl_spray_texture_count; ++i) {
@@ -613,6 +628,131 @@ static texture_ref CL_SprayTextureForRenderer(int *texture_index, int *width, in
 			}
 		}
 		return texture;
+	}
+}
+
+// Look up the current cvar image, adding it to the cache on first use.
+static texture_ref CL_SprayTextureForRenderer(int *texture_index, int *width, int *height, qbool quiet)
+{
+	char filename[MAX_QPATH];
+
+	if (!CL_SprayImagePath(filename, sizeof(filename))) {
+		if (texture_index) {
+			*texture_index = 0;
+		}
+		if (width) {
+			*width = 0;
+		}
+		if (height) {
+			*height = 0;
+		}
+		return null_texture_reference;
+	}
+
+	return CL_SprayTextureForPath(filename, texture_index, width, height, quiet);
+}
+
+typedef struct cl_spray_preload_s {
+	char cache_path[MAX_QPATH];
+	int loaded;
+} cl_spray_preload_t;
+
+static int CL_SprayPreloadFile(char *name, int size, void *parm)
+{
+	char filename[MAX_QPATH];
+	char stripped[MAX_QPATH];
+	cl_spray_preload_t *preload = (cl_spray_preload_t *)parm;
+	cl_spray_texture_t *cached;
+
+	(void)size;
+
+	COM_StripExtension(COM_SkipPath(name), stripped, sizeof(stripped));
+	snprintf(filename, sizeof(filename), "%s/%s", preload->cache_path, stripped);
+	cached = CL_SprayTextureCacheForName(filename);
+	if (!cached) {
+		if (cl_spray_texture_count == CL_MAX_SPRAY_TEXTURES) {
+			return 1;
+		}
+
+		cached = &cl_spray_textures[cl_spray_texture_count++];
+		memset(cached, 0, sizeof(*cached));
+		strlcpy(cached->name, filename, sizeof(cached->name));
+		if (cl_spray_debug.value) {
+			Con_Printf("spray debug: image cache add name=\"%s\" slot=%d\n", filename, cl_spray_texture_count - 1);
+		}
+	}
+
+	if (!cached->pixels) {
+		int width, height, byte_count;
+		byte *pixels = CL_SprayLoadNormalizedPixels(cached->name, &width, &height, &byte_count, true);
+		if (!pixels) {
+			return 1;
+		}
+		CL_SprayCacheSetPixels(cached, pixels, width, height, byte_count);
+	}
+
+	if (cl_spray_debug.value) {
+		Con_Printf("spray debug: image preload ready name=\"%s\" size=%dx%d bytes=%d hash=%08x%08x\n",
+				filename, cached->width, cached->height, cached->byte_count,
+				(unsigned int)(cached->hash >> 32),
+				(unsigned int)(cached->hash & 0xffffffffULL));
+	}
+	++preload->loaded;
+
+	return 1;
+}
+
+void CL_SpraysPreloadImages(void)
+{
+	static const char *extensions[] = { "png", "jpg", "jpeg", "tga", "pcx" };
+	cl_spray_preload_t preload;
+	char match[MAX_QPATH];
+	size_t i;
+
+	if (!cl_spray_image_path.string[0]) {
+		return;
+	}
+
+	memset(&preload, 0, sizeof(preload));
+	if (cl_spray_image_path.string[0]) {
+		snprintf(preload.cache_path, sizeof(preload.cache_path), "%s/%s", com_gamedirfile, cl_spray_image_path.string);
+	}
+	else {
+		strlcpy(preload.cache_path, com_gamedirfile, sizeof(preload.cache_path));
+	}
+
+	for (i = 0; i < sizeof(extensions) / sizeof(extensions[0]); ++i) {
+		snprintf(match, sizeof(match), "%s/*.%s", cl_spray_image_path.string, extensions[i]);
+		FS_EnumerateFiles(match, CL_SprayPreloadFile, &preload);
+	}
+
+	if (cl_spray_debug.value) {
+		Con_Printf("spray debug: preload path=\"%s\" enumerate=\"%s\" images=%d\n", preload.cache_path, cl_spray_image_path.string, preload.loaded);
+	}
+	Con_Printf("Spray decals loaded and cached from: %s\n", preload.cache_path);
+}
+
+void CL_SpraysRefreshRendererTextures(void)
+{
+	int i;
+	int refreshed = 0;
+
+	for (i = 0; i < cl_spray_texture_count; ++i) {
+		texture_ref texture;
+		int texture_index;
+
+		if (!cl_spray_textures[i].pixels) {
+			continue;
+		}
+
+		texture = CL_SprayCacheTexture(&cl_spray_textures[i], &texture_index, true);
+		if (R_TextureReferenceIsValid(texture)) {
+			++refreshed;
+		}
+	}
+
+	if (cl_spray_debug.value) {
+		Con_Printf("spray debug: refreshed renderer textures for %d cached images\n", refreshed);
 	}
 }
 
@@ -1237,15 +1377,22 @@ static void CL_SprayQueueUpload(int placed_index)
 
 	// Hash the normalized payload plus dimensions. Placement values like size
 	// and alpha are excluded so one cached image can be reused many times.
-	cl_spray_upload.hash = CL_SprayHashBytes(pixels, width, height, cl_spray_upload.byte_count);
 	{
 		cl_spray_texture_t *cached = CL_SprayTextureCacheForName(filename);
 
-		if (cached) {
-			// Bind the file-backed texture to the same hash sent to the server.
-			// If the file changes later, the next upload recomputes this value.
-			cached->hash = cl_spray_upload.hash;
-			cached->have_hash = true;
+		if (cached && cached->pixels) {
+			if (!cached->have_hash) {
+				Com_Printf("spray: internal cache error, image has no hash\n");
+				CL_SprayPlayRejectSound();
+				Q_free(pixels);
+				memset(&cl_spray_upload, 0, sizeof(cl_spray_upload));
+				memset(spray, 0, sizeof(*spray));
+				return;
+			}
+			cl_spray_upload.hash = cached->hash;
+		}
+		else {
+			cl_spray_upload.hash = CL_SprayHashBytes(pixels, width, height, cl_spray_upload.byte_count);
 		}
 	}
 	spray->upload_id = cl_spray_upload.id;
@@ -1429,7 +1576,7 @@ void CL_SpraysUploadNext(void)
 		return;
 	}
 
-	chunk = min(spraynet_chunk_bytes, cl_spray_upload.byte_count - cl_spray_upload.offset);
+	chunk = min(CL_SPRAY_UPLOAD_CHUNK_BYTES, cl_spray_upload.byte_count - cl_spray_upload.offset);
 	needed = 1 + 1 + 2 + 4 + 2 + chunk;
 	if (cls.netchan.message.cursize + needed > cls.netchan.message.maxsize) {
 		return;
@@ -1460,10 +1607,9 @@ void CL_SpraysUploadNext(void)
 
 void CL_SpraysDisconnect(void)
 {
-	// Spray image knowledge is connection-local. Keep loaded file textures, but
-	// drop hash/cache state so the next server connection starts cleanly.
+	// Clear connection/map state, but keep local image hashes. They describe
+	// normalized image bytes, not any particular server's cache state.
 	CL_SprayClearPlaced(true);
-	CL_SprayClearLocalTextureHashes();
 }
 
 static cl_server_spray_image_t *CL_SprayServerImageForId(int id)

@@ -2158,6 +2158,7 @@ void CL_Init (void)
 	Image_Init();
 
 	GFX_Init ();
+	CL_SpraysPreloadImages();
 
 	S_Init ();
 
