@@ -28,6 +28,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "image.h"
 
 cvar_t cl_spray_show = {"cl_spray_show", "0.5"};
+cvar_t cl_spray_debug = {"cl_spray_debug", "0"};
 cvar_t cl_spray_colorize = {"cl_spray_colorize", "", CVAR_COLOR};
 cvar_t cl_spray_image = {"cl_spray_image", "spray"};
 cvar_t cl_spray_image_path = {"cl_spray_image_path", "qw/sprays"};
@@ -180,6 +181,20 @@ static void CL_SprayPlayRejectSound(void);
 void GL_AddTextureToArray(texture_ref arrayTexture, int index, texture_ref tex2dname, qbool tile);
 #endif
 
+static void CL_SprayDebugHash(const char *action, int id, unsigned long long hash, const char *details)
+{
+	if (!cl_spray_debug.value) {
+		return;
+	}
+
+	Con_Printf("spray debug: %s id=%d hash=%08x%08x %s\n",
+			action,
+			id,
+			(unsigned int)(hash >> 32),
+			(unsigned int)(hash & 0xffffffffULL),
+			details ? details : "");
+}
+
 static unsigned long long CL_SprayHashBytes(const byte *pixels, int width, int height, int byte_count)
 {
 	unsigned long long hash = CL_SPRAY_HASH_OFFSET;
@@ -329,6 +344,9 @@ static byte *CL_SprayLoadNormalizedPixels(const char *filename, int *width, int 
 		}
 		return NULL;
 	}
+	if (cl_spray_debug.value) {
+		Con_Printf("spray debug: image load name=\"%s\" source=%dx%d\n", filename, source_width, source_height);
+	}
 
 	if (source_width <= 0 || source_height <= 0) {
 		Q_free(source_pixels);
@@ -356,11 +374,19 @@ static byte *CL_SprayLoadNormalizedPixels(const char *filename, int *width, int 
 
 		// The normalized pixels are the canonical client representation: local
 		// rendering, hashing, and upload all use this scaled copy.
+		if (cl_spray_debug.value) {
+			Con_Printf("spray debug: image scale name=\"%s\" source=%dx%d normalized=%dx%d bytes=%d\n",
+					filename, source_width, source_height, *width, *height, *byte_count);
+		}
 		CL_SprayDownscalePixels(source_pixels, source_width, source_height, scaled_pixels, *width, *height);
 		Q_free(source_pixels);
 		return scaled_pixels;
 	}
 
+	if (cl_spray_debug.value) {
+		Con_Printf("spray debug: image scale skipped name=\"%s\" source=%dx%d normalized=%dx%d bytes=%d\n",
+				filename, source_width, source_height, *width, *height, *byte_count);
+	}
 	return source_pixels;
 }
 
@@ -526,7 +552,17 @@ static texture_ref CL_SprayTextureForRenderer(int *texture_index, int *width, in
 		if (!strcmp(cl_spray_textures[i].name, filename)) {
 			texture_ref texture = CL_SprayCacheTexture(&cl_spray_textures[i], texture_index, quiet);
 
+			// Report if reusing an already cached image.
 			if (R_TextureReferenceIsValid(texture)) {
+				if (cl_spray_debug.value) {
+					Con_Printf("spray debug: image cache hit name=\"%s\" size=%dx%d hash=%s%08x%08x\n",
+							filename,
+							cl_spray_textures[i].width,
+							cl_spray_textures[i].height,
+							cl_spray_textures[i].have_hash ? "" : "none/",
+							cl_spray_textures[i].have_hash ? (unsigned int)(cl_spray_textures[i].hash >> 32) : 0,
+							cl_spray_textures[i].have_hash ? (unsigned int)(cl_spray_textures[i].hash & 0xffffffffULL) : 0);
+				}
 				if (width) {
 					*width = cl_spray_textures[i].width;
 				}
@@ -549,11 +585,17 @@ static texture_ref CL_SprayTextureForRenderer(int *texture_index, int *width, in
 	cached = &cl_spray_textures[cl_spray_texture_count++];
 	memset(cached, 0, sizeof(*cached));
 	strlcpy(cached->name, filename, sizeof(cached->name));
+	if (cl_spray_debug.value) {
+		Con_Printf("spray debug: image cache add name=\"%s\" slot=%d\n", filename, cl_spray_texture_count - 1);
+	}
 
 	{
 		texture_ref texture = CL_SprayCacheTexture(cached, texture_index, quiet);
 
 		if (R_TextureReferenceIsValid(texture)) {
+			if (cl_spray_debug.value) {
+				Con_Printf("spray debug: image cache ready name=\"%s\" size=%dx%d\n", filename, cached->width, cached->height);
+			}
 			if (width) {
 				*width = cached->width;
 			}
@@ -1339,6 +1381,10 @@ void CL_SpraysUploadNext(void)
 		MSG_WriteFloat(&cls.netchan.message, cl_spray_upload.half_height);
 		MSG_WriteFloat(&cls.netchan.message, cl_spray_upload.alpha);
 		cl_spray_upload.sent_begin = true;
+		CL_SprayDebugHash("send metadata",
+				cl_spray_upload.id,
+				cl_spray_upload.hash,
+				va("size=%dx%d bytes=%d", cl_spray_upload.width, cl_spray_upload.height, cl_spray_upload.byte_count));
 		return;
 	}
 
@@ -1347,6 +1393,10 @@ void CL_SpraysUploadNext(void)
 		return;
 	}
 	if (!cl_spray_upload.send_pixels) {
+		CL_SprayDebugHash("send complete",
+				cl_spray_upload.id,
+				cl_spray_upload.hash,
+				"metadata-only");
 		CL_SprayCancelUpload();
 		return;
 	}
@@ -1363,11 +1413,19 @@ void CL_SpraysUploadNext(void)
 	MSG_WriteLong(&cls.netchan.message, cl_spray_upload.offset);
 	MSG_WriteShort(&cls.netchan.message, chunk);
 	SZ_Write(&cls.netchan.message, cl_spray_upload.pixels + cl_spray_upload.offset, chunk);
+	CL_SprayDebugHash("send payload",
+			cl_spray_upload.id,
+			cl_spray_upload.hash,
+			va("offset=%d len=%d total=%d", cl_spray_upload.offset, chunk, cl_spray_upload.byte_count));
 	cl_spray_upload.offset += chunk;
 
 	if (cl_spray_upload.offset == cl_spray_upload.byte_count) {
 		// The server now owns distribution. Keep the local decal, but release
 		// the upload buffer and state.
+		CL_SprayDebugHash("send complete",
+				cl_spray_upload.id,
+				cl_spray_upload.hash,
+				"full-payload");
 		CL_SprayCancelUpload();
 	}
 }
@@ -1546,6 +1604,10 @@ void CL_SpraysParseServerMessage(void)
 		// only a new placement. The hash is an index, not an auth boundary.
 		cached = CL_SprayServerImageForHash(hash);
 		if (cached) {
+			CL_SprayDebugHash("recv metadata",
+					id,
+					hash,
+					va("size=%dx%d bytes=%d cached=server-image payload=metadata-only", width, height, byte_count));
 			CL_SprayTrackResolvedServerImage(id, hash, width, height, byte_count, cached->texture);
 			CL_SprayCommitServerTexture(id, cached->texture, origin, right, up, half_width, half_height, alpha);
 			return;
@@ -1558,12 +1620,20 @@ void CL_SpraysParseServerMessage(void)
 			if (R_TextureReferenceIsValid(texture)) {
 				// This is usually the original sender receiving an authoritative
 				// placement for an image it loaded locally.
+				CL_SprayDebugHash("recv metadata",
+						id,
+						hash,
+						va("size=%dx%d bytes=%d cached=local-image payload=metadata-only", width, height, byte_count));
 				CL_SprayTrackResolvedServerImage(id, hash, width, height, byte_count, texture);
 				CL_SprayCommitServerTexture(id, texture, origin, right, up, half_width, half_height, alpha);
 				return;
 			}
 		}
 
+		CL_SprayDebugHash("recv metadata",
+				id,
+				hash,
+				va("size=%dx%d bytes=%d cached=no payload=full-payload", width, height, byte_count));
 		image = CL_SprayServerImageForId(id);
 		image->received = 0;
 		image->have_begin = true;
@@ -1597,6 +1667,10 @@ void CL_SpraysParseServerMessage(void)
 				Host_Error("CL_SpraysParseServerMessage: bad redundant spray chunk id=%d offset=%d expected=%d len=%d have_begin=%d", id, offset, image->received, len, image->have_begin);
 			}
 			MSG_ReadData(discarded, len);
+			CL_SprayDebugHash("recv redundant-payload",
+					id,
+					image->hash,
+					va("offset=%d len=%d cached=server-image", offset, len));
 			image->received = offset + len;
 			if (image->received == image->byte_count) {
 				image->received = 0;
@@ -1610,12 +1684,20 @@ void CL_SpraysParseServerMessage(void)
 			Host_Error("CL_SpraysParseServerMessage: bad spray chunk id=%d offset=%d expected=%d len=%d have_begin=%d", id, offset, image->received, len, image->have_begin);
 		}
 		MSG_ReadData(image->pixels + offset, len);
+		CL_SprayDebugHash("recv payload",
+				id,
+				image->hash,
+				va("offset=%d len=%d total=%d", offset, len, image->byte_count));
 		image->received = offset + len;
 
 		if (image->received == image->byte_count) {
 			if (CL_SprayHashBytes(image->pixels, image->width, image->height, image->byte_count) != image->hash) {
 				Host_Error("CL_SpraysParseServerMessage: spray hash mismatch");
 			}
+			CL_SprayDebugHash("recv complete",
+					id,
+					image->hash,
+					"full-payload");
 			CL_SprayPlaceServerImage(image);
 		}
 		return;
@@ -1632,6 +1714,10 @@ void CL_SpraysParseServerMessage(void)
 
 			cl_spray_upload.accepted = true;
 			cl_spray_upload.send_pixels = (flags & spraynet_accept_need_pixels) != 0;
+			CL_SprayDebugHash("recv accept",
+					id,
+					cl_spray_upload.hash,
+					va("server_id=%d payload=%s", server_id, cl_spray_upload.send_pixels ? "full-payload" : "metadata-only"));
 			// From this point forward, clear messages refer to the server id,
 			// not the short-lived local upload id.
 			if (placed_index >= 0 && placed_index < CL_MAX_SPRAYS && cl_sprays[placed_index].upload_id == id) {
@@ -1639,6 +1725,10 @@ void CL_SpraysParseServerMessage(void)
 				CL_SprayPlayPlacementSound(cl_sprays[placed_index].origin);
 			}
 			if (!cl_spray_upload.send_pixels) {
+				CL_SprayDebugHash("send complete",
+						id,
+						cl_spray_upload.hash,
+						"metadata-only");
 				CL_SprayCancelUpload();
 			}
 		}
@@ -1648,6 +1738,9 @@ void CL_SpraysParseServerMessage(void)
 	if (sub == spraynet_deny) {
 		id = MSG_ReadShort();
 		MSG_ReadShort();
+		if (cl_spray_upload.active && cl_spray_upload.id == id) {
+			CL_SprayDebugHash("recv deny", id, cl_spray_upload.hash, "");
+		}
 		CL_SprayRejectUpload(id);
 		return;
 	}
@@ -1656,12 +1749,18 @@ void CL_SpraysParseServerMessage(void)
 		// Clear-all is a visibility event, not a cache reset. The server keeps
 		// its per-client known-hash table across clear-all, so the client must
 		// keep received image textures available for future placement-only uses.
+		if (cl_spray_debug.value) {
+			Con_Printf("spray debug: recv clear-all\n");
+		}
 		CL_SprayClearPlaced(false);
 		return;
 	}
 
 	if (sub == spraynet_clear_one) {
 		id = MSG_ReadShort();
+		if (cl_spray_debug.value) {
+			Con_Printf("spray debug: recv clear-one id=%d\n", id);
+		}
 		CL_SprayClearServerId(id);
 		return;
 	}
@@ -1723,6 +1822,7 @@ void CL_InitSprays(void)
 
 	Cvar_SetCurrentGroup(CVAR_GROUP_TEXTURES);
 	Cvar_Register(&cl_spray_show);
+	Cvar_Register(&cl_spray_debug);
 	Cvar_Register(&cl_spray_colorize);
 	Cvar_Register(&cl_spray_image);
 	Cvar_Register(&cl_spray_image_path);
