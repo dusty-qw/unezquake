@@ -2645,6 +2645,13 @@
       "remarks": "Set to 0 to hide all sprays, or use partial values to control opacity.",
       "type": "float"
     },
+    "cl_spray_debug": {
+      "default": "0",
+      "desc": "Prints spray network debug information when spray data is sent to or received from the server.",
+      "group-id": "50",
+      "remarks": "Includes image hash, ids, dimensions, cache hits, and whether a spray used metadata only or a full pixel payload.",
+      "type": "integer"
+    },
     "cl_spray_colorize": {
       "default": "",
       "desc": "Colorizes all spray decals to the specified RGB color. Does not affect how others see the image.",
