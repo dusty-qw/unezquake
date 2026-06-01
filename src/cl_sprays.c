@@ -53,6 +53,11 @@ cvar_t cl_spray_reject_sound = {"cl_spray_reject_sound", "builtin/reject.flac"};
 #define CL_SPRAY_PLACEMENT_ALPHA 1.0f
 #define CL_SPRAY_UPLOAD_CHUNK_BYTES 512
 
+// Keep client uploads aligned with MVDSV's default spray send budget. Two
+// 512-byte chunks recover 1024-byte throughput while still checking space.
+#define CL_SPRAY_UPLOAD_CHUNKS_PER_FRAME 2
+#define CL_SPRAY_RELIABLE_RESERVE 256
+
 typedef struct cl_spray_texture_s {
 	char name[MAX_QPATH];
 
@@ -239,6 +244,11 @@ static qbool CL_SprayValidImageSize(int width, int height, int byte_count)
 	// Network spray images are RGBA and capped by qwprot. Source images may be
 	// larger; CL_SprayLoadNormalizedPixels scales them down before upload.
 	return width > 0 && height > 0 && width <= spraynet_max_width && height <= spraynet_max_height && byte_count == width * height * spraynet_bpp;
+}
+
+static qbool CL_SprayReliableCanWrite(int needed)
+{
+	return cls.netchan.message.cursize <= cls.netchan.message.maxsize - needed - CL_SPRAY_RELIABLE_RESERVE;
 }
 
 static byte CL_SprayFloatToByte(double value)
@@ -1519,6 +1529,7 @@ void CL_SpraysUploadNext(void)
 {
 	int needed;
 	int chunk;
+	int budget;
 
 	if (!cl_spray_upload.active) {
 		return;
@@ -1530,7 +1541,7 @@ void CL_SpraysUploadNext(void)
 
 	if (!cl_spray_upload.sent_begin) {
 		needed = 1 + 1 + 2 + spraynet_hash_bytes + 2 + 2 + 4 + 12 * 4;
-		if (cls.netchan.message.cursize + needed > cls.netchan.message.maxsize) {
+		if (!CL_SprayReliableCanWrite(needed)) {
 			return;
 		}
 
@@ -1576,32 +1587,36 @@ void CL_SpraysUploadNext(void)
 		return;
 	}
 
-	chunk = min(CL_SPRAY_UPLOAD_CHUNK_BYTES, cl_spray_upload.byte_count - cl_spray_upload.offset);
-	needed = 1 + 1 + 2 + 4 + 2 + chunk;
-	if (cls.netchan.message.cursize + needed > cls.netchan.message.maxsize) {
-		return;
-	}
+	budget = CL_SPRAY_UPLOAD_CHUNKS_PER_FRAME;
+	while (budget-- > 0 && cl_spray_upload.offset < cl_spray_upload.byte_count) {
+		chunk = min(CL_SPRAY_UPLOAD_CHUNK_BYTES, cl_spray_upload.byte_count - cl_spray_upload.offset);
+		needed = 1 + 1 + 2 + 4 + 2 + chunk;
+		if (!CL_SprayReliableCanWrite(needed)) {
+			return;
+		}
 
-	MSG_WriteByte(&cls.netchan.message, clc_spray);
-	MSG_WriteByte(&cls.netchan.message, spraynet_pixels);
-	MSG_WriteShort(&cls.netchan.message, cl_spray_upload.id);
-	MSG_WriteLong(&cls.netchan.message, cl_spray_upload.offset);
-	MSG_WriteShort(&cls.netchan.message, chunk);
-	SZ_Write(&cls.netchan.message, cl_spray_upload.pixels + cl_spray_upload.offset, chunk);
-	CL_SprayDebugHash("send payload",
-			cl_spray_upload.id,
-			cl_spray_upload.hash,
-			va("offset=%d len=%d total=%d", cl_spray_upload.offset, chunk, cl_spray_upload.byte_count));
-	cl_spray_upload.offset += chunk;
-
-	if (cl_spray_upload.offset == cl_spray_upload.byte_count) {
-		// The server now owns distribution. Keep the local decal, but release
-		// the upload buffer and state.
-		CL_SprayDebugHash("send complete",
+		MSG_WriteByte(&cls.netchan.message, clc_spray);
+		MSG_WriteByte(&cls.netchan.message, spraynet_pixels);
+		MSG_WriteShort(&cls.netchan.message, cl_spray_upload.id);
+		MSG_WriteLong(&cls.netchan.message, cl_spray_upload.offset);
+		MSG_WriteShort(&cls.netchan.message, chunk);
+		SZ_Write(&cls.netchan.message, cl_spray_upload.pixels + cl_spray_upload.offset, chunk);
+		CL_SprayDebugHash("send payload",
 				cl_spray_upload.id,
 				cl_spray_upload.hash,
-				"full-payload");
-		CL_SprayCancelUpload();
+				va("offset=%d len=%d total=%d", cl_spray_upload.offset, chunk, cl_spray_upload.byte_count));
+		cl_spray_upload.offset += chunk;
+
+		if (cl_spray_upload.offset == cl_spray_upload.byte_count) {
+			// The server now owns distribution. Keep the local decal, but release
+			// the upload buffer and state.
+			CL_SprayDebugHash("send complete",
+					cl_spray_upload.id,
+					cl_spray_upload.hash,
+					"full-payload");
+			CL_SprayCancelUpload();
+			return;
+		}
 	}
 }
 
