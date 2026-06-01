@@ -1792,6 +1792,7 @@ static void VID_Startup(void)
 
 	// we need done something like for map reloading, for example reload textures for brush models
 	R_NewMap(true);
+	CL_SpraysRefreshRendererTextures();
 
 	// window may be re-created, so caption need to be forced to update
 	CL_UpdateCaption(true);
