@@ -71,6 +71,11 @@ typedef struct cl_spray_texture_s {
 	// shaders sample texture arrays, so each image also gets a one-layer array.
 	texture_ref texture;
 	texture_ref texture_array;
+
+	// Keep the normalized RGBA payload used to create the renderer texture.
+	// Uploads copy from here instead of reloading and rescaling the source file.
+	byte *pixels;
+	int byte_count;
 } cl_spray_texture_t;
 
 typedef struct cl_spray_s {
@@ -455,9 +460,13 @@ static texture_ref CL_SprayCacheTexture(cl_spray_texture_t *cached, int *texture
 		// the scaled texture, not the source file size.
 		cached->width = width;
 		cached->height = height;
-		cached->texture = R_LoadTexturePixels(pixels, va("spray:%s", cached->name), width, height, TEX_ALPHA | TEX_PREMUL_ALPHA | TEX_NOSCALE | TEX_NO_TEXTUREMODE);
-		Q_free(pixels);
+		cached->pixels = pixels;
+		cached->byte_count = byte_count;
+		cached->texture = R_LoadTexturePixels(cached->pixels, va("spray:%s", cached->name), width, height, TEX_ALPHA | TEX_PREMUL_ALPHA | TEX_NOSCALE | TEX_NO_TEXTUREMODE);
 		if (!R_TextureReferenceIsValid(cached->texture)) {
+			Q_free(cached->pixels);
+			cached->pixels = NULL;
+			cached->byte_count = 0;
 			if (!quiet) {
 				Com_Printf("spray: couldn't load image \"%s\"\n", cached->name);
 				CL_SprayPlayRejectSound();
@@ -1187,7 +1196,26 @@ static void CL_SprayQueueUpload(int placed_index)
 		return;
 	}
 
-	pixels = CL_SprayLoadNormalizedPixels(filename, &width, &height, &byte_count, false);
+	{
+		cl_spray_texture_t *cached = CL_SprayTextureCacheForName(filename);
+
+		if (!cached || !cached->pixels || cached->byte_count <= 0) {
+			// This should be rare because placement already resolved the same
+			// image. Fall back to the loader if upload is asked to run alone.
+			pixels = CL_SprayLoadNormalizedPixels(filename, &width, &height, &byte_count, false);
+		}
+		else {
+			width = cached->width;
+			height = cached->height;
+			byte_count = cached->byte_count;
+			pixels = (byte *)Q_malloc(byte_count);
+			memcpy(pixels, cached->pixels, byte_count);
+			if (cl_spray_debug.value) {
+				Con_Printf("spray debug: image upload cache hit name=\"%s\" size=%dx%d bytes=%d\n",
+						filename, width, height, byte_count);
+			}
+		}
+	}
 	if (!pixels) {
 		memset(spray, 0, sizeof(*spray));
 		return;
