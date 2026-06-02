@@ -593,10 +593,35 @@ static void CL_SprayClearPlaced(qbool clear_server_images)
 	cl_spray_worldmodel = cl.worldmodel;
 }
 
+static void CL_SprayNormalizeImageDirectory(char *path, size_t path_size)
+{
+	const char *directory = cl_spray_image_path.string;
+	const char *slash;
+	size_t first_len;
+
+	while (*directory == '/' || *directory == '\\') {
+		++directory;
+	}
+
+	slash = strpbrk(directory, "/\\");
+	first_len = slash ? (size_t)(slash - directory) : strlen(directory);
+
+	// cl_spray_image_path is relative to the active game dir. Accept values
+	// that include that dir name, such as "qw/sprays", by dropping it.
+	if (first_len == strlen(com_gamedirfile) && !strncmp(directory, com_gamedirfile, first_len)) {
+		directory += first_len;
+		while (*directory == '/' || *directory == '\\') {
+			++directory;
+		}
+	}
+
+	strlcpy(path, directory, path_size);
+}
+
 static qbool CL_SprayImagePath(char *path, size_t path_size)
 {
 	const char *filename = COM_SkipPath(cl_spray_image.string);
-	const char *directory = cl_spray_image_path.string;
+	char directory[MAX_QPATH];
 	int written;
 
 	if (!filename[0]) {
@@ -604,6 +629,7 @@ static qbool CL_SprayImagePath(char *path, size_t path_size)
 		return false;
 	}
 
+	CL_SprayNormalizeImageDirectory(directory, sizeof(directory));
 	if (directory[0]) {
 		written = snprintf(path, path_size, "%s/%s/%s", com_gamedirfile, directory, filename);
 	}
@@ -768,28 +794,30 @@ void CL_SpraysPreloadImages(void)
 {
 	static const char *extensions[] = { "png", "jpg", "jpeg", "tga", "pcx" };
 	cl_spray_preload_t preload;
+	char directory[MAX_QPATH];
 	char match[MAX_QPATH];
 	size_t i;
 
-	if (!cl_spray_image_path.string[0]) {
+	CL_SprayNormalizeImageDirectory(directory, sizeof(directory));
+	if (!directory[0]) {
 		return;
 	}
 
 	memset(&preload, 0, sizeof(preload));
-	if (cl_spray_image_path.string[0]) {
-		snprintf(preload.cache_path, sizeof(preload.cache_path), "%s/%s", com_gamedirfile, cl_spray_image_path.string);
+	if (directory[0]) {
+		snprintf(preload.cache_path, sizeof(preload.cache_path), "%s/%s", com_gamedirfile, directory);
 	}
 	else {
 		strlcpy(preload.cache_path, com_gamedirfile, sizeof(preload.cache_path));
 	}
 
 	for (i = 0; i < sizeof(extensions) / sizeof(extensions[0]); ++i) {
-		snprintf(match, sizeof(match), "%s/*.%s", cl_spray_image_path.string, extensions[i]);
+		snprintf(match, sizeof(match), "%s/*.%s", directory, extensions[i]);
 		FS_EnumerateFiles(match, CL_SprayPreloadFile, &preload);
 	}
 
 	if (cl_spray_debug.value) {
-		Con_Printf("spray debug: preload path=\"%s\" enumerate=\"%s\" images=%d\n", preload.cache_path, cl_spray_image_path.string, preload.loaded);
+		Con_Printf("spray debug: preload path=\"%s\" enumerate=\"%s\" images=%d\n", preload.cache_path, directory, preload.loaded);
 	}
 	Con_Printf("Spray decals loaded and cached from: %s\n", preload.cache_path);
 }
