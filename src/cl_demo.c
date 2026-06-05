@@ -447,12 +447,19 @@ void CL_WriteServerdata (sizebuf_t *msg)
 
 	// Maintain demo pseudo-compatibility,
 	ignore_extensions = 0;
+#ifdef MVD_PEXT1_SPRAYS
+	// Local QWD recordings intentionally omit svc_spray messages because old
+	// clients cannot skip unknown svc payloads. Do not advertise the matching
+	// extension bit in demo serverdata either, or older clients may reject the
+	// demo before playback starts.
+	ignore_extensions |= MVD_PEXT1_SPRAYS;
+#endif
 
 #ifdef PROTOCOL_VERSION_MVD1
 	if (cls.mvdprotocolextensions1 & ~ignore_extensions)
 	{
 		MSG_WriteLong (msg, PROTOCOL_VERSION_MVD1);
-		MSG_WriteLong (msg, cls.mvdprotocolextensions1);
+		MSG_WriteLong (msg, cls.mvdprotocolextensions1 & ~ignore_extensions);
 	}
 #endif // PROTOCOL_VERSION_MVD1
 
