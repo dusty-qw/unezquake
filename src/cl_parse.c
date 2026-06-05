@@ -4400,6 +4400,13 @@ void CL_ParseServerMessage (void)
 			else if (cmd == svc_download) {
 				// there's no point in writing it to the demo
 			}
+#ifdef MVD_PEXT1_SPRAYS
+			else if (cmd == svc_spray) {
+				// QWD demos are parsed as ordinary server messages by older
+				// clients. Unknown svc_* payloads are not length-prefixed, so
+				// omit spray data to keep local QWD recordings compatible.
+			}
+#endif
 			else if (cmd == svc_serverdata) {
 				CL_WriteServerdata(&cls.demomessage);
 			}
