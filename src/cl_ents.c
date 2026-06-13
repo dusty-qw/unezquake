@@ -18,6 +18,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "quakedef.h"
+#include "ezcsqc.h"
 #include "gl_model.h"
 #include "vx_stuff.h"
 #include "pmove.h"
@@ -903,7 +904,7 @@ int CL_SimpleProjectile_MatchFakeProj(cs_sprojectile_t *sproj, int entnum)
 			return i;
 		}
 #ifdef MVD_PEXT1_WEAPONPREDICTION
-		else if (cls.mvdprotocolextensions1 & MVD_PEXT1_WEAPONPREDICTION && prj->entnum == 0)
+		else if (!CL_EZCSQC_Active() && cls.mvdprotocolextensions1 & MVD_PEXT1_WEAPONPREDICTION && prj->entnum == 0)
 		{
 			//if (cl.time > prj->endtime - 0.05)
 			//	continue;
@@ -1056,6 +1057,7 @@ void CL_ParsePacketSimpleProjectiles(void)
 {
 	int word, sendflags;
 	int framenum;
+	qbool discard_projectiles = CL_EZCSQC_Active();
 
 	framenum = MSG_ReadLong();
 	/*
@@ -1081,6 +1083,11 @@ void CL_ParsePacketSimpleProjectiles(void)
 		{
 			word -= word & 0x8000;
 			word = bound(0, word, CL_MAX_EDICTS - 1);
+
+			if (discard_projectiles) {
+				memset(&cs_sprojectiles[word], 0, sizeof(cs_sprojectile_t));
+				continue;
+			}
 
 			fproj_t *mis = &cl_fakeprojectiles[cs_sprojectiles[word].fproj_number];
 			if (mis->entnum == word)
@@ -1138,6 +1145,10 @@ void CL_ParsePacketSimpleProjectiles(void)
 			cs_sproj->time_offset = -(float)MSG_ReadByte() / 255;
 		}
 
+		if (discard_projectiles) {
+			memset(cs_sproj, 0, sizeof(*cs_sproj));
+			continue;
+		}
 
 		if (mis_new)
 		{

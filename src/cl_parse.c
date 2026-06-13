@@ -21,6 +21,7 @@ $Id: cl_parse.c,v 1.135 2007-10-28 19:56:44 qqshka Exp $
 
 #include "common.h"
 #include "quakedef.h"
+#include "ezcsqc.h"
 #include "gl_model.h"
 #include "cdaudio.h"
 #include "ignore.h"
@@ -639,6 +640,13 @@ void CL_Prespawn (void)
 		MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
 		MSG_WriteString (&cls.netchan.message, va("prespawn %i 0 %i", cl.servercount, cl.map_checksum2));
 	}
+
+#ifdef FTE_PEXT_CSQC
+	if (!cls.mvdplayback && (cls.fteprotocolextensions & FTE_PEXT_CSQC) && cl_pext_ezcsqc.integer) {
+		MSG_WriteByte(&cls.netchan.message, clc_stringcmd);
+		MSG_WriteString(&cls.netchan.message, "enablecsqc");
+	}
+#endif
 }
 
 /*
@@ -1994,10 +2002,16 @@ void CL_ParseStartSoundPacket(void)
 	if (ent > CL_MAX_EDICTS)
 		Host_Error ("CL_ParseStartSoundPacket: ent = %i", ent);
 
+#ifdef FTE_PEXT_CSQC
+	if ((cls.fteprotocolextensions & FTE_PEXT_CSQC) && CL_EZCSQC_Event_Sound(ent, channel, sound_num, volume/255.0, attenuation, pos, 1, 0)) {
+		return;
+	}
+#endif
+
 	// Skip weapon sounds if we're predicting them
 	if (ent == cl.playernum + 1)
 	{
-		if (!pmove_nopred_weapon && cls.mvdprotocolextensions1 & MVD_PEXT1_WEAPONPREDICTION && cl_predict_weaponsound.integer != 0)
+		if (!CL_EZCSQC_Active() && !pmove_nopred_weapon && cls.mvdprotocolextensions1 & MVD_PEXT1_WEAPONPREDICTION && cl_predict_weaponsound.integer != 0)
 		{
 			if (channel == 1)
 			{
@@ -3931,6 +3945,10 @@ void CL_ParseServerMessage (void)
 
 		if (cmd == svc_qizmovoice)
 			SHOWNET("svc_qizmovoice")
+#ifdef FTE_PEXT_CSQC
+		else if (cmd == svc_fte_csqcentities)
+			SHOWNET("svc_fte_csqcentities")
+#endif
 		else if (cmd < num_svc_strings)
 			SHOWNET(svc_strings[cmd]);
 
@@ -4356,8 +4374,20 @@ void CL_ParseServerMessage (void)
 						Host_Error("CL_ParseServerMessage: svc_fte_modellistshort without FTE_PEXT_MODELDBL");
 
 					break;
-				}
+			}
 #endif  // PROTOCOL_VERSION_FTE
+#ifdef FTE_PEXT_CSQC
+			case svc_fte_csqcentities:
+				{
+					if (cls.fteprotocolextensions & FTE_PEXT_CSQC) {
+						CL_EZCSQC_ParseEntities();
+					}
+					else {
+						Host_Error("CL_ParseServerMessage: svc_fte_csqcentities without FTE_PEXT_CSQC");
+					}
+					break;
+				}
+#endif
 			case svc_soundlist:
 				{
 					CL_ParseSoundlist();

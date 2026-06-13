@@ -28,6 +28,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "utils.h"
 #include "qmb_particles.h"
 #include "cl_tent.h"
+#include "ezcsqc.h"
 
 extern cvar_t gl_no24bit;
 #ifdef MVD_PEXT1_SIMPLEPROJECTILE
@@ -456,7 +457,7 @@ static void CL_ParseBeam(int type, vec3_t end)
 
 	if (ent == cl.playernum + 1)
 	{
-		if (!pmove_nopred_weapon && cls.mvdprotocolextensions1 & MVD_PEXT1_WEAPONPREDICTION && cl_predict_beam.integer)
+		if (!CL_EZCSQC_Active() && !pmove_nopred_weapon && cls.mvdprotocolextensions1 & MVD_PEXT1_WEAPONPREDICTION && cl_predict_beam.integer)
 			return;
 	}
 
@@ -1350,6 +1351,8 @@ static void CL_UpdateFakeProjectiles(void)
 			trace_t trace = PM_TraceLine(prj->start, ent.origin);
 			if (trace.fraction < 1)
 			{
+				prj->endtime = cl.time;
+				VectorCopy(trace.endpos, prj->org);
 				#ifdef MVD_PEXT1_SIMPLEPROJECTILE
 				if (prj->modelindex == cl_modelindices[mi_rocket])
 				{
@@ -1359,14 +1362,8 @@ static void CL_UpdateFakeProjectiles(void)
 					expl->radius = expl->damage + 40;
 					VectorCopy(trace.endpos, expl->origin);
 				}
-
-				if (prj->parttime)
-					continue;
-				else
-					VectorCopy(trace.endpos, prj->org);
-				#else
-				continue;//prj->endtime = cl.time;
 				#endif
+				continue;
 			}
 		}
 
@@ -1440,4 +1437,3 @@ void CL_UpdateTEnts (void)
 	CL_UpdateExplosions();
 	CL_UpdateFakeProjectiles();
 }
-

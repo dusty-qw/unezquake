@@ -2283,6 +2283,23 @@
       "group-id": "21",
       "type": "boolean"
     },
+    "cl_pext_ezcsqc": {
+      "default": "1",
+      "desc": "Enables the native CSQC/EZCSQC protocol path for server-authored weapon and projectile prediction. Supported servers can send weapon definitions, weapon timing, sounds, and projectile state through CSQC so local prediction is smoother than the legacy MVD weapon prediction/simple projectile extensions.",
+      "group-id": "21",
+      "remarks": "You must reconnect to the server for changes to take effect.",
+      "type": "boolean",
+      "values": [
+        {
+          "description": "Use legacy prediction extensions or normal server projectiles.",
+          "name": "0"
+        },
+        {
+          "description": "Advertise and use native CSQC/EZCSQC prediction when the server supports it.",
+          "name": "1"
+        }
+      ]
+    },
     "cl_pext_floatcoords": {
       "default": "1",
       "desc": "If set, enable support for FTE's floating point coordinate protocol extension.",
