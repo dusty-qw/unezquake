@@ -1091,6 +1091,10 @@ int CL_CalcNetStatistics(
 
 int CL_CalcNet (void);
 void CL_ParseServerMessage (void);
+#ifdef FTE_PEXT_CSQC
+void CL_EZCSQC_InitializeEntities(void);
+void CL_EZCSQC_PrepareParticleFrame(void);
+#endif
 void CL_NewTranslation (int slot);
 qbool CL_CheckOrDownloadFile (char *filename);
 qbool CL_IsUploading(void);

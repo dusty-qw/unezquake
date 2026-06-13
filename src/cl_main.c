@@ -127,6 +127,10 @@ cvar_t  cl_pext_weaponprediction = { "cl_pext_weaponprediction", "1" }; // send 
 cvar_t  cl_pext_simpleprojectiles = { "cl_pext_simpleprojectiles", "1" }; // send simple stateless projectiles
 cvar_t  cl_sproj_xerp = { "cl_sproj_xerp", "0" }; // extrapolate projectiles based on ping
 #endif
+#ifdef FTE_PEXT_CSQC
+cvar_t  cl_pext_ezcsqc = { "cl_pext_ezcsqc", "1" }; // native CSQC/EZCSQC weapon and projectile prediction
+cvar_t  cl_ezcsqc_debug = { "cl_ezcsqc_debug", "0" }; // print native CSQC/EZCSQC parser diagnostics
+#endif
 #endif
 #ifdef FTE_PEXT_256PACKETENTITIES
 cvar_t	cl_pext_256packetentities = {"cl_pext_256packetentities", "1"};
@@ -506,6 +510,10 @@ unsigned int CL_SupportedFTEExtensions (void)
 	if (cl_pext_colourmod.value)
 		fteprotextsupported |= FTE_PEXT_COLOURMOD;
 #endif
+#ifdef FTE_PEXT_CSQC
+	if (cl_pext_ezcsqc.value)
+		fteprotextsupported |= FTE_PEXT_CSQC;
+#endif
 
 	if (cl_pext_limits.value) {
 #ifdef FTE_PEXT_MODELDBL
@@ -580,13 +588,21 @@ unsigned int CL_SupportedMVDExtensions1(void)
 #endif
 
 #ifdef MVD_PEXT1_WEAPONPREDICTION
-	if (cl_pext_weaponprediction.value) {
+	if (cl_pext_weaponprediction.value
+#ifdef FTE_PEXT_CSQC
+		&& !cl_pext_ezcsqc.value
+#endif
+	) {
 		extensions_supported |= MVD_PEXT1_WEAPONPREDICTION;
 	}
 #endif
 
 #ifdef MVD_PEXT1_SIMPLEPROJECTILE
-	if (cl_pext_simpleprojectiles.value) {
+	if (cl_pext_simpleprojectiles.value
+#ifdef FTE_PEXT_CSQC
+		&& !cl_pext_ezcsqc.value
+#endif
+	) {
 		extensions_supported |= MVD_PEXT1_SIMPLEPROJECTILE;
 	}
 #endif
@@ -1248,6 +1264,9 @@ void CL_ClearState (void)
 	CL_ClearScene ();
 
 	CL_ClearPredict();
+#ifdef FTE_PEXT_CSQC
+	CL_EZCSQC_InitializeEntities();
+#endif
 
 	if (cls.state == ca_active) {
 		int ideal_track = cl.ideal_track;
@@ -1984,6 +2003,10 @@ static void CL_InitLocal(void)
 #ifdef MVD_PEXT1_SIMPLEPROJECTILE
 	Cvar_Register(&cl_pext_simpleprojectiles);
 	Cvar_Register(&cl_sproj_xerp);
+#endif
+#ifdef FTE_PEXT_CSQC
+	Cvar_Register(&cl_pext_ezcsqc);
+	Cvar_Register(&cl_ezcsqc_debug);
 #endif
 #endif // PROTOCOL_VERSION_FTE
 #ifdef FTE_PEXT_256PACKETENTITIES
@@ -2722,6 +2745,10 @@ void CL_Frame(double time)
 	}
 
 	VID_ReloadCheck();
+
+#ifdef FTE_PEXT_CSQC
+	CL_EZCSQC_PrepareParticleFrame();
+#endif
 
 	R_ParticleFrame();
 

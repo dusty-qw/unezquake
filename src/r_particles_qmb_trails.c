@@ -33,6 +33,32 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 extern cvar_t gl_part_tracer1_color, gl_part_tracer1_size, gl_part_tracer1_time;
 extern cvar_t gl_part_tracer2_color, gl_part_tracer2_size, gl_part_tracer2_time;
 
+static int QMB_TrailEntityRef(centity_t *cent)
+{
+	uintptr_t cent_addr;
+	uintptr_t first_addr;
+	uintptr_t end_addr;
+
+	if (!cent) {
+		return 0;
+	}
+
+	/*
+	 * Dynamic entity trails may follow normal packet entities by storing a
+	 * cl_entities[] index. Temporary/fake/EZCSQC projectiles use embedded
+	 * centity_t storage, so pointer subtraction against cl_entities would
+	 * produce a bogus index and later read unrelated cl_entities entries.
+	 */
+	cent_addr = (uintptr_t)cent;
+	first_addr = (uintptr_t)&cl_entities[0];
+	end_addr = (uintptr_t)&cl_entities[CL_MAX_EDICTS];
+	if (cent_addr < first_addr || cent_addr >= end_addr) {
+		return 0;
+	}
+
+	return (cent - cl_entities) + 1;
+}
+
 __inline static void AddParticleTrailImpl(part_type_t type, vec3_t start, vec3_t end, float size, float time, col_t col, centity_t* cent, int trail_index)
 {
 	byte *color;
@@ -49,8 +75,7 @@ __inline static void AddParticleTrailImpl(part_type_t type, vec3_t start, vec3_t
 		Sys_Error("QMB particle added without initialization");
 	}
 
-	entity_ref = cent ? (cent - cl_entities) + 1 : 0;
-	entity_ref = bound(0, entity_ref, CL_MAX_EDICTS);
+	entity_ref = QMB_TrailEntityRef(cent);
 
 	if (time == 0 || size == 0.0f) {
 		return;

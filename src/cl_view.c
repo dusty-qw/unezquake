@@ -19,6 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "quakedef.h"
+#include "ezcsqc.h"
 #include "vx_stuff.h"
 #include "gl_model.h"
 #include "teamplay.h"
@@ -818,6 +819,15 @@ static int V_CurrentWeaponModel(void)
 	extern cvar_t cl_weaponpreselect;
 	int bestgun;
 	int realw = cl.stats[STAT_WEAPON];
+#ifdef FTE_PEXT_CSQC
+	int ez_model, ez_frame;
+
+	if (CL_EZCSQC_UpdateViewWeapon(&ez_model, &ez_frame)) {
+		cl.stats[STAT_WEAPON] = ez_model;
+		view_message.weaponframe = ez_frame;
+		return ez_model;
+	}
+#endif
 
 	if (cls.demoplayback && r_viewlastfired.integer) {
 		if (realw == 0) {
@@ -857,7 +867,7 @@ static int V_CurrentWeaponModel(void)
 				return cl_modelindices[mi_weapon1 - 1 + bestgun];
 			}
 		}
-		else if (!pmove_nopred_weapon && cls.mvdprotocolextensions1 & MVD_PEXT1_WEAPONPREDICTION) {
+		else if (!CL_EZCSQC_Active() && !pmove_nopred_weapon && cls.mvdprotocolextensions1 & MVD_PEXT1_WEAPONPREDICTION) {
 			if (cl.simwep == 1)
 				return cl_modelindices[mi_vaxe];
 			else if (cl.simwep > 1 && cl.simwep <= 9)
@@ -922,7 +932,7 @@ static void V_AddViewWeapon(float bob)
 			cent->current.origin[2] += 0.5;
 	}
 
-	if (!pmove_nopred_weapon && cls.mvdprotocolextensions1 & MVD_PEXT1_WEAPONPREDICTION)
+	if (!CL_EZCSQC_Active() && !pmove_nopred_weapon && cls.mvdprotocolextensions1 & MVD_PEXT1_WEAPONPREDICTION)
 		view_message.weaponframe = cl.simwepframe;
 
 	if (cent->current.modelindex != gunmodel) {
@@ -1028,6 +1038,10 @@ static void V_CalcRefdef(void)
 	// meag: really viewheight shouldn't be here, but it was incorrectly passed for years instead of bob,
 	//       and so without it the gun is rendered too far forward if e.g. viewheight -6
 	V_AddViewWeapon(bob + height_adjustment);
+
+#ifdef FTE_PEXT_CSQC
+	CL_EZCSQC_UpdateView();
+#endif
 }
 
 void DropPunchAngle (void) {

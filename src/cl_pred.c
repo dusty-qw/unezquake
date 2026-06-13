@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "cl_tent.h"
 #include "qsound.h"
 #include "client.h"
+#include "ezcsqc.h"
 
 cvar_t	cl_nopred	= {"cl_nopred", "0"};
 cvar_t	cl_nopred_weapon = { "cl_nopred_weapon", "0" };
@@ -141,7 +142,7 @@ void CL_PredictUsercmd (player_state_t *from, player_state_t *to, usercmd_t *u, 
 
 	if (local)
 	{
-		if (!pmove_nopred_weapon && cls.mvdprotocolextensions1 & MVD_PEXT1_WEAPONPREDICTION)
+		if (!CL_EZCSQC_Active() && !pmove_nopred_weapon && cls.mvdprotocolextensions1 & MVD_PEXT1_WEAPONPREDICTION)
 			PM_PlayerWeapon();
 		else
 			pmove.impulse = 0;
@@ -389,8 +390,6 @@ static void check_standing_on_entity(void)
 
 void CL_PlayEvents(void)
 {
-
-
 	int threshold = bound(min(cl.validsequence + 2, cls.netchan.outgoing_sequence - 1), cls.netchan.outgoing_sequence - (cl_predict_buffer.integer + 1), cls.netchan.outgoing_sequence - 1);
 	if (pmove.effect_frame >= threshold)
 		return;
@@ -410,6 +409,10 @@ void CL_PlayEvents(void)
 	prediction_event_fakeproj_t *p_event;
 	for(p_event = p_event_fakeproj; p_event != NULL; p_event = p_event->next)
 	{
+		if (CL_EZCSQC_Active()) {
+			continue;
+		}
+
 		if (p_event->frame_num > pmove.effect_frame && p_event->frame_num <= threshold)
 		{
 			player_state_t *this_state = &cl.frames[(p_event->frame_num) & UPDATE_MASK].playerstate[cl.playernum];
