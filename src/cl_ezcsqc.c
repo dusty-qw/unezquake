@@ -42,8 +42,6 @@ extern cvar_t gl_no24bit;
 #define LENGTH2S(length) ((float)(length) / 1000.0f)
 #define EF_NAILTRAIL 0x40000000
 #define EZCSQC_LOCAL_PROJECTILE_BASE MAX_EDICTS
-#define EZCSQC_PROJECTILE_MIN_OWNER_TRAVEL 24.0f	// how far a projectile must move from its own spawn origin to be drawn.
-#define EZCSQC_PROJECTILE_MIN_CAMERA_DIST 36.0f		// how far the projectile must be from camera/view origin to be drawn.
 
 /*
  * Weapon prediction is stored in three rings:
@@ -95,6 +93,7 @@ static ezcsqc_entity_t *CL_EZCSQC_Ent_Spawn(void)
 		return ent;
 	}
 
+	// Fall back to slot zero only under extreme pressure; callers overwrite it immediately.
 	return &ezcsqc_entities[0];
 }
 
@@ -109,15 +108,18 @@ static void CL_EZCSQC_Ent_Remove(ezcsqc_entity_t *ent)
 			ent->entnum, ent->drawmask, ent == viewweapon, ezcsqc.weapon_prediction);
 	}
 
+	// Removing the bound viewweapon disables native weapon prediction until KTX sends a new one.
 	if (ent == viewweapon) {
 		viewweapon = NULL;
 		ezcsqc.weapon_prediction = false;
 	}
 
+	// Networked entities must be unhooked so a reused server entnum allocates cleanly.
 	if (!ent->local_projectile && ent->entnum > 0 && ent->entnum < MAX_EDICTS && ezcsqc_networkedents[ent->entnum] == ent) {
 		ezcsqc_networkedents[ent->entnum] = NULL;
 	}
 
+	// Detach packet-style trail follow state for server projectiles that used cl_entities[].
 	if ((ent->drawmask & DRAWMASK_PROJECTILE) && !ent->local_projectile && ent->entnum > 0 && ent->entnum < CL_MAX_EDICTS) {
 		centity_t *cent = &cl_entities[ent->entnum];
 		int t;
@@ -141,6 +143,7 @@ void CL_EZCSQC_InitializeEntities(void)
 	int i;
 	weppredsound_t *snd;
 
+	// Clear all server protocol state and local prediction snapshots on reconnect/map load.
 	memset(&ezcsqc, 0, sizeof(ezcsqc));
 	memset(ws_server, 0, sizeof(ws_server));
 	memset(&ws_predicted, 0, sizeof(ws_predicted));
@@ -153,12 +156,14 @@ void CL_EZCSQC_InitializeEntities(void)
 	lg_twidth = 0;
 	projectile_ringbufferseek = 0;
 
+	// Mark every EZCSQC slot free; server entity mappings are rebuilt from CSQC updates.
 	for (i = 0; i < MAX_EDICTS; i++) {
 		memset(&ezcsqc_entities[i], 0, sizeof(ezcsqc_entities[i]));
 		ezcsqc_entities[i].isfree = true;
 		ezcsqc_networkedents[i] = NULL;
 	}
 
+	// Sound definitions are rebuilt from weapondef payloads, so drop the old echo list.
 	snd = predictionsoundlist;
 	while (snd) {
 		weppredsound_t *next = snd->next;
@@ -219,6 +224,7 @@ static int CL_EZCSQC_ProjectileVisualEffects(ezcsqc_entity_t *ent)
 	int effects;
 	model_t *model;
 
+	// Missing models cannot have reliable model flags or trail hints.
 	if (!ent->modelindex || ent->modelindex >= MAX_MODELS || !cl.model_precache[ent->modelindex]) {
 		return 0;
 	}
@@ -252,15 +258,18 @@ static qbool CL_EZCSQC_ProjectileTraceBlocked(vec3_t start, vec3_t end)
 	vec3_t point;
 	int i;
 
+	// Point-blank shots can begin or end inside BSP solid before a line trace reports a hit.
 	if (CL_EZCSQC_ProjectilePointSolid(start) || CL_EZCSQC_ProjectilePointSolid(end)) {
 		return true;
 	}
 
+	// The normal trace catches world intersections along the simulated segment.
 	trace = PM_TraceLine(start, end);
 	if (trace.fraction < 1 || trace.startsolid || trace.allsolid) {
 		return true;
 	}
 
+	// Sample interior points too, because short traces can miss some all-solid edge cases.
 	for (i = 1; i < 4; i++) {
 		VectorInterpolate(start, i * 0.25f, end, point);
 		if (CL_EZCSQC_ProjectilePointSolid(point)) {
@@ -278,6 +287,7 @@ static qbool CL_EZCSQC_PredictRocketSpawnTouch(int modelindex, vec3_t origin, ve
 	trace_t trace;
 	float speed;
 
+	// Only rockets get local close-start explosion prediction.
 	if (!modelindex || modelindex >= MAX_MODELS) {
 		return false;
 	}
@@ -287,6 +297,7 @@ static qbool CL_EZCSQC_PredictRocketSpawnTouch(int modelindex, vec3_t origin, ve
 		return false;
 	}
 
+	// Degenerate projectile definitions should never synthesize explosions.
 	speed = VectorLength(velocity);
 	if (speed <= 1) {
 		return false;
@@ -299,10 +310,11 @@ static qbool CL_EZCSQC_PredictRocketSpawnTouch(int modelindex, vec3_t origin, ve
 		if (trace.e.entnum == 0) {
 			vec3_t predicted_origin, back;
 
-				VectorScale(velocity, -8.0f / speed, back);
-				VectorAdd(trace.endpos, back, predicted_origin);
-				CL_PredictRocketExplosion(predicted_origin, trace.endpos, prediction_time);
-			}
+			// KTX backs the explosion temp entity off the true impact point by 8 units.
+			VectorScale(velocity, -8.0f / speed, back);
+			VectorAdd(trace.endpos, back, predicted_origin);
+			CL_PredictRocketExplosion(predicted_origin, trace.endpos, prediction_time);
+		}
 		if (cl_ezcsqc_debug.integer > 2) {
 			Com_Printf("EZCSQC predicted rocket spawn-touch model=%d org=(%.1f %.1f %.1f) hit=(%.1f %.1f %.1f)\n",
 				modelindex, origin[0], origin[1], origin[2],
@@ -338,25 +350,19 @@ static qbool CL_EZCSQC_OwnerProjectile(ezcsqc_entity_t *self)
 static qbool CL_EZCSQC_ProjectileOriginTooCloseToDraw(ezcsqc_entity_t *self, vec3_t origin)
 {
 	vec3_t diff;
-	float min_travel = EZCSQC_PROJECTILE_MIN_OWNER_TRAVEL;
 
 	if (!CL_EZCSQC_OwnerProjectile(self)) {
 		return false;
 	}
 
 	VectorSubtract(origin, r_refdef.vieworg, diff);
-	if (DotProduct(diff, diff) < EZCSQC_PROJECTILE_MIN_CAMERA_DIST * EZCSQC_PROJECTILE_MIN_CAMERA_DIST) {
+
+	// Avoid drawing owner projectiles that are effectively inside the camera.
+	if (DotProduct(diff, diff) < 8.0f * 8.0f) {
 		return true;
 	}
 
-	if (self->local_projectile) {
-		VectorSubtract(origin, self->start, diff);
-	}
-	else {
-		VectorSubtract(origin, self->trail_origin, diff);
-	}
-
-	return DotProduct(diff, diff) < min_travel * min_travel;
+	return false;
 }
 
 static qbool CL_EZCSQC_ProjectileTooCloseToDraw(ezcsqc_entity_t *self)
@@ -399,6 +405,7 @@ static void CL_EZCSQC_SeedProjectileTrail(ezcsqc_entity_t *self, vec3_t origin)
 		cent = &cl_entities[self->entnum];
 	}
 
+	// Reset every trail stop to the same point so the next particle segment starts cleanly.
 	self->trail_seeded = true;
 	VectorCopy(origin, self->partorg);
 	VectorCopy(origin, cent->old_origin);
@@ -426,6 +433,7 @@ static centity_t *CL_EZCSQC_ProjectileCentity(ezcsqc_entity_t *self, entity_stat
 		int t;
 
 		cent = &cl_entities[self->entnum];
+		// Large discontinuities need a new trail number so old QMB followers detach.
 		if (cent->current.modelindex != state->modelindex ||
 			!VectorL2Compare(cent->current.origin, state->origin, 200)) {
 			/*
@@ -443,6 +451,7 @@ static centity_t *CL_EZCSQC_ProjectileCentity(ezcsqc_entity_t *self, entity_stat
 		}
 	}
 
+	// Keep the centity current for render interpolation and QMB dynamic trail follow.
 	cent->current = *state;
 	cent->sequence = cl.validsequence;
 	VectorCopy(state->origin, cent->current.origin);
@@ -467,6 +476,7 @@ static ezcsqc_entity_t *CL_EZCSQC_AllocLocalProjectile(void)
 		if (!ent->isfree || ent->freetime > time_safety) {
 			continue;
 		}
+		// Local placeholders live in the shared pool but outside the networked entnum range.
 		memset(ent, 0, sizeof(*ent));
 		ent->entnum = EZCSQC_LOCAL_PROJECTILE_BASE + i;
 		ent->local_projectile = true;
@@ -491,6 +501,7 @@ static void CL_EZCSQC_RemoveMatchedLocalProjectile(ezcsqc_entity_t *server)
 		ezcsqc_entity_t projected = *server;
 		float dt;
 
+		// Project grenades with the bounce path so matching compares visible endpoints.
 		VectorCopy(projected.sim_origin, projected.origin);
 		dt = max(cl.servertime - projected.simtime, 0);
 		if (dt > 0) {
@@ -499,6 +510,7 @@ static void CL_EZCSQC_RemoveMatchedLocalProjectile(ezcsqc_entity_t *server)
 		VectorCopy(projected.origin, server_origin);
 	}
 	else {
+		// Non-bouncing projectiles can be compared with simple linear extrapolation.
 		VectorMA(server->s_origin, cl.servertime - server->s_time, server->s_velocity, server_origin);
 	}
 
@@ -522,6 +534,7 @@ static void CL_EZCSQC_RemoveMatchedLocalProjectile(ezcsqc_entity_t *server)
 			continue;
 		}
 
+		// Reconstruct where the local placeholder should be at the current render time.
 		if (local->projectile_type == 1) {
 			/* Grenades are simulated incrementally because they can bounce. */
 			VectorCopy(local->origin, local_origin);
@@ -533,6 +546,7 @@ static void CL_EZCSQC_RemoveMatchedLocalProjectile(ezcsqc_entity_t *server)
 			VectorAdd(local_origin, traveled, local_origin);
 		}
 
+		// Split the mismatch into along-trajectory and sideways error for safer matching.
 		VectorSubtract(server_origin, local_origin, diff);
 		VectorClear(diff_parallel);
 		local_speed = VectorLength(local->vel);
@@ -545,6 +559,7 @@ static void CL_EZCSQC_RemoveMatchedLocalProjectile(ezcsqc_entity_t *server)
 		VectorSubtract(diff, diff_parallel, diff_perp);
 		perpendicular = VectorLength(diff_perp);
 
+		// Accept larger owner rocket/nail phase gaps only when they are nearly collinear.
 		if (VectorLength(diff) > 64) {
 			if (server->ownernum != cl.playernum + 1 || local->projectile_type == 1 || perpendicular >= 8 || fabs(parallel) > 128) {
 				continue;
@@ -565,56 +580,59 @@ static void CL_EZCSQC_RemoveMatchedLocalProjectile(ezcsqc_entity_t *server)
 				server_origin[0], server_origin[1], server_origin[2]);
 		}
 
-			if (server->ownernum == cl.playernum + 1 && perpendicular < 8) {
-				vec3_t smooth_origin;
+		if (server->ownernum == cl.playernum + 1 && perpendicular < 8) {
+			vec3_t smooth_origin;
 
-				if (local->has_last_draw_origin) {
-					VectorCopy(local->last_draw_origin, smooth_origin);
-				}
-				else {
-					VectorCopy(local_origin, smooth_origin);
-				}
-
-				server->handoff_smoothing = true;
-				server->handoff_starttime = cl.time;
-				server->handoff_endtime = cl.time + (local->has_last_draw_origin
-					? bound(0.150, fabs(parallel) / max(local_speed, 1) * 6.0f, 0.300)
-					: bound(0.026, fabs(parallel) / max(local_speed, 1) * 0.5f, 0.050));
-				VectorCopy(smooth_origin, server->handoff_origin);
-				VectorSubtract(server_origin, smooth_origin, server->handoff_delta);
-				VectorCopy(smooth_origin, server->oldorigin);
-				if (cl_ezcsqc_debug.integer > 2) {
-					Com_Printf("EZCSQC local projectile handoff-smooth server=%d start=(%.1f %.1f %.1f) end=(%.1f %.1f %.1f) duration=%.3f\n",
-						server->entnum,
-						smooth_origin[0], smooth_origin[1], smooth_origin[2],
-						server_origin[0], server_origin[1], server_origin[2],
-						server->handoff_endtime - server->handoff_starttime);
-				}
+			// Owner handoff starts from the last visible local model when available.
+			if (local->has_last_draw_origin) {
+				VectorCopy(local->last_draw_origin, smooth_origin);
 			}
-			if (local->projectile_type == 1) {
-				VectorCopy(local->angles, server->angles);
-				VectorCopy(local->angles, server->sim_angles);
-				server->angle_simtime = cl.time;
+			else {
+				VectorCopy(local_origin, smooth_origin);
 			}
 
-			if (local->partcount || local->trail_seeded) {
-				cent = (server->entnum > 0 && server->entnum < CL_MAX_EDICTS) ? &cl_entities[server->entnum] : &server->cent;
-				/*
-				 * Seed the authoritative trail from the last local visual trail
-				 * point. Close-range placeholders may seed this before any trail
-				 * particles are emitted, so the server trail does not restart at
-				 * the muzzle when prediction ends.
-				 */
-				server->trail_seeded = true;
-				server->trail_started = local->trail_started;
-				VectorCopy(local->partorg, server->trail_origin);
-				VectorCopy(local->partorg, server->partorg);
-				VectorCopy(local->partorg, cent->old_origin);
-				VectorCopy(local->partorg, cent->trails[0].stop);
-				VectorCopy(local->partorg, cent->trails[1].stop);
-				VectorCopy(local->partorg, cent->trails[2].stop);
-				VectorCopy(local->partorg, cent->trails[3].stop);
+			// Smooth out only the displayed phase gap; authority stays with the server entity.
+			server->handoff_smoothing = true;
+			server->handoff_starttime = cl.time;
+			server->handoff_endtime = cl.time + (local->has_last_draw_origin
+				? bound(0.150, fabs(parallel) / max(local_speed, 1) * 6.0f, 0.300)
+				: bound(0.026, fabs(parallel) / max(local_speed, 1) * 0.5f, 0.050));
+			VectorCopy(smooth_origin, server->handoff_origin);
+			VectorSubtract(server_origin, smooth_origin, server->handoff_delta);
+			VectorCopy(smooth_origin, server->oldorigin);
+			if (cl_ezcsqc_debug.integer > 2) {
+				Com_Printf("EZCSQC local projectile handoff-smooth server=%d start=(%.1f %.1f %.1f) end=(%.1f %.1f %.1f) duration=%.3f\n",
+					server->entnum,
+					smooth_origin[0], smooth_origin[1], smooth_origin[2],
+					server_origin[0], server_origin[1], server_origin[2],
+					server->handoff_endtime - server->handoff_starttime);
 			}
+		}
+		if (local->projectile_type == 1) {
+			// Grenade spin is cosmetic, so preserve the local visual phase at handoff.
+			VectorCopy(local->angles, server->angles);
+			VectorCopy(local->angles, server->sim_angles);
+			server->angle_simtime = cl.time;
+		}
+
+		if (local->partcount || local->trail_seeded) {
+			cent = (server->entnum > 0 && server->entnum < CL_MAX_EDICTS) ? &cl_entities[server->entnum] : &server->cent;
+			/*
+			 * Seed the authoritative trail from the last local visual trail
+			 * point. Close-range placeholders may seed this before any trail
+			 * particles are emitted, so the server trail does not restart at
+			 * the muzzle when prediction ends.
+			 */
+			server->trail_seeded = true;
+			server->trail_started = local->trail_started;
+			VectorCopy(local->partorg, server->trail_origin);
+			VectorCopy(local->partorg, server->partorg);
+			VectorCopy(local->partorg, cent->old_origin);
+			VectorCopy(local->partorg, cent->trails[0].stop);
+			VectorCopy(local->partorg, cent->trails[1].stop);
+			VectorCopy(local->partorg, cent->trails[2].stop);
+			VectorCopy(local->partorg, cent->trails[3].stop);
+		}
 		CL_EZCSQC_Ent_Remove(local);
 		return;
 	}
@@ -624,10 +642,12 @@ static void CL_EZCSQC_ProjectileClipVelocity(vec3_t vel, vec3_t norm, float f)
 {
 	vec3_t vel2;
 
+	// Remove the component into the collision plane and scale it for Quake-style bounce.
 	VectorScale(norm, DotProduct(vel, norm), vel2);
 	VectorScale(vel2, f, vel2);
 	VectorSubtract(vel, vel2, vel);
 
+	// Snap tiny residual velocity to zero so grenades can come to rest.
 	if (vel[0] > -0.1f && vel[0] < 0.1f) {
 		vel[0] = 0;
 	}
@@ -642,10 +662,12 @@ static void CL_EZCSQC_ProjectileClipVelocity(vec3_t vel, vec3_t norm, float f)
 static void CL_EZCSQC_ProjectileAdvanceAngles(ezcsqc_entity_t *proj, float dt)
 {
 	if (proj->projectile_type == 1) {
+		// Grenades keep a separate simulated angle phase across server corrections.
 		VectorMA(proj->sim_angles, dt, proj->avel, proj->sim_angles);
 		VectorCopy(proj->sim_angles, proj->angles);
 	}
 	else {
+		// Non-grenade angular velocity is simple display state.
 		VectorMA(proj->angles, dt, proj->avel, proj->angles);
 	}
 }
@@ -655,6 +677,7 @@ static void CL_EZCSQC_ProjectileBounce(ezcsqc_entity_t *proj, float dt, qbool up
 	float gravity_value = movevars.gravity;
 	float movetime, bump;
 
+	// A grounded grenade stays still until the server gives it upward velocity again.
 	if ((proj->flags & 512) && proj->vel[2] >= 1.0f / 32.0f) {
 		proj->flags &= ~512;
 	}
@@ -662,11 +685,13 @@ static void CL_EZCSQC_ProjectileBounce(ezcsqc_entity_t *proj, float dt, qbool up
 		return;
 	}
 
+	// Apply half gravity before and after the move, matching the server integration shape.
 	proj->vel[2] -= 0.5f * dt * gravity_value;
 	if (update_angles) {
 		CL_EZCSQC_ProjectileAdvanceAngles(proj, dt);
 	}
 
+	// Resolve a few bounces inside the render frame instead of tunneling through walls.
 	movetime = dt;
 	for (bump = 0; bump < 5 && movetime > 0; bump++) {
 		vec3_t move, to;
@@ -682,12 +707,14 @@ static void CL_EZCSQC_ProjectileBounce(ezcsqc_entity_t *proj, float dt, qbool up
 			break;
 		}
 
+		// Continue with the unconsumed fraction after the collision.
 		movetime *= 1 - min(1, phytrace.fraction);
 		bouncefac = 0.5f;
 		bouncestp = (60.0f / 800.0f) * gravity_value;
 
 		CL_EZCSQC_ProjectileClipVelocity(proj->vel, phytrace.plane.normal, 1 + bouncefac);
 		d = DotProduct(phytrace.plane.normal, proj->vel);
+		// Shallow floor impacts below the stop threshold become a resting grenade.
 		if (phytrace.plane.normal[2] > 0.7f && d < bouncestp && d > -bouncestp) {
 			proj->flags |= 512;
 			VectorClear(proj->vel);
@@ -698,6 +725,7 @@ static void CL_EZCSQC_ProjectileBounce(ezcsqc_entity_t *proj, float dt, qbool up
 		}
 	}
 
+	// Only airborne grenades receive the second half of gravity.
 	if (!(proj->flags & 512)) {
 		proj->vel[2] -= 0.5f * dt * gravity_value;
 	}
@@ -705,6 +733,7 @@ static void CL_EZCSQC_ProjectileBounce(ezcsqc_entity_t *proj, float dt, qbool up
 
 static void CL_EZCSQC_SetGrenadeServerState(ezcsqc_entity_t *self, qbool reset_angles)
 {
+	// Position and velocity are authoritative; angle phase is client-owned unless reset.
 	VectorCopy(self->s_origin, self->origin);
 	VectorCopy(self->s_origin, self->sim_origin);
 	if (reset_angles) {
@@ -715,6 +744,7 @@ static void CL_EZCSQC_SetGrenadeServerState(ezcsqc_entity_t *self, qbool reset_a
 		self->angle_simtime = cl.time;
 	}
 	VectorCopy(self->s_velocity, self->vel);
+	// A near-zero server velocity means the authoritative grenade is at rest.
 	if (VectorLength(self->vel) < 1.0f) {
 		VectorClear(self->vel);
 		VectorClear(self->avel);
@@ -737,12 +767,14 @@ static void CL_EZCSQC_ApplyProjectileHandoffSmoothing(ezcsqc_entity_t *self, vec
 				: 1.0f;
 			vec3_t correction;
 
+			// Smoothstep the stored phase offset so the rendered projectile eases into authority.
 			frac = bound(0, frac, 1);
 			frac = frac * frac * (3 - 2 * frac);
 			VectorScale(self->handoff_delta, 1 - frac, correction);
 			VectorSubtract(authoritative_origin, correction, self->origin);
 		}
 		else {
+			// Once the smoothing window ends, draw exactly at the authoritative endpoint.
 			self->handoff_smoothing = false;
 			VectorCopy(authoritative_origin, self->origin);
 		}
@@ -787,6 +819,7 @@ static qbool Predraw_Projectile(ezcsqc_entity_t *self)
 			if (self->projectile_type == 1) {
 				double dt = max(projectile_time - self->simtime, 0);
 
+				// Local grenades free-run with bounce physics until the server grenade arrives.
 				self->simtime = projectile_time;
 				if (dt > 0) {
 					CL_EZCSQC_ProjectileBounce(self, dt, true);
@@ -796,6 +829,7 @@ static qbool Predraw_Projectile(ezcsqc_entity_t *self)
 			vec3_t traveled;
 			vec3_t trace_end;
 
+			// Rockets and nails are straight-line visuals phased from their local start time.
 			VectorCopy(self->start, self->origin);
 			VectorScale(self->vel, projectile_time - self->starttime, traveled);
 			VectorAdd(self->origin, traveled, self->origin);
@@ -823,11 +857,13 @@ static qbool Predraw_Projectile(ezcsqc_entity_t *self)
 	{
 		vec3_t previous_origin;
 
+		// Remember the previous drawn point so extrapolated server rockets stop at walls.
 		VectorCopy(self->oldorigin, previous_origin);
 			dt = cl.servertime - self->s_time;
 			if (visual_effects & EF_GRENADE) {
 				vec3_t authoritative_origin;
 
+				// Server grenades receive sparse corrections, then bounce locally between them.
 				VectorCopy(self->sim_origin, self->origin);
 				dt = max(cl.servertime - self->simtime, 0);
 				self->simtime = cl.servertime;
@@ -837,6 +873,7 @@ static qbool Predraw_Projectile(ezcsqc_entity_t *self)
 				VectorCopy(self->origin, authoritative_origin);
 				VectorCopy(authoritative_origin, self->sim_origin);
 
+				// Spin advances on render time so packet jitter does not make grenades tumble wildly.
 				dt = max(cl.time - self->angle_simtime, 0);
 				self->angle_simtime = cl.time;
 				if (dt > 0) {
@@ -848,6 +885,7 @@ static qbool Predraw_Projectile(ezcsqc_entity_t *self)
 			vec3_t authoritative_origin;
 			vec3_t trace_end;
 
+			// Server rockets/nails are extrapolated from the latest authoritative origin/time.
 			VectorMA(self->s_origin, dt, self->s_velocity, authoritative_origin);
 			CL_EZCSQC_ApplyProjectileHandoffSmoothing(self, authoritative_origin);
 			VectorMA(self->origin, 0.02f, self->s_velocity, trace_end);
@@ -908,11 +946,13 @@ static void WeaponPred_SpawnProjectile(usercmd_t *u, player_state_t *ps, ezcsqc_
 	VectorMA(velocity, anim->projectile_velocity[1], forward, velocity);
 	VectorMA(velocity, anim->projectile_velocity[2], up, velocity);
 
+	// Point-blank rocket impacts become a predicted explosion instead of a fake model.
 	if (CL_EZCSQC_PredictRocketSpawnTouch(modelindex, origin, velocity, ps->state_time)) {
 		CL_EZCSQC_Ent_Remove(ent);
 		return;
 	}
 
+	// Initialize common projectile motion state from the predicted weapon definition.
 	vectoangles(velocity, ent->angles);
 	VectorCopy(origin, ent->origin);
 	VectorCopy(origin, ent->start);
@@ -920,12 +960,14 @@ static void WeaponPred_SpawnProjectile(usercmd_t *u, player_state_t *ps, ezcsqc_
 	VectorCopy(origin, ent->partorg);
 	VectorClear(ent->avel);
 	if (ent->projectile_type == 1) {
+		// Grenades keep native-looking spin and do not get the non-grenade newmis phase lead.
 		VectorSet(ent->avel, 300, 300, 300);
 		VectorCopy(ent->angles, ent->sim_angles);
 	}
 	else {
 		float speed = VectorLength(velocity);
 		if (speed > 1) {
+			// Match KTX/native newmis: rockets and nails begin 0.05 seconds into flight.
 			ent->starttime -= 0.05f;
 			VectorMA(origin, 0.05f, velocity, ent->origin);
 			VectorCopy(ent->origin, ent->partorg);
@@ -948,6 +990,7 @@ static void CL_EZCSQC_AddPredictionSound(unsigned short index, unsigned short ma
 		return;
 	}
 
+	// Keep one entry per predicted sound/mask/channel tuple for echo suppression.
 	for (snd = predictionsoundlist; snd; snd = snd->next) {
 		if (snd->index == index && snd->mask == mask && snd->chan == chan) {
 			return;
@@ -986,6 +1029,7 @@ static void EntUpdate_WeaponDef(ezcsqc_entity_t *self, qbool is_new)
 	(void)self;
 	(void)is_new;
 
+	// A corrupt weapon index means the remaining CSQC stream cannot be trusted.
 	if (raw_wep_index < 0 || raw_wep_index >= MAX_PREDWEPS) {
 		Host_Error("CL_EZCSQC_Ent_Update: bad weapondef index %d flags=%02x ent=%d msg_readcount=%d msg_size=%d",
 			raw_wep_index, sendflags, self->entnum, msg_readcount, net_message.cursize);
@@ -1002,6 +1046,7 @@ static void EntUpdate_WeaponDef(ezcsqc_entity_t *self, qbool is_new)
 	}
 
 	if (sendflags & WEAPONDEF_FLAGS) {
+		// Weapon flags bind Quake impulses/items to compact weapon_index values.
 		wep->impulse = MSG_ReadByte();
 		wep->itemflag = MSG_ReadByte();
 		if (wep->itemflag != 255) {
@@ -1011,11 +1056,13 @@ static void EntUpdate_WeaponDef(ezcsqc_entity_t *self, qbool is_new)
 	}
 
 	if (sendflags & WEAPONDEF_ANIM) {
+		// Animation records drive the native viewmodel FSM and predicted effects.
 		raw = MSG_ReadByte();
 		wep->anim_number = bound(0, raw, WEPPRED_MAXSTATES);
 		for (i = 0; i < wep->anim_number; i++) {
 			weppredanim_t *anim = &wep->anim_states[i];
 
+			// mdlframe is biased on the wire so negative looping markers fit in a byte.
 			anim->mdlframe = MSG_ReadByte() - 127;
 			anim->flags = MSG_ReadByte();
 			if (anim->flags & WEPPREDANIM_MOREBYTES) {
@@ -1025,6 +1072,7 @@ static void EntUpdate_WeaponDef(ezcsqc_entity_t *self, qbool is_new)
 				raw = MSG_ReadShort();
 				anim->sound = bound(0, raw, MAX_SOUNDS - 1);
 				anim->soundmask = MSG_ReadShort();
+				// Register predicted sounds before replay can emit them.
 				CL_EZCSQC_AddPredictionSound(anim->sound, anim->soundmask, (anim->flags & WEPPREDANIM_SOUNDAUTO) ? 0 : 1);
 			}
 			if (anim->flags & WEPPREDANIM_PROJECTILE) {
@@ -1033,6 +1081,7 @@ static void EntUpdate_WeaponDef(ezcsqc_entity_t *self, qbool is_new)
 				for (k = 0; k < 3; k++) {
 					anim->projectile_velocity[k] = MSG_ReadShort();
 				}
+				// Offsets are signed bytes so alternating nails can spawn left or right.
 				for (k = 0; k < 3; k++) {
 					anim->projectile_offset[k] = (signed char)MSG_ReadByte();
 				}
@@ -1056,6 +1105,7 @@ static void WeaponPred_SetModel(ezcsqc_entity_t *self)
 {
 	weppreddef_t *wep = &wpredict_definitions[bound(0, ws_predicted.weapon_index, MAX_PREDWEPS - 1)];
 
+	// The predicted weapon entity only draws after its definition has arrived.
 	if (wep->modelindex) {
 		self->modelindex = wep->modelindex;
 		self->frame = ws_predicted.frame;
@@ -1081,6 +1131,7 @@ static void WeaponPred_PlayEffects(usercmd_t *u, player_state_t *ps, ezcsqc_weap
 
 	if (anim->flags & WEPPREDANIM_SOUND) {
 		int chan = (anim->flags & WEPPREDANIM_SOUNDAUTO) ? 0 : 1;
+		// Lightning uses a minimum local active window so replay does not stutter the loop.
 		if ((anim->flags & WEPPREDANIM_LTIME) && ws->client_time < lg_twidth) {
 			if (cl_ezcsqc_debug.integer > 1) {
 				Com_Printf("EZCSQC sound suppressed: LG time gate frame=%d client_time=%.3f lg_twidth=%.3f\n",
@@ -1088,6 +1139,7 @@ static void WeaponPred_PlayEffects(usercmd_t *u, player_state_t *ps, ezcsqc_weap
 			}
 			return;
 		}
+		// The cvar can enable all sounds or mask off specific predicted sound classes.
 		if (cl_predict_weaponsound.integer == 1 || (cl_predict_weaponsound.integer && !(cl_predict_weaponsound.integer & anim->soundmask))) {
 			if (anim->sound > 0 && anim->sound < MAX_SOUNDS && cl.sound_precache[anim->sound]) {
 				if (cl_ezcsqc_debug.integer > 1) {
@@ -1098,11 +1150,13 @@ static void WeaponPred_PlayEffects(usercmd_t *u, player_state_t *ps, ezcsqc_weap
 			}
 		}
 		if (anim->flags & WEPPREDANIM_LTIME) {
+			// Remember the predicted LG window so repeated replay frames stay quiet.
 			lg_twidth = ws->client_time + 0.6f;
 		}
 	}
 
 	if (anim->flags & WEPPREDANIM_PROJECTILE) {
+		// Projectile effects create only the local visual bridge; KTX still owns authority.
 		if (cl_ezcsqc_debug.integer > 1) {
 			Com_Printf("EZCSQC predicted projectile effect frame=%d model=%d client_time=%.3f\n",
 				current_predframe, anim->projectile_model, ws->client_time);
@@ -1115,10 +1169,12 @@ static void WeaponPred_StartFrame(usercmd_t *u, player_state_t *ps, ezcsqc_weapo
 {
 	weppredanim_t *anim = WEPANIM(wep, bound(0, framenum, WEPPRED_MAXSTATES - 1));
 
+	// Non-attack frames can emit sounds/projectiles when the FSM enters them.
 	if (!(anim->flags & WEPPREDANIM_ATTACK && !(anim->flags & WEPPREDANIM_BRANCH))) {
 		WeaponPred_PlayEffects(u, ps, ws, anim);
 	}
 
+	// Advance the predicted weapon FSM to this animation state.
 	ws->client_thinkindex = framenum;
 	ws->client_nextthink = anim->length ? ws->client_time + LENGTH2S(anim->length) : 0;
 
@@ -1140,6 +1196,7 @@ static void WeaponPred_WAttack(usercmd_t *u, player_state_t *ps, ezcsqc_weapon_s
 	weppreddef_t *wep = &wpredict_definitions[bound(0, ws->weapon_index, MAX_PREDWEPS - 1)];
 	weppredanim_t *anim = WEPANIM(wep, bound(0, ws->client_thinkindex, WEPPRED_MAXSTATES - 1));
 
+	// Do not start a new predicted attack until the weapon is ready and +attack is held.
 	if (ws->client_time < ws->attack_finished || !(u->buttons & BUTTON_ATTACK)) {
 		if (cl_ezcsqc_debug.integer > 3 && (u->buttons & BUTTON_ATTACK)) {
 			Com_Printf("EZCSQC attack not ready frame=%d weapon=%d client_time=%.3f attack_finished=%.3f diff=%.3f think=%d\n",
@@ -1149,6 +1206,7 @@ static void WeaponPred_WAttack(usercmd_t *u, player_state_t *ps, ezcsqc_weapon_s
 		return;
 	}
 
+	// Some weapons mark the current animation itself as the attack entry.
 	if (anim->flags & WEPPREDANIM_ATTACK && !(anim->flags & WEPPREDANIM_BRANCH)) {
 		if (cl_ezcsqc_debug.integer > 3) {
 			Com_Printf("EZCSQC attack start frame=%d weapon=%d think=%d animflags=%x client_time=%.3f\n",
@@ -1160,6 +1218,7 @@ static void WeaponPred_WAttack(usercmd_t *u, player_state_t *ps, ezcsqc_weapon_s
 		return;
 	}
 
+	// Otherwise find the default attack animation for the current weapon definition.
 	for (i = 0; i < WEPPRED_MAXSTATES; i++) {
 		anim = WEPANIM(wep, i);
 		if (!(anim->flags & WEPPREDANIM_DEFAULT)) {
@@ -1186,14 +1245,17 @@ static void WeaponPred_Logic(usercmd_t *u, player_state_t *ps, ezcsqc_weapon_sta
 	weppreddef_t *wep = &wpredict_definitions[bound(0, ws->weapon_index, MAX_PREDWEPS - 1)];
 	weppredanim_t *anim = WEPANIM(wep, bound(0, ws->client_thinkindex, WEPPRED_MAXSTATES - 1));
 
+	// Default states and not-yet-due states do not advance on their own.
 	if ((anim->flags & WEPPREDANIM_DEFAULT) || ws->client_time < ws->client_nextthink) {
 		return;
 	}
 
+	// Non-branch attack states are entered only by WeaponPred_WAttack().
 	if ((anim->flags & WEPPREDANIM_ATTACK) && !(anim->flags & WEPPREDANIM_BRANCH)) {
 		return;
 	}
 
+	// Temporarily evaluate the state at its scheduled think time.
 	time_held = ws->client_time;
 	frame_to_go = anim->nextanim;
 	ws->client_time = ws->client_nextthink;
@@ -1208,6 +1270,7 @@ static void WeaponPred_Logic(usercmd_t *u, player_state_t *ps, ezcsqc_weapon_sta
 		}
 	}
 
+	// Restore the replay time after applying any scheduled state transition.
 	WeaponPred_StartFrame(u, ps, ws, wep, frame_to_go);
 	ws->client_time = time_held;
 }
@@ -1217,10 +1280,12 @@ static qbool WeaponPred_SwitchWeapon(int impulse, ezcsqc_weapon_state_t *ws)
 	int i, found = false;
 	int items = cl.stats[STAT_ITEMS];
 
+	// Weapon switches obey the same attack_finished gate as the server.
 	if (ws->client_time < ws->attack_finished) {
 		return false;
 	}
 
+	// Find the predicted weapon definition mapped to the requested impulse.
 	for (i = 0; i < MAX_PREDWEPS; i++) {
 		weppreddef_t *wep = &wpredict_definitions[i];
 		if (wep->impulse != impulse) {
@@ -1231,6 +1296,7 @@ static qbool WeaponPred_SwitchWeapon(int impulse, ezcsqc_weapon_state_t *ws)
 			continue;
 		}
 		if (items & wep->itemflag) {
+			// Reset the predicted FSM to the new weapon's first frame.
 			ws->weapon_index = i;
 			ws->weapon = wep->itemflag;
 			ws->client_thinkindex = 0;
@@ -1245,6 +1311,7 @@ static qbool WeaponPred_SwitchWeapon(int impulse, ezcsqc_weapon_state_t *ws)
 
 static void WeaponPred_Simulate(usercmd_t u, player_state_t ps, ezcsqc_weapon_state_t *ws)
 {
+	// KTX can force prediction off while still letting time advance.
 	if (ws->client_predflags == PRDFL_FORCEOFF) {
 		ws->client_time += u.msec * 0.001f;
 		ws->impulse = 0;
@@ -1252,17 +1319,20 @@ static void WeaponPred_Simulate(usercmd_t u, player_state_t ps, ezcsqc_weapon_st
 		return;
 	}
 
+	// Locked/non-playable movement states should not synthesize local attacks.
 	if (ps.pm_type == PM_DEAD || ps.pm_type == PM_NONE || ps.pm_type == PM_LOCK) {
 		ws->impulse = 0;
 		ws->attack_finished = ws->client_time + 0.05f;
 		return;
 	}
 
+	// Replay the usercmd's elapsed time before evaluating weapon logic.
 	ws->client_time += u.msec * 0.001f;
 	if (u.impulse) {
 		ws->impulse = u.impulse;
 	}
 
+	// Run scheduled animation logic before accepting switches or attacks.
 	WeaponPred_Logic(&u, &ps, ws);
 	if (ws->impulse && WeaponPred_SwitchWeapon(ws->impulse, ws)) {
 		ws->impulse = 0;
@@ -1301,11 +1371,13 @@ static qbool WeaponPred_Predraw(ezcsqc_entity_t *self)
 		int frame_num = cl.validsequence + i;
 		current_predframe = frame_num;
 		is_effectframe = false;
+		// Only newly eligible frames may emit one-shot predicted effects.
 		if (frame_num > last_effectframe && frame_num <= effect_threshold) {
 			is_effectframe = true;
 			last_effectframe = frame_num;
 		}
 		WeaponPred_Simulate(to->cmd, to->playerstate[cl.playernum], &ws_predicted);
+		// Save the post-command state so later prediction starts from matching indices.
 		ws_saved[(cl.validsequence + i + 1) & UPDATE_MASK] = ws_predicted;
 	}
 
@@ -1328,6 +1400,7 @@ static void EntUpdate_WeaponInfo(ezcsqc_entity_t *self, qbool is_new)
 	*ws_current = ws_server[cl.oldvalidsequence & UPDATE_MASK];
 
 	if (sendflags & WEAPONINFO_INDEX) {
+		// Weapon index updates bind the server weapon to a previously sent definition.
 		ws_current->impulse = MSG_ReadByte();
 		ws_current->weapon_index = MSG_ReadByte();
 	}
@@ -1344,15 +1417,18 @@ static void EntUpdate_WeaponInfo(ezcsqc_entity_t *self, qbool is_new)
 		ws_current->ammo_cells = MSG_ReadByte();
 	}
 	if (sendflags & WEAPONINFO_ATTACK) {
+		// Attack timing is the server baseline that local replay predicts from.
 		ws_current->attack_finished = MSG_ReadFloat();
 		ws_current->client_nextthink = MSG_ReadFloat();
 		ws_current->client_thinkindex = MSG_ReadByte();
 	}
 	if (sendflags & WEAPONINFO_TIMING) {
+		// Client time and frame keep the viewmodel FSM aligned to KTX.
 		ws_current->client_time = MSG_ReadFloat();
 		ws_current->frame = MSG_ReadByte();
 	}
 	if (sendflags & WEAPONINFO_PRED_PING) {
+		// Pred flags include server-side permission to predict local attacks.
 		ws_current->client_predflags = MSG_ReadByte();
 		ws_current->client_ping = MSG_ReadByte() / 1000.0f;
 	}
@@ -1384,6 +1460,7 @@ static void EntUpdate_Projectile(ezcsqc_entity_t *self, qbool is_new)
 	 * owner entity; the old quantized client_time byte is intentionally gone.
 	 */
 	if (sendflags & PROJECTILE_ORIGIN) {
+		// Origin packets carry the authoritative state used for extrapolation.
 		self->s_origin[0] = MSG_ReadCoord();
 		self->s_origin[1] = MSG_ReadCoord();
 		self->s_origin[2] = MSG_ReadCoord();
@@ -1394,6 +1471,7 @@ static void EntUpdate_Projectile(ezcsqc_entity_t *self, qbool is_new)
 	}
 	if (sendflags & PROJECTILE_MODEL) {
 		model_t *model;
+		// Model/effects determine the local trail, light, and grenade behavior.
 		self->modelindex = MSG_ReadShort();
 		self->effects = MSG_ReadShort();
 		if (self->modelindex < 0 || self->modelindex >= MAX_MODELS || !cl.model_precache[self->modelindex]) {
@@ -1404,25 +1482,30 @@ static void EntUpdate_Projectile(ezcsqc_entity_t *self, qbool is_new)
 			model = cl.model_precache[self->modelindex];
 			self->modelflags = model->flags;
 			if ((self->effects & EF_GRENADE) || model->modhint == MOD_GRENADE) {
+				// Grenades use bounce simulation between sparse server origin updates.
 				self->projectile_type = 1;
 				self->effects |= EF_GRENADE;
 			}
 			if (model->modhint == MOD_SPIKE) {
+				// Spike models need an explicit nail-trail effect for the shared trail path.
 				self->modelflags |= EF_NAILTRAIL;
 				self->effects |= 256;
 			}
 		}
 	}
 	if (sendflags & PROJECTILE_ANGLES) {
+		// Initial angles seed model orientation and grenade spin phase.
 		self->angles[0] = MSG_ReadAngle();
 		self->angles[1] = MSG_ReadAngle();
 		self->angles[2] = MSG_ReadAngle();
 	}
 	if (sendflags & PROJECTILE_OWNER) {
+		// Owner links server projectiles to matching local placeholders.
 		self->ownernum = MSG_ReadShort();
 	}
 	if (sendflags & PROJECTILE_SPAWN_ORIGIN) {
 		vec3_t spawn_origin, diff;
+		// Spawn origin is a trail seed, not a later correction target.
 		spawn_origin[0] = MSG_ReadCoord();
 		spawn_origin[1] = MSG_ReadCoord();
 		spawn_origin[2] = MSG_ReadCoord();
@@ -1438,6 +1521,7 @@ static void EntUpdate_Projectile(ezcsqc_entity_t *self, qbool is_new)
 	}
 
 	if (is_new) {
+		// New projectiles become renderable EZCSQC entities with packet-style trail state.
 		self->drawmask = DRAWMASK_PROJECTILE;
 		self->predraw = Predraw_Projectile;
 		if (!self->trail_origin[0] && !self->trail_origin[1] && !self->trail_origin[2]) {
@@ -1456,15 +1540,18 @@ static void EntUpdate_Projectile(ezcsqc_entity_t *self, qbool is_new)
 		}
 	}
 	else if ((sendflags & PROJECTILE_ORIGIN) && (CL_EZCSQC_ProjectileVisualEffects(self) & EF_GRENADE)) {
+		// Live grenade corrections reset physics state but keep client-owned spin continuity.
 		CL_EZCSQC_SetGrenadeServerState(self, false);
 	}
 
 	if (is_new) {
+		// Replace any matching local fake now that the authoritative projectile exists.
 		CL_EZCSQC_RemoveMatchedLocalProjectile(self);
 
 		if (!(CL_EZCSQC_ProjectileVisualEffects(self) & EF_GRENADE)) {
 			vec3_t origin;
 
+			// Drop non-bouncing projectiles that already hit local geometry before first draw.
 			VectorMA(self->s_origin, max(cl.servertime - self->s_time, 0), self->s_velocity, origin);
 			if (CL_EZCSQC_ProjectileTraceBlocked(self->s_origin, origin)) {
 				CL_EZCSQC_Ent_Remove(self);
@@ -1485,11 +1572,13 @@ static void CL_EZCSQC_Ent_Update(ezcsqc_entity_t *self, qbool is_new)
 {
 	int type = MSG_ReadByte();
 
+	// Seeing any EZCSQC payload means the negotiated extension is active in practice.
 	ezcsqc.active = true;
 	if (cl_ezcsqc_debug.integer > 3) {
 		Com_Printf("EZCSQC entity %s ent=%d type=%d\n", is_new ? "new" : "update", self->entnum, type);
 	}
 
+	// Dispatch by the first byte of each entity payload.
 	switch (type) {
 	case EZCSQC_PROJECTILE:
 		EntUpdate_Projectile(self, is_new);
@@ -1520,6 +1609,7 @@ void CL_EZCSQC_ParseEntities(void)
 		qbool is_new = false;
 		ezcsqc_entity_t *ent;
 
+		// Entity words are unsigned on the wire; high bit marks removals.
 		entnum = (unsigned short) MSG_ReadShort();
 		if (!entnum) {
 			return;
@@ -1528,6 +1618,7 @@ void CL_EZCSQC_ParseEntities(void)
 		if (entnum & 0x8000) {
 			ezcsqc_entity_t *removed;
 
+			// Strip the remove bit before looking up the networked entity slot.
 			entnum &= 0x7fff;
 			if (entnum >= MAX_EDICTS) {
 				Host_Error("CL_EZCSQC_ParseEntities: bad remove entity %d", entnum);
@@ -1549,6 +1640,7 @@ void CL_EZCSQC_ParseEntities(void)
 			Host_Error("CL_EZCSQC_ParseEntities: bad entity %d", entnum);
 		}
 
+		// Create a local slot on first sight of a server CSQC entity number.
 		ent = ezcsqc_networkedents[entnum];
 		if (!ent || ent->isfree) {
 			ent = CL_EZCSQC_Ent_Spawn();
@@ -1575,7 +1667,7 @@ qbool CL_EZCSQC_Event_Sound(int entnum, int channel, int soundnumber, float vol,
 		return false;
 	}
 
-	/* Return true to tell normal sound parsing that prediction already played it. */
+	// Return true to tell normal sound parsing that prediction already played it.
 	for (snd = predictionsoundlist; snd; snd = snd->next) {
 		if (snd->chan == channel && snd->index == soundnumber && !(cl_predict_weaponsound.integer & snd->mask)) {
 			return true;
@@ -1597,6 +1689,7 @@ static void CL_EZCSQC_DebugViewWeaponSkip(const char *reason)
 		return;
 	}
 
+	// Use the newest queued command to report whether the user is actively firing.
 	attack_down = (cls.netchan.outgoing_sequence > 0) &&
 		(cl.frames[(cls.netchan.outgoing_sequence - 1) & UPDATE_MASK].cmd.buttons & BUTTON_ATTACK);
 	now = Sys_DoubleTime();
@@ -1664,11 +1757,12 @@ qbool CL_EZCSQC_UpdateViewWeapon(int *modelindex, int *weaponframe)
 		return false;
 	}
 
-	/* cl_view.c asks for the predicted model/frame just before drawing the gun. */
+	// cl_view.c asks for the predicted model/frame just before drawing the gun.
 	if (viewweapon->predraw) {
 		viewweapon->predraw(viewweapon);
 	}
 
+	// Missing model usually means weapon info arrived before the matching weapondef.
 	if (!viewweapon->modelindex) {
 		if (cl_ezcsqc_debug.integer > 1) {
 			static double next_no_model_print_time;
@@ -1705,6 +1799,7 @@ static void CL_EZCSQC_RenderEntity(ezcsqc_entity_t *self)
 
 	if (is_projectile) {
 		visual_effects = CL_EZCSQC_ProjectileVisualEffects(self);
+		// Suppressed owner projectiles still seed trails so the first visible segment is clean.
 		if (CL_EZCSQC_ProjectileTooCloseToDraw(self) && !(self->handoff_smoothing && self->trail_started)) {
 			if (self->local_projectile && !self->debug_close_logged) {
 				CL_EZCSQC_DebugLocalProjectile(self, "hidden-close", self->origin);
@@ -1726,6 +1821,7 @@ static void CL_EZCSQC_RenderEntity(ezcsqc_entity_t *self)
 		}
 	}
 
+	// Build a transient renderer entity from the EZCSQC state.
 	memset(&ent, 0, sizeof(ent));
 	memset(&state, 0, sizeof(state));
 	ent.colormap = vid.colormap;
@@ -1754,6 +1850,7 @@ static void CL_EZCSQC_RenderEntity(ezcsqc_entity_t *self)
 	}
 
 	if (is_projectile && visual_effects && cl.time >= self->parttime) {
+		// Throttle particle emission to the normal projectile trail cadence.
 		self->parttime = cl.time + 0.013f;
 		if (CL_EZCSQC_OwnerProjectile(self) && !self->trail_started) {
 			CL_EZCSQC_SeedProjectileTrail(self, self->origin);
@@ -1793,6 +1890,7 @@ static void CL_EZCSQC_RenderEntity(ezcsqc_entity_t *self)
 		 * become QMB dynamic trails when that particle mode is enabled.
 		 */
 		if (visual_effects & 256) {
+			// Optional plasma nails use the custom fireball trail instead of normal nail trail.
 			if (amf_nailtrail.integer && !gl_no24bit.integer && amf_nailtrail_plasma.integer) {
 				byte color[3];
 				color[0] = 0;
@@ -1843,11 +1941,13 @@ static void CL_EZCSQC_RenderEntity(ezcsqc_entity_t *self)
 		}
 	}
 	if (is_projectile) {
+		// Save the last rendered model point for future local-to-server handoff smoothing.
 		self->drawcount++;
 		VectorCopy(self->origin, self->last_draw_origin);
 		self->has_last_draw_origin = true;
 	}
 
+	// Submit the final model after trails/lights have been emitted.
 	CL_AddEntity(&ent);
 }
 
