@@ -49,6 +49,14 @@ explosion_t cl_explosions_headnode, *cl_free_explosions;
 fproj_t cl_fakeprojectiles[MAX_FAKEPROJ];
 predexplosion_t cl_predictedexplosions[MAX_PREDEXPLOSIONS];
 
+typedef struct predicted_te_explosion_s {
+	qbool active;
+	double time;
+	vec3_t origin;
+} predicted_te_explosion_t;
+
+static predicted_te_explosion_t cl_predicted_te_explosions[MAX_PREDEXPLOSIONS];
+
 static model_t	*cl_explo_mod, *cl_bolt1_mod, *cl_bolt2_mod, *cl_bolt3_mod, *cl_beam_mod;
 
 sfx_t	*cl_sfx_wizhit, *cl_sfx_knighthit, *cl_sfx_tink1, *cl_sfx_ric1, *cl_sfx_ric2, *cl_sfx_ric3, *cl_sfx_r_exp3;
@@ -90,6 +98,7 @@ void CL_ClearTEnts(void)
 	memset (&cl_beams, 0, sizeof(cl_beams));
 	memset (&cl_explosions, 0, sizeof(cl_explosions));
 	memset (&cl_fakeprojectiles, 0, sizeof(cl_fakeprojectiles));
+	memset (&cl_predicted_te_explosions, 0, sizeof(cl_predicted_te_explosions));
 
 	// link explosions 
 	cl_free_explosions = cl_explosions; 
@@ -419,20 +428,25 @@ void CL_CheckPredictedExplosions(player_state_t *from, player_state_t *to)
 
 		if (from->state_time < expl->time && to->state_time >= expl->time)
 		{
-			int dmg;
+			float kick;
 			vec3_t diff;
 			VectorSubtract(pmove.origin, expl->origin, diff);
 
 			float distance = VectorLength(diff);
-			dmg = expl->damage * (distance / expl->radius);
-
 			if (distance < expl->radius)
 			{
+				kick = expl->damage - 0.5f * distance;
+				if (expl->self_damage) {
+					kick *= 0.5f;
+				}
+				if (kick <= 0) {
+					continue;
+				}
 				VectorNormalize(diff);
 				int j;
 				for (j = 0; j < 3; j++)
 				{
-					pmove.velocity[j] += diff[j] * dmg * 1;
+					pmove.velocity[j] += diff[j] * kick * 8;
 				}
 			}
 		}
@@ -802,6 +816,74 @@ static void CL_Parse_TE_EXPLOSION(vec3_t pos)
 	S_StartSound(-1, 0, cl_sfx_r_exp3, pos, 1, 1);
 }
 
+static void CL_RecordPredictedRocketExplosion(vec3_t pos)
+{
+	predicted_te_explosion_t *oldest = &cl_predicted_te_explosions[0];
+	int i;
+
+	for (i = 0; i < MAX_PREDEXPLOSIONS; i++) {
+		predicted_te_explosion_t *expl = &cl_predicted_te_explosions[i];
+
+		if (!expl->active) {
+			oldest = expl;
+			break;
+		}
+		if (expl->time < oldest->time) {
+			oldest = expl;
+		}
+	}
+
+	oldest->active = true;
+	oldest->time = cls.realtime;
+	VectorCopy(pos, oldest->origin);
+}
+
+static void CL_RecordPredictedRocketExplosionKick(vec3_t pos, double prediction_time)
+{
+	predexplosion_t *expl;
+
+	if (prediction_time <= 0) {
+		return;
+	}
+
+	expl = CL_AllocatePredictedExplosion();
+	expl->time = prediction_time;
+	expl->damage = 120;
+	expl->radius = expl->damage + 40;
+	expl->self_damage = true;
+	VectorCopy(pos, expl->origin);
+}
+
+static qbool CL_MatchPredictedRocketExplosion(vec3_t pos)
+{
+	int i;
+
+	for (i = 0; i < MAX_PREDEXPLOSIONS; i++) {
+		predicted_te_explosion_t *expl = &cl_predicted_te_explosions[i];
+
+		if (!expl->active) {
+			continue;
+		}
+		if (cls.realtime - expl->time > 0.5) {
+			expl->active = false;
+			continue;
+		}
+		if (VectorDistance(expl->origin, pos) <= 96) {
+			expl->active = false;
+			return true;
+		}
+	}
+
+	return false;
+}
+
+void CL_PredictRocketExplosion(vec3_t te_origin, vec3_t kick_origin, double prediction_time)
+{
+	CL_RecordPredictedRocketExplosionKick(kick_origin, prediction_time);
+	CL_RecordPredictedRocketExplosion(te_origin);
+	CL_Parse_TE_EXPLOSION(te_origin);
+}
+
 static void CL_Parse_TE_TAREXPLOSION(vec3_t pos)
 {
 	if (amf_part_blobexplosion.value) {
@@ -1009,8 +1091,10 @@ void CL_ParseTEnt (void)
 				break;
 
 			// Rocket explosion.
-			case TE_EXPLOSION:	
-				CL_Parse_TE_EXPLOSION(pos);
+			case TE_EXPLOSION:
+				if (!CL_MatchPredictedRocketExplosion(pos)) {
+					CL_Parse_TE_EXPLOSION(pos);
+				}
 				break;
 
 			// Tarbaby explosion
