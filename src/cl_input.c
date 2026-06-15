@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "teamplay.h"
 #include "utils.h"
 #include "input.h"
+#include "keys.h"
 #include "pmove.h"		// PM_FLY etc
 #include "rulesets.h"
 #include "cl_easyaircontrol.h"
@@ -1052,6 +1053,7 @@ void CL_FinishMove(usercmd_t* cmd)
 {
 	int i, ms;
 	float frametime;
+	qbool game_input_active;
 	static double extramsec = 0;
 	extern cvar_t allow_scripts;
 
@@ -1060,8 +1062,12 @@ void CL_FinishMove(usercmd_t* cmd)
 		frametime = Movie_InputFrametime();
 	}
 
+	// don't allow +attack if console is open
+	// avoids weird problems with prediction
+	game_input_active = (key_dest == key_game);
+
 	// figure button bits
-	if ( in_attack.state & 3 ) {
+	if (game_input_active && (in_attack.state & 3)) {
 		if (cl_smartspawn.integer && !cl.spectator && (cl.stats[STAT_HEALTH] <= 0)) {
 			// Treat +attack as +jump while player is dead with cl_smartspawn
 			// and immediately -attack to prevent shooting.
@@ -1088,7 +1094,7 @@ void CL_FinishMove(usercmd_t* cmd)
 		cmd->buttons |= 4;
 	in_use.state &= ~2;
 
-	if (in_attack2.state & 3)
+	if (game_input_active && (in_attack2.state & 3))
 		cmd->buttons |= 8;
 	in_attack2.state &= ~2;
 
