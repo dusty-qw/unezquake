@@ -50,8 +50,10 @@ typedef struct
 	vec3_t origin;
 	float radius;
 	int damage;
+	qbool self_damage;
 } predexplosion_t;
 void CL_CheckPredictedExplosions(player_state_t *from, player_state_t *to);
+void CL_PredictRocketExplosion(vec3_t te_origin, vec3_t kick_origin, double prediction_time);
 
 #ifdef MVD_PEXT1_SIMPLEPROJECTILE
 typedef struct

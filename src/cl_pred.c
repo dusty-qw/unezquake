@@ -147,6 +147,9 @@ void CL_PredictUsercmd (player_state_t *from, player_state_t *to, usercmd_t *u, 
 		else
 			pmove.impulse = 0;
 
+		to->state_time = from->state_time + u->msec * 0.001;
+		CL_CheckPredictedExplosions(from, to);
+
 		to->client_time = pmove.client_time;
 		to->attack_finished = pmove.attack_finished;
 		to->client_nextthink = pmove.client_nextthink;
@@ -168,6 +171,9 @@ void CL_PredictUsercmd (player_state_t *from, player_state_t *to, usercmd_t *u, 
 	}
 
 	to->waterjumptime = pmove.waterjumptime;
+	if (!local) {
+		to->state_time = from->state_time + u->msec * 0.001;
+	}
 	to->pm_type = pmove.pm_type;
 	to->jump_held = pmove.jump_held;
 	to->jump_msec = pmove.jump_msec;

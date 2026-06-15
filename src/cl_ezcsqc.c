@@ -30,6 +30,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "qsound.h"
 #include "gl_model.h"
 #include "vx_stuff.h"
+#include "cl_tent.h"
 
 #ifdef FTE_PEXT_CSQC
 
@@ -43,7 +44,7 @@ extern cvar_t gl_no24bit;
 #define EZCSQC_LOCAL_PROJECTILE_BASE MAX_EDICTS
 #define EZCSQC_PROJECTILE_MIN_OWNER_TRAVEL 24.0f	// how far a projectile must move from its own spawn origin to be drawn.
 #define EZCSQC_PROJECTILE_MIN_CAMERA_DIST 36.0f		// how far the projectile must be from camera/view origin to be drawn.
-#define EZCSQC_PROJECTILE_OWNER_PHASE_LEAD 32.0f	// visual-only lead from the muzzle for owner projectiles.
+#define EZCSQC_PROJECTILE_OWNER_PHASE_LEAD 0.0f		// simulated lead from the muzzle; close visuals are suppressed by distance thresholds.
 
 /*
  * Weapon prediction is stored in three rings:
@@ -266,6 +267,65 @@ static qbool CL_EZCSQC_ProjectileTraceBlocked(vec3_t start, vec3_t end)
 		if (CL_EZCSQC_ProjectilePointSolid(point)) {
 			return true;
 		}
+	}
+
+	return false;
+}
+
+static qbool CL_EZCSQC_PredictRocketSpawnTouch(int modelindex, vec3_t origin, vec3_t velocity, double prediction_time)
+{
+	model_t *model;
+	vec3_t end, lookahead_end;
+	trace_t trace;
+	float speed;
+
+	if (!modelindex || modelindex >= MAX_MODELS) {
+		return false;
+	}
+
+	model = cl.model_precache[modelindex];
+	if (!model || !(model->flags & EF_ROCKET)) {
+		return false;
+	}
+
+	speed = VectorLength(velocity);
+	if (speed <= 1) {
+		return false;
+	}
+
+	/* Server-authoritative classic newmis close-hit sweep. */
+	VectorMA(origin, 0.05f, velocity, end);
+	trace = PM_TraceLine(origin, end);
+	if (trace.fraction < 1 || trace.startsolid || trace.allsolid) {
+		if (trace.e.entnum == 0) {
+			vec3_t predicted_origin, back;
+
+				VectorScale(velocity, -8.0f / speed, back);
+				VectorAdd(trace.endpos, back, predicted_origin);
+				CL_PredictRocketExplosion(predicted_origin, trace.endpos, prediction_time);
+			}
+		if (cl_ezcsqc_debug.integer > 2) {
+			Com_Printf("EZCSQC predicted rocket spawn-touch model=%d org=(%.1f %.1f %.1f) hit=(%.1f %.1f %.1f)\n",
+				modelindex, origin[0], origin[1], origin[2],
+				trace.endpos[0], trace.endpos[1], trace.endpos[2]);
+		}
+		return true;
+	}
+
+	/*
+	 * MVDSV simple-projectile render lookahead is applied after the server-side
+	 * newmis step has survived. Mirror that as a separate visual-only probe:
+	 * hide the model, but wait for the server explosion.
+	 */
+	VectorMA(end, 0.02f, velocity, lookahead_end);
+	trace = PM_TraceLine(end, lookahead_end);
+	if (trace.fraction < 1 || trace.startsolid || trace.allsolid) {
+		if (cl_ezcsqc_debug.integer > 2) {
+			Com_Printf("EZCSQC predicted rocket spawn-lookahead model=%d org=(%.1f %.1f %.1f) hit=(%.1f %.1f %.1f)\n",
+				modelindex, origin[0], origin[1], origin[2],
+				trace.endpos[0], trace.endpos[1], trace.endpos[2]);
+		}
+		return true;
 	}
 
 	return false;
@@ -735,17 +795,19 @@ static qbool Predraw_Projectile(ezcsqc_entity_t *self)
 		}
 		else {
 			vec3_t traveled;
+			vec3_t trace_end;
 
 			VectorCopy(self->start, self->origin);
 			VectorScale(self->vel, projectile_time - self->starttime, traveled);
 			VectorAdd(self->origin, traveled, self->origin);
+			VectorMA(self->origin, 0.02f, self->vel, trace_end);
 
 			/*
 			 * Hits are still server-authoritative. This trace only prevents the
 			 * local visual placeholder from visibly flying through nearby walls
 			 * while waiting for KTX's remove/update message.
 			 */
-			if (CL_EZCSQC_ProjectileTraceBlocked(self->start, self->origin)) {
+			if (CL_EZCSQC_ProjectileTraceBlocked(self->start, trace_end)) {
 				CL_EZCSQC_DebugLocalProjectile(self, "trace-remove", self->origin);
 				CL_EZCSQC_Ent_Remove(self);
 				return false;
@@ -785,15 +847,17 @@ static qbool Predraw_Projectile(ezcsqc_entity_t *self)
 			}
 		else {
 			vec3_t authoritative_origin;
+			vec3_t trace_end;
 
 			VectorMA(self->s_origin, dt, self->s_velocity, authoritative_origin);
 			CL_EZCSQC_ApplyProjectileHandoffSmoothing(self, authoritative_origin);
+			VectorMA(self->origin, 0.02f, self->s_velocity, trace_end);
 			/*
 			 * Server projectiles are extrapolated between CSQC updates for
 			 * smooth display. Stop non-bouncing visuals at the first local wall
 			 * hit so extrapolation does not draw through geometry.
 			 */
-			if (CL_EZCSQC_ProjectileTraceBlocked(previous_origin, self->origin)) {
+			if (CL_EZCSQC_ProjectileTraceBlocked(previous_origin, trace_end)) {
 				CL_EZCSQC_Ent_Remove(self);
 				return false;
 			}
@@ -844,6 +908,11 @@ static void WeaponPred_SpawnProjectile(usercmd_t *u, player_state_t *ps, ezcsqc_
 	VectorMA(velocity, anim->projectile_velocity[0], right, velocity);
 	VectorMA(velocity, anim->projectile_velocity[1], forward, velocity);
 	VectorMA(velocity, anim->projectile_velocity[2], up, velocity);
+
+	if (CL_EZCSQC_PredictRocketSpawnTouch(modelindex, origin, velocity, ps->state_time)) {
+		CL_EZCSQC_Ent_Remove(ent);
+		return;
+	}
 
 	vectoangles(velocity, ent->angles);
 	VectorCopy(origin, ent->origin);
