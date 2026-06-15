@@ -58,6 +58,8 @@ typedef struct predicted_te_explosion_s {
 
 static predicted_te_explosion_t cl_predicted_te_explosions[MAX_PREDEXPLOSIONS];
 
+static void CL_Parse_TE_EXPLOSION(vec3_t pos);
+
 static model_t	*cl_explo_mod, *cl_bolt1_mod, *cl_bolt2_mod, *cl_bolt3_mod, *cl_beam_mod;
 
 sfx_t	*cl_sfx_wizhit, *cl_sfx_knighthit, *cl_sfx_tink1, *cl_sfx_ric1, *cl_sfx_ric2, *cl_sfx_ric3, *cl_sfx_r_exp3;
@@ -417,6 +419,107 @@ static predexplosion_t* CL_AllocatePredictedExplosion(void)
 	return &cl_predictedexplosions[0];
 }
 
+static qbool CL_PredictedExplosionTraceClear(vec3_t inflictor_origin, vec3_t target)
+{
+	trace_t trace = PM_TraceLine(inflictor_origin, target);
+
+	if (trace.fraction == 1) {
+		return true;
+	}
+
+	/*
+	 * KTX CanDamage() uses traceline(..., true, self), so dynamic
+	 * player/entity hulls should not veto splash visibility here.
+	 */
+	if (trace.e.entnum > 0 && trace.e.entnum < pmove.numphysent && !pmove.physents[trace.e.entnum].model) {
+		return true;
+	}
+
+	return false;
+}
+
+static qbool CL_PredictedExplosionCanDamageSelf(vec3_t inflictor_origin, vec3_t player_origin)
+{
+	vec3_t target, offset;
+
+	// Match KTX CanDamage(): first try the player origin.
+	if (CL_PredictedExplosionTraceClear(inflictor_origin, player_origin)) {
+		return true;
+	}
+
+	// Then sample half-sized bbox corners at center, top, and bottom heights.
+	offset[2] = 0;
+	offset[1] = player_maxs[1] * 0.5f;
+	offset[0] = player_maxs[0] * 0.5f;
+	VectorAdd(player_origin, offset, target);
+	if (CL_PredictedExplosionTraceClear(inflictor_origin, target)) {
+		return true;
+	}
+	offset[0] = player_mins[0] * 0.5f;
+	VectorAdd(player_origin, offset, target);
+	if (CL_PredictedExplosionTraceClear(inflictor_origin, target)) {
+		return true;
+	}
+	offset[1] = player_mins[1] * 0.5f;
+	VectorAdd(player_origin, offset, target);
+	if (CL_PredictedExplosionTraceClear(inflictor_origin, target)) {
+		return true;
+	}
+	offset[0] = player_maxs[0] * 0.5f;
+	VectorAdd(player_origin, offset, target);
+	if (CL_PredictedExplosionTraceClear(inflictor_origin, target)) {
+		return true;
+	}
+
+	offset[2] = player_maxs[2] * 0.5f;
+	offset[1] = player_maxs[1] * 0.5f;
+	offset[0] = player_maxs[0] * 0.5f;
+	VectorAdd(player_origin, offset, target);
+	if (CL_PredictedExplosionTraceClear(inflictor_origin, target)) {
+		return true;
+	}
+	offset[0] = player_mins[0] * 0.5f;
+	VectorAdd(player_origin, offset, target);
+	if (CL_PredictedExplosionTraceClear(inflictor_origin, target)) {
+		return true;
+	}
+	offset[1] = player_mins[1] * 0.5f;
+	VectorAdd(player_origin, offset, target);
+	if (CL_PredictedExplosionTraceClear(inflictor_origin, target)) {
+		return true;
+	}
+	offset[0] = player_maxs[0] * 0.5f;
+	VectorAdd(player_origin, offset, target);
+	if (CL_PredictedExplosionTraceClear(inflictor_origin, target)) {
+		return true;
+	}
+
+	offset[2] = player_mins[2] * 0.5f;
+	offset[1] = player_maxs[1] * 0.5f;
+	offset[0] = player_maxs[0] * 0.5f;
+	VectorAdd(player_origin, offset, target);
+	if (CL_PredictedExplosionTraceClear(inflictor_origin, target)) {
+		return true;
+	}
+	offset[0] = player_mins[0] * 0.5f;
+	VectorAdd(player_origin, offset, target);
+	if (CL_PredictedExplosionTraceClear(inflictor_origin, target)) {
+		return true;
+	}
+	offset[1] = player_mins[1] * 0.5f;
+	VectorAdd(player_origin, offset, target);
+	if (CL_PredictedExplosionTraceClear(inflictor_origin, target)) {
+		return true;
+	}
+	offset[0] = player_maxs[0] * 0.5f;
+	VectorAdd(player_origin, offset, target);
+	if (CL_PredictedExplosionTraceClear(inflictor_origin, target)) {
+		return true;
+	}
+
+	return false;
+}
+
 
 void CL_CheckPredictedExplosions(player_state_t *from, player_state_t *to)
 {
@@ -429,11 +532,25 @@ void CL_CheckPredictedExplosions(player_state_t *from, player_state_t *to)
 
 		if (from->state_time < expl->time && to->state_time >= expl->time)
 		{
+			float frac;
 			float kick;
-			vec3_t center, damage_diff, kick_dir;
+			vec3_t explosion_origin, center, damage_diff, kick_dir;
+
+			/*
+			 * Reconstruct the player origin at the exact replay time of the
+			 * predicted impact so fast movement does not skew the kick direction.
+			 */
+			frac = (to->state_time > from->state_time) ? (expl->time - from->state_time) / (to->state_time - from->state_time) : 1.0f;
+			frac = bound(0, frac, 1);
+			VectorInterpolate(from->origin, frac, pmove.origin, explosion_origin);
+
+			// Mirror KTX CanDamage() so occluded splash does not predict local kick.
+			if (!CL_PredictedExplosionCanDamageSelf(expl->origin, explosion_origin)) {
+				continue;
+			}
 
 			// KTX radius damage measures damage falloff to the player's bbox center.
-			VectorCopy(pmove.origin, center);
+			VectorCopy(explosion_origin, center);
 			VectorMA(center, 0.5f, player_mins, center);
 			VectorMA(center, 0.5f, player_maxs, center);
 			VectorSubtract(center, expl->origin, damage_diff);
@@ -449,7 +566,7 @@ void CL_CheckPredictedExplosions(player_state_t *from, player_state_t *to)
 					continue;
 				}
 				// T_Damage applies splash momentum from the player origin, not the bbox center.
-				VectorSubtract(pmove.origin, expl->origin, kick_dir);
+				VectorSubtract(explosion_origin, expl->origin, kick_dir);
 				VectorNormalize(kick_dir);
 				int j;
 				for (j = 0; j < 3; j++)
