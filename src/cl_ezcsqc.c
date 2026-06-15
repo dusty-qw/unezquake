@@ -78,6 +78,7 @@ static float lg_twidth;
 static qbool Predraw_Projectile(ezcsqc_entity_t *self);
 static void CL_EZCSQC_ProjectileBounce(ezcsqc_entity_t *proj, float dt, qbool update_angles);
 static void CL_EZCSQC_SetGrenadeServerState(ezcsqc_entity_t *self, qbool reset_angles);
+static qbool CL_EZCSQC_OwnerProjectile(ezcsqc_entity_t *self);
 
 static ezcsqc_entity_t *CL_EZCSQC_Ent_Spawn(void)
 {
@@ -341,6 +342,75 @@ static qbool CL_EZCSQC_PredictRocketSpawnTouch(int modelindex, vec3_t origin, ve
 	}
 
 	return false;
+}
+
+static double CL_EZCSQC_RocketImpactStateTime(ezcsqc_entity_t *self, vec3_t impact, vec3_t velocity, float speed)
+{
+	vec3_t diff, dir;
+	float travel;
+
+	// Movement kick must replay at the projectile impact time, not the current render frame.
+	if (self->prediction_start_state_time <= 0 || speed <= 1) {
+		return 0;
+	}
+
+	VectorCopy(velocity, dir);
+	VectorScale(dir, 1.0f / speed, dir);
+	VectorSubtract(impact, self->start, diff);
+	travel = max(0, DotProduct(diff, dir));
+	return self->prediction_start_state_time + travel / speed;
+}
+
+static qbool CL_EZCSQC_PredictOwnerRocketWorldImpact(ezcsqc_entity_t *self, vec3_t start, vec3_t end, int visual_effects)
+{
+	float speed;
+	trace_t trace;
+	vec3_t velocity;
+
+	// Only the local player's own rockets get speculative world-impact effects.
+	if (self->predicted_explosion || !(visual_effects & EF_ROCKET) || !CL_EZCSQC_OwnerProjectile(self)) {
+		return false;
+	}
+
+	// Adopted projectiles use server velocity; local predictions use their predicted velocity.
+	VectorCopy(self->local_projectile ? self->vel : self->s_velocity, velocity);
+	speed = VectorLength(velocity);
+	if (speed <= 1) {
+		return false;
+	}
+
+	trace = PM_TraceLine(start, end);
+	if (trace.fraction == 1 && !trace.startsolid && !trace.allsolid) {
+		return false;
+	}
+
+	// World hits are stable enough to predict; entity hits are left to the server.
+	if (trace.e.entnum == 0) {
+		vec3_t predicted_origin, back;
+		double impact_state_time;
+
+		/*
+		 * Broader own-rocket prediction is limited to static world geometry.
+		 * Predicting entity/player impacts here would create visible false positives.
+		 */
+		VectorScale(velocity, -8.0f / speed, back);
+		VectorAdd(trace.endpos, back, predicted_origin);
+		impact_state_time = CL_EZCSQC_RocketImpactStateTime(self, trace.endpos, velocity, speed);
+		if (impact_state_time <= 0) {
+			return true;
+		}
+		// Visual/audio use KTX's backed-off explosion point; kick uses the true impact.
+		CL_PredictRocketExplosion(predicted_origin, trace.endpos, impact_state_time);
+		self->predicted_explosion = true;
+		if (cl_ezcsqc_debug.integer > 2) {
+			Com_Printf("EZCSQC predicted owner rocket impact ent=%d start=(%.1f %.1f %.1f) hit=(%.1f %.1f %.1f)\n",
+				self->entnum,
+				start[0], start[1], start[2],
+				trace.endpos[0], trace.endpos[1], trace.endpos[2]);
+		}
+	}
+
+	return true;
 }
 
 static qbool CL_EZCSQC_OwnerProjectile(ezcsqc_entity_t *self)
@@ -941,6 +1011,7 @@ static qbool Predraw_Projectile(ezcsqc_entity_t *self)
 		}
 		else {
 			vec3_t traveled;
+			vec3_t trace_start;
 			vec3_t trace_end;
 
 			// Rockets and nails are straight-line visuals phased from their local start time.
@@ -948,13 +1019,21 @@ static qbool Predraw_Projectile(ezcsqc_entity_t *self)
 			VectorScale(self->vel, projectile_time - self->starttime, traveled);
 			VectorAdd(self->origin, traveled, self->origin);
 			VectorMA(self->origin, 0.02f, self->vel, trace_end);
+			if (self->has_last_draw_origin) {
+				VectorCopy(self->last_draw_origin, trace_start);
+			}
+			else {
+				VectorCopy(self->start, trace_start);
+			}
 
 			/*
 			 * Hits are still server-authoritative. This trace only prevents the
 			 * local predicted projectile from visibly flying through nearby walls
 			 * while waiting for KTX's remove/update message.
 			 */
-			if (CL_EZCSQC_ProjectileTraceBlocked(self->start, trace_end)) {
+			// If the owner rocket hits static world locally, predict the impact before retiring it.
+			if (CL_EZCSQC_PredictOwnerRocketWorldImpact(self, trace_start, trace_end, visual_effects) ||
+				CL_EZCSQC_ProjectileTraceBlocked(self->start, trace_end)) {
 				CL_EZCSQC_DebugLocalProjectile(self, "trace-remove", self->origin);
 				CL_EZCSQC_Ent_Remove(self);
 				return false;
@@ -1009,6 +1088,8 @@ static qbool Predraw_Projectile(ezcsqc_entity_t *self)
 			 * hit so extrapolation does not draw through geometry.
 			 */
 			if (CL_EZCSQC_ProjectileTraceBlocked(previous_origin, trace_end)) {
+				// Adopted owner rockets can still predict their final world impact on retirement.
+				CL_EZCSQC_PredictOwnerRocketWorldImpact(self, previous_origin, trace_end, visual_effects);
 				CL_EZCSQC_Ent_Remove(self);
 				return false;
 			}
@@ -1075,6 +1156,7 @@ static void WeaponPred_SpawnProjectile(usercmd_t *u, player_state_t *ps, ezcsqc_
 	VectorClear(ent->avel);
 	if (ent->projectile_type == 1) {
 		// Grenades keep native-looking spin and do not get the non-grenade newmis phase lead.
+		ent->prediction_start_state_time = ps->state_time;
 		VectorSet(ent->avel, 300, 300, 300);
 		VectorCopy(ent->angles, ent->sim_angles);
 	}
@@ -1082,9 +1164,13 @@ static void WeaponPred_SpawnProjectile(usercmd_t *u, player_state_t *ps, ezcsqc_
 		float speed = VectorLength(velocity);
 		if (speed > 1) {
 			// Match KTX/native newmis: rockets and nails begin 0.05 seconds into flight.
+			ent->prediction_start_state_time = ps->state_time - 0.05f;
 			ent->starttime -= 0.05f;
 			VectorMA(origin, 0.05f, velocity, ent->origin);
 			VectorCopy(ent->origin, ent->partorg);
+		}
+		else {
+			ent->prediction_start_state_time = ps->state_time;
 		}
 	}
 

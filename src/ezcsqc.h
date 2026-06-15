@@ -103,11 +103,13 @@ typedef struct ezcsqc_entity_s {
 	qbool	debug_close_logged;
 	qbool	handoff_smoothing;
 	qbool	has_last_draw_origin;
+	qbool	predicted_explosion;
 	double	debug_next_time;
 	double	handoff_starttime;
 	double	handoff_endtime;
 	double	simtime;
 	double	angle_simtime;
+	double	prediction_start_state_time;
 	double	starttime;
 	double	endtime;
 	double	parttime;
