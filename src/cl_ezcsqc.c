@@ -44,7 +44,6 @@ extern cvar_t gl_no24bit;
 #define EZCSQC_LOCAL_PROJECTILE_BASE MAX_EDICTS
 #define EZCSQC_PROJECTILE_MIN_OWNER_TRAVEL 24.0f	// how far a projectile must move from its own spawn origin to be drawn.
 #define EZCSQC_PROJECTILE_MIN_CAMERA_DIST 36.0f		// how far the projectile must be from camera/view origin to be drawn.
-#define EZCSQC_PROJECTILE_OWNER_PHASE_LEAD 0.0f		// simulated lead from the muzzle; close visuals are suppressed by distance thresholds.
 
 /*
  * Weapon prediction is stored in three rings:
@@ -921,25 +920,14 @@ static void WeaponPred_SpawnProjectile(usercmd_t *u, player_state_t *ps, ezcsqc_
 	VectorCopy(origin, ent->partorg);
 	VectorClear(ent->avel);
 	if (ent->projectile_type == 1) {
-		float speed = VectorLength(velocity);
-
 		VectorSet(ent->avel, 300, 300, 300);
 		VectorCopy(ent->angles, ent->sim_angles);
-		if (speed > 1) {
-			float lead_time = EZCSQC_PROJECTILE_OWNER_PHASE_LEAD / speed;
-
-			ent->starttime -= lead_time;
-			CL_EZCSQC_ProjectileBounce(ent, lead_time, true);
-			VectorCopy(ent->origin, ent->partorg);
-		}
 	}
 	else {
 		float speed = VectorLength(velocity);
 		if (speed > 1) {
-			float lead_time = EZCSQC_PROJECTILE_OWNER_PHASE_LEAD / speed;
-
-			ent->starttime -= lead_time;
-			VectorMA(origin, lead_time, velocity, ent->origin);
+			ent->starttime -= 0.05f;
+			VectorMA(origin, 0.05f, velocity, ent->origin);
 			VectorCopy(ent->origin, ent->partorg);
 		}
 	}
