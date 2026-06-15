@@ -31,6 +31,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "ezcsqc.h"
 
 extern cvar_t gl_no24bit;
+extern vec3_t player_mins, player_maxs;
 #ifdef MVD_PEXT1_SIMPLEPROJECTILE
 extern cvar_t cl_sproj_xerp;
 #endif
@@ -429,10 +430,15 @@ void CL_CheckPredictedExplosions(player_state_t *from, player_state_t *to)
 		if (from->state_time < expl->time && to->state_time >= expl->time)
 		{
 			float kick;
-			vec3_t diff;
-			VectorSubtract(pmove.origin, expl->origin, diff);
+			vec3_t center, damage_diff, kick_dir;
 
-			float distance = VectorLength(diff);
+			// KTX radius damage measures damage falloff to the player's bbox center.
+			VectorCopy(pmove.origin, center);
+			VectorMA(center, 0.5f, player_mins, center);
+			VectorMA(center, 0.5f, player_maxs, center);
+			VectorSubtract(center, expl->origin, damage_diff);
+
+			float distance = VectorLength(damage_diff);
 			if (distance < expl->radius)
 			{
 				kick = expl->damage - 0.5f * distance;
@@ -442,11 +448,13 @@ void CL_CheckPredictedExplosions(player_state_t *from, player_state_t *to)
 				if (kick <= 0) {
 					continue;
 				}
-				VectorNormalize(diff);
+				// T_Damage applies splash momentum from the player origin, not the bbox center.
+				VectorSubtract(pmove.origin, expl->origin, kick_dir);
+				VectorNormalize(kick_dir);
 				int j;
 				for (j = 0; j < 3; j++)
 				{
-					pmove.velocity[j] += diff[j] * kick * 8;
+					pmove.velocity[j] += kick_dir[j] * kick * 8;
 				}
 			}
 		}
