@@ -1898,6 +1898,9 @@ static void CL_EZCSQC_RenderEntity(ezcsqc_entity_t *self)
 				color[2] = 255;
 				FireballTrail(cent, color, 0.6, 0.3);
 			}
+			else if (self->local_projectile && amf_nailtrail.integer && !gl_no24bit.integer) {
+				// QMB p_nailtrail follows cl_entities[]; local fakes have embedded centity_t storage.
+			}
 			else {
 				CL_AddParticleTrail(&ent, cent, &cst_lt, &state);
 			}
