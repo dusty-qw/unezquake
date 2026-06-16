@@ -1410,16 +1410,31 @@ static void WeaponPred_PlayEffects(usercmd_t *u, player_state_t *ps, ezcsqc_weap
 
 static void WeaponPred_StartFrame(usercmd_t *u, player_state_t *ps, ezcsqc_weapon_state_t *ws, weppreddef_t *wep, int framenum)
 {
+	int nextanim;
 	weppredanim_t *anim = WEPANIM(wep, bound(0, framenum, WEPPRED_MAXSTATES - 1));
 
-	// Non-attack frames can emit sounds/projectiles when the FSM enters them.
-	if (!(anim->flags & WEPPREDANIM_ATTACK && !(anim->flags & WEPPREDANIM_BRANCH))) {
-		WeaponPred_PlayEffects(u, ps, ws, anim);
+	/*
+	 * KTX stores client_thinkindex as the next scheduled weapon function, not
+	 * the state currently being displayed. State 0 is the idle/player_run state.
+	 */
+	if (framenum == 0 && (anim->flags & WEPPREDANIM_DEFAULT)) {
+		ws->client_thinkindex = 0;
+		ws->client_nextthink = 0;
+		if (anim->mdlframe >= 0) {
+			ws->frame = anim->mdlframe;
+		}
+		return;
 	}
 
-	// Advance the predicted weapon FSM to this animation state.
-	ws->client_thinkindex = framenum;
-	ws->client_nextthink = anim->length ? ws->client_time + LENGTH2S(anim->length) : 0;
+	// Branch attack states check +attack when the scheduled state executes.
+	if ((anim->flags & (WEPPREDANIM_ATTACK | WEPPREDANIM_BRANCH)) == (WEPPREDANIM_ATTACK | WEPPREDANIM_BRANCH) &&
+		(!(u->buttons & BUTTON_ATTACK) || ws->impulse)) {
+		WeaponPred_StartFrame(u, ps, ws, wep, anim->altanim);
+		return;
+	}
+
+	// Entering a weapon state is when predicted sounds/projectiles should fire.
+	WeaponPred_PlayEffects(u, ps, ws, anim);
 
 	if (anim->mdlframe >= 0) {
 		ws->frame = anim->mdlframe;
@@ -1431,13 +1446,27 @@ static void WeaponPred_StartFrame(usercmd_t *u, player_state_t *ps, ezcsqc_weapo
 			ws->frame = 1;
 		}
 	}
+
+	// Branching attack states loop while +attack is held, otherwise they return idle.
+	nextanim = anim->nextanim;
+	if (anim->flags & WEPPREDANIM_ATTACK) {
+		if (anim->flags & WEPPREDANIM_BRANCH) {
+			ws->attack_finished = ws->client_time + LENGTH2S(wep->attack_time);
+		}
+		else {
+			ws->attack_finished = ws->client_time + LENGTH2S(wep->attack_time);
+		}
+	}
+
+	ws->client_thinkindex = nextanim;
+	ws->client_nextthink = anim->length ? ws->client_time + LENGTH2S(anim->length) : 0;
 }
 
 static void WeaponPred_WAttack(usercmd_t *u, player_state_t *ps, ezcsqc_weapon_state_t *ws)
 {
 	int i;
 	weppreddef_t *wep = &wpredict_definitions[bound(0, ws->weapon_index, MAX_PREDWEPS - 1)];
-	weppredanim_t *anim = WEPANIM(wep, bound(0, ws->client_thinkindex, WEPPRED_MAXSTATES - 1));
+	weppredanim_t *anim;
 
 	// Do not start a new predicted attack until the weapon is ready and +attack is held.
 	if (ws->client_time < ws->attack_finished || !(u->buttons & BUTTON_ATTACK)) {
@@ -1449,19 +1478,7 @@ static void WeaponPred_WAttack(usercmd_t *u, player_state_t *ps, ezcsqc_weapon_s
 		return;
 	}
 
-	// Some weapons mark the current animation itself as the attack entry.
-	if (anim->flags & WEPPREDANIM_ATTACK && !(anim->flags & WEPPREDANIM_BRANCH)) {
-		if (cl_ezcsqc_debug.integer > 3) {
-			Com_Printf("EZCSQC attack start frame=%d weapon=%d think=%d animflags=%x client_time=%.3f\n",
-				current_predframe, ws->weapon_index, ws->client_thinkindex, anim->flags, ws->client_time);
-		}
-		WeaponPred_PlayEffects(u, ps, ws, anim);
-		ws->attack_finished = ws->client_time + LENGTH2S(wep->attack_time);
-		WeaponPred_StartFrame(u, ps, ws, wep, anim->nextanim);
-		return;
-	}
-
-	// Otherwise find the default attack animation for the current weapon definition.
+	// Find the default attack animation and immediately enter its first shot state.
 	for (i = 0; i < WEPPRED_MAXSTATES; i++) {
 		anim = WEPANIM(wep, i);
 		if (!(anim->flags & WEPPREDANIM_DEFAULT)) {
@@ -1474,8 +1491,6 @@ static void WeaponPred_WAttack(usercmd_t *u, player_state_t *ps, ezcsqc_weapon_s
 			Com_Printf("EZCSQC default attack frame=%d weapon=%d anim=%d animflags=%x client_time=%.3f\n",
 				current_predframe, ws->weapon_index, i, anim->flags, ws->client_time);
 		}
-		WeaponPred_PlayEffects(u, ps, ws, anim);
-		ws->attack_finished = ws->client_time + LENGTH2S(wep->attack_time);
 		WeaponPred_StartFrame(u, ps, ws, wep, anim->nextanim);
 		break;
 	}
@@ -1484,34 +1499,18 @@ static void WeaponPred_WAttack(usercmd_t *u, player_state_t *ps, ezcsqc_weapon_s
 static void WeaponPred_Logic(usercmd_t *u, player_state_t *ps, ezcsqc_weapon_state_t *ws)
 {
 	float time_held;
-	int frame_to_go;
+	int frame_to_go = ws->client_thinkindex;
 	weppreddef_t *wep = &wpredict_definitions[bound(0, ws->weapon_index, MAX_PREDWEPS - 1)];
-	weppredanim_t *anim = WEPANIM(wep, bound(0, ws->client_thinkindex, WEPPRED_MAXSTATES - 1));
 
-	// Default states and not-yet-due states do not advance on their own.
-	if ((anim->flags & WEPPREDANIM_DEFAULT) || ws->client_time < ws->client_nextthink) {
-		return;
-	}
-
-	// Non-branch attack states are entered only by WeaponPred_WAttack().
-	if ((anim->flags & WEPPREDANIM_ATTACK) && !(anim->flags & WEPPREDANIM_BRANCH)) {
+	// No scheduled weapon think, or it is not due yet.
+	if (!ws->client_nextthink || ws->client_time < ws->client_nextthink) {
 		return;
 	}
 
 	// Temporarily evaluate the state at its scheduled think time.
 	time_held = ws->client_time;
-	frame_to_go = anim->nextanim;
 	ws->client_time = ws->client_nextthink;
-
-	/* Branching attack states keep looping while +attack remains held. */
-	if (anim->flags & WEPPREDANIM_ATTACK) {
-		if (!(u->buttons & BUTTON_ATTACK) || ws->impulse) {
-			frame_to_go = anim->altanim;
-		}
-		else {
-			ws->attack_finished = ws->client_time + LENGTH2S(wep->attack_time);
-		}
-	}
+	ws->client_nextthink = 0;
 
 	// Restore the replay time after applying any scheduled state transition.
 	WeaponPred_StartFrame(u, ps, ws, wep, frame_to_go);
