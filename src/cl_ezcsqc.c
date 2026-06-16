@@ -1348,6 +1348,22 @@ static qbool WeaponPred_FrameDelayElapsed(int frame_num, double delay)
 	return delay <= 0 || frame->senttime + delay <= cls.realtime;
 }
 
+static qbool WeaponPred_DefinitionReady(int weapon_index)
+{
+	weppreddef_t *wep;
+
+	if (weapon_index < 0 || weapon_index >= MAX_PREDWEPS) {
+		return false;
+	}
+
+	wep = &wpredict_definitions[weapon_index];
+	if (!wep->modelindex || !wep->anim_number) {
+		return false;
+	}
+
+	return true;
+}
+
 static qbool WeaponPred_SoundEnabled(weppredanim_t *anim)
 {
 	int value = cl_predict_weaponsound.integer;
@@ -1420,7 +1436,15 @@ static void WeaponPred_PlayEffects(usercmd_t *u, player_state_t *ps, ezcsqc_weap
 static void WeaponPred_StartFrame(usercmd_t *u, player_state_t *ps, ezcsqc_weapon_state_t *ws, weppreddef_t *wep, int framenum)
 {
 	int nextanim;
-	weppredanim_t *anim = WEPANIM(wep, bound(0, framenum, WEPPRED_MAXSTATES - 1));
+	weppredanim_t *anim;
+
+	if (framenum < 0 || framenum >= wep->anim_number) {
+		ws->client_thinkindex = 0;
+		ws->client_nextthink = 0;
+		return;
+	}
+
+	anim = WEPANIM(wep, framenum);
 
 	/*
 	 * KTX stores client_thinkindex as the next scheduled weapon function, not
@@ -1487,8 +1511,8 @@ static void WeaponPred_WAttack(usercmd_t *u, player_state_t *ps, ezcsqc_weapon_s
 		return;
 	}
 
-	// Find the default attack animation and immediately enter its first shot state.
-	for (i = 0; i < WEPPRED_MAXSTATES; i++) {
+	// Local +attack starts the visual shot; the server state only supplied the script.
+	for (i = 0; i < wep->anim_number; i++) {
 		anim = WEPANIM(wep, i);
 		if (!(anim->flags & WEPPREDANIM_DEFAULT)) {
 			continue;
@@ -1513,8 +1537,8 @@ static void WeaponPred_Logic(usercmd_t *u, player_state_t *ps, ezcsqc_weapon_sta
 	int frame_to_go = ws->client_thinkindex;
 	weppreddef_t *wep = &wpredict_definitions[bound(0, ws->weapon_index, MAX_PREDWEPS - 1)];
 
-	// No scheduled weapon think, or it is not due yet.
-	if (!ws->client_nextthink || ws->client_time < ws->client_nextthink) {
+	// No scheduled weapon think, invalid state, or it is not due yet.
+	if (!ws->client_nextthink || frame_to_go < 0 || frame_to_go >= wep->anim_number || ws->client_time < ws->client_nextthink) {
 		return;
 	}
 
@@ -1606,6 +1630,10 @@ static qbool WeaponPred_Predraw(ezcsqc_entity_t *self)
 	 * move attack_finished forward before the current +attack is processed.
 	 */
 	ws_predicted = ws_server[cl.validsequence & UPDATE_MASK];
+	if (!WeaponPred_DefinitionReady(ws_predicted.weapon_index)) {
+		self->modelindex = 0;
+		return false;
+	}
 	effect_threshold = bound(
 		cl.validsequence + 1,
 		cls.netchan.outgoing_sequence - (cl_predict_buffer.integer + 1),
