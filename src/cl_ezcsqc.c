@@ -1396,6 +1396,7 @@ static void WeaponPred_PlayEffects(usercmd_t *u, player_state_t *ps, ezcsqc_weap
 			// Remember the predicted LG window so repeated replay frames stay quiet.
 			lg_twidth = ws->client_time + 0.6f;
 		}
+		last_sound_effectframe = max(last_sound_effectframe, current_predframe);
 	}
 
 	if ((current_effect_flags & EZCSQC_EFFECT_PROJECTILE) && (anim->flags & WEPPREDANIM_PROJECTILE)) {
@@ -1405,7 +1406,10 @@ static void WeaponPred_PlayEffects(usercmd_t *u, player_state_t *ps, ezcsqc_weap
 				current_predframe, anim->projectile_model, ws->client_time);
 		}
 		WeaponPred_SpawnProjectile(u, ps, ws, anim);
+		last_projectile_effectframe = max(last_projectile_effectframe, current_predframe);
 	}
+
+	last_effectframe = min(last_sound_effectframe, last_projectile_effectframe);
 }
 
 static void WeaponPred_StartFrame(usercmd_t *u, player_state_t *ps, ezcsqc_weapon_state_t *ws, weppreddef_t *wep, int framenum)
@@ -1492,6 +1496,8 @@ static void WeaponPred_WAttack(usercmd_t *u, player_state_t *ps, ezcsqc_weapon_s
 				current_predframe, ws->weapon_index, i, anim->flags, ws->client_time);
 		}
 		WeaponPred_StartFrame(u, ps, ws, wep, anim->nextanim);
+		// The default attack state authorizes the shot; state 1 carries the visible effect.
+		ws->attack_finished = ws->client_time + LENGTH2S(wep->attack_time);
 		break;
 	}
 }
@@ -1624,17 +1630,14 @@ static qbool WeaponPred_Predraw(ezcsqc_entity_t *self)
 			frame_num > last_sound_effectframe &&
 			WeaponPred_FrameDelayElapsed(frame_num, effect_delay)) {
 			current_effect_flags |= EZCSQC_EFFECT_SOUND;
-			last_sound_effectframe = frame_num;
 		}
 		if (frame_num <= effect_threshold &&
 			frame_num > last_projectile_effectframe &&
 			WeaponPred_FrameDelayElapsed(frame_num, effect_delay)) {
 			current_effect_flags |= EZCSQC_EFFECT_PROJECTILE;
-			last_projectile_effectframe = frame_num;
 		}
 		if (current_effect_flags) {
 			is_effectframe = true;
-			last_effectframe = min(last_sound_effectframe, last_projectile_effectframe);
 		}
 		WeaponPred_Simulate(to->cmd, to->playerstate[cl.playernum], &ws_predicted);
 		// Save the post-command state so later prediction starts from matching indices.
