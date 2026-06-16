@@ -27,6 +27,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 cvar_t	cl_nopred	= {"cl_nopred", "0"};
 cvar_t	cl_nopred_weapon = { "cl_nopred_weapon", "0" };
 cvar_t	cl_predict_weaponsound = { "cl_predict_weaponsound", "1" };
+cvar_t	cl_predict_legacy = { "cl_predict_legacy", "0" };
 cvar_t	cl_predict_smoothview = { "cl_predict_smoothview", "1" };
 cvar_t	cl_predict_beam = { "cl_predict_beam", "1" };
 cvar_t	cl_predict_projectiles = { "cl_predict_projectiles", "1" };
@@ -800,6 +801,7 @@ void CL_InitPrediction(void)
 	Cvar_Register(&cl_nopred);
 	Cvar_Register(&cl_nopred_weapon);
 	Cvar_Register(&cl_predict_weaponsound);
+	Cvar_Register(&cl_predict_legacy);
 	Cvar_Register(&cl_predict_smoothview);
 	Cvar_Register(&cl_predict_beam);
 	Cvar_Register(&cl_predict_projectiles);
