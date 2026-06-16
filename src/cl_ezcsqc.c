@@ -71,9 +71,16 @@ static weppreddef_t wpredict_definitions[MAX_PREDWEPS];
 static ezcsqc_entity_t *viewweapon;
 static int projectile_ringbufferseek;
 static int is_effectframe;
+static int current_effect_flags;
 static int last_effectframe;
+static int last_sound_effectframe;
+static int last_projectile_effectframe;
 static int current_predframe;
 static float lg_twidth;
+
+#define EZCSQC_EFFECT_SOUND		(1 << 0)
+#define EZCSQC_EFFECT_PROJECTILE	(1 << 1)
+#define EZCSQC_PROJECTILE_REWIND_HORIZON	0.080
 
 static qbool Predraw_Projectile(ezcsqc_entity_t *self);
 static void CL_EZCSQC_ProjectileBounce(ezcsqc_entity_t *proj, float dt, qbool update_angles);
@@ -154,6 +161,9 @@ void CL_EZCSQC_InitializeEntities(void)
 
 	viewweapon = NULL;
 	last_effectframe = 0;
+	last_sound_effectframe = 0;
+	last_projectile_effectframe = 0;
+	current_effect_flags = 0;
 	current_predframe = 0;
 	lg_twidth = 0;
 	projectile_ringbufferseek = 0;
@@ -1312,6 +1322,34 @@ static void WeaponPred_SetModel(ezcsqc_entity_t *self)
 	}
 }
 
+static double WeaponPred_LegacyEffectDelay(void)
+{
+	// Legacy-style prediction delays only the latency beyond KTX's projectile rewind horizon.
+	if (!cl_predict_legacy.integer) {
+		return 0;
+	}
+
+	return max(cls.latency - EZCSQC_PROJECTILE_REWIND_HORIZON, 0);
+}
+
+static qbool WeaponPred_FrameDelayElapsed(int frame_num, double delay)
+{
+	frame_t *frame = &cl.frames[frame_num & UPDATE_MASK];
+
+	return delay <= 0 || frame->senttime + delay <= cls.realtime;
+}
+
+static qbool WeaponPred_SoundEnabled(weppredanim_t *anim)
+{
+	int value = cl_predict_weaponsound.integer;
+
+	if (!value) {
+		return false;
+	}
+
+	return value == 1 || !(value & anim->soundmask);
+}
+
 static void WeaponPred_PlayEffects(usercmd_t *u, player_state_t *ps, ezcsqc_weapon_state_t *ws, weppredanim_t *anim)
 {
 	/*
@@ -1329,7 +1367,7 @@ static void WeaponPred_PlayEffects(usercmd_t *u, player_state_t *ps, ezcsqc_weap
 		return;
 	}
 
-	if (anim->flags & WEPPREDANIM_SOUND) {
+	if ((current_effect_flags & EZCSQC_EFFECT_SOUND) && (anim->flags & WEPPREDANIM_SOUND)) {
 		int chan = (anim->flags & WEPPREDANIM_SOUNDAUTO) ? 0 : 1;
 		// Lightning uses a minimum local active window so replay does not stutter the loop.
 		if ((anim->flags & WEPPREDANIM_LTIME) && ws->client_time < lg_twidth) {
@@ -1340,7 +1378,7 @@ static void WeaponPred_PlayEffects(usercmd_t *u, player_state_t *ps, ezcsqc_weap
 			return;
 		}
 		// The cvar can enable all sounds or mask off specific predicted sound classes.
-		if (cl_predict_weaponsound.integer == 1 || (cl_predict_weaponsound.integer && !(cl_predict_weaponsound.integer & anim->soundmask))) {
+		if (WeaponPred_SoundEnabled(anim)) {
 			if (anim->sound > 0 && anim->sound < MAX_SOUNDS && cl.sound_precache[anim->sound]) {
 				if (cl_ezcsqc_debug.integer > 1) {
 					Com_Printf("EZCSQC predicted sound frame=%d sound=%d mask=%x client_time=%.3f\n",
@@ -1355,7 +1393,7 @@ static void WeaponPred_PlayEffects(usercmd_t *u, player_state_t *ps, ezcsqc_weap
 		}
 	}
 
-	if (anim->flags & WEPPREDANIM_PROJECTILE) {
+	if ((current_effect_flags & EZCSQC_EFFECT_PROJECTILE) && (anim->flags & WEPPREDANIM_PROJECTILE)) {
 		// Projectile effects create only the local visual bridge; KTX still owns authority.
 		if (cl_ezcsqc_debug.integer > 1) {
 			Com_Printf("EZCSQC predicted projectile effect frame=%d model=%d client_time=%.3f\n",
@@ -1544,6 +1582,7 @@ static qbool WeaponPred_Predraw(ezcsqc_entity_t *self)
 {
 	int i = 1;
 	int effect_threshold;
+	double effect_delay = WeaponPred_LegacyEffectDelay();
 
 	/*
 	 * Match CL_PredictMove(): start from the last confirmed server frame and
@@ -1571,10 +1610,27 @@ static qbool WeaponPred_Predraw(ezcsqc_entity_t *self)
 		int frame_num = cl.validsequence + i;
 		current_predframe = frame_num;
 		is_effectframe = false;
-		// Only newly eligible frames may emit one-shot predicted effects.
-		if (frame_num > last_effectframe && frame_num <= effect_threshold) {
+		current_effect_flags = 0;
+		/*
+		 * Only newly eligible frames may emit one-shot predicted effects.
+		 * Legacy-delay modes hold back the local effect until local latency
+		 * exceeds the 80 ms server projectile rewind horizon.
+		 */
+		if (frame_num <= effect_threshold &&
+			frame_num > last_sound_effectframe &&
+			WeaponPred_FrameDelayElapsed(frame_num, effect_delay)) {
+			current_effect_flags |= EZCSQC_EFFECT_SOUND;
+			last_sound_effectframe = frame_num;
+		}
+		if (frame_num <= effect_threshold &&
+			frame_num > last_projectile_effectframe &&
+			WeaponPred_FrameDelayElapsed(frame_num, effect_delay)) {
+			current_effect_flags |= EZCSQC_EFFECT_PROJECTILE;
+			last_projectile_effectframe = frame_num;
+		}
+		if (current_effect_flags) {
 			is_effectframe = true;
-			last_effectframe = frame_num;
+			last_effectframe = min(last_sound_effectframe, last_projectile_effectframe);
 		}
 		WeaponPred_Simulate(to->cmd, to->playerstate[cl.playernum], &ws_predicted);
 		// Save the post-command state so later prediction starts from matching indices.

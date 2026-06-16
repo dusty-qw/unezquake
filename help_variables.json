@@ -2521,6 +2521,22 @@
       "group-id": "21",
       "type": "boolean"
     },
+    "cl_predict_legacy": {
+      "default": "0",
+      "desc": "When using the native CSQC/EZCSQC prediction path, delay predicted weapon sounds and projectiles by the local latency that exceeds the server projectile rewind horizon. This mimics legacy antilag prediction timing for high-latency clients.",
+      "group-id": "21",
+      "type": "boolean",
+      "values": [
+        {
+          "description": "Predict CSQC weapon sounds and projectiles immediately.",
+          "name": "0"
+        },
+        {
+          "description": "Use legacy-style delayed CSQC prediction beyond the compensation horizon.",
+          "name": "1"
+        }
+      ]
+    },
     "cl_predict_projectiles": {
       "default": "0",
       "desc": "This variable controls if projectiles will be predicted, which can cause confusion if you die at the same time you shoot.",
