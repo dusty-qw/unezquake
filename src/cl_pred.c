@@ -60,6 +60,73 @@ extern cvar_t cl_predict_buffer;
 static qbool nolerp[2];
 static qbool nolerp_nextpos;
 
+#define CSQC_SMOOTH_MIN_ERROR 1.0f
+#define CSQC_SMOOTH_SNAP_ERROR 160.0f
+#define CSQC_SMOOTH_MAX_OFFSET 96.0f
+
+static void CL_PredictSmoothView_AddCSQCError(vec3_t diff)
+{
+	float len = VectorLength(diff);
+
+	// Very large corrections can be teleports/server authority changes.
+	if (len >= CSQC_SMOOTH_SNAP_ERROR) {
+		VectorClear(cl.simerr_nudge);
+		return;
+	}
+
+	// Ignore sub-unit noise so the view does not slowly drift from tiny replay deltas.
+	if (len <= CSQC_SMOOTH_MIN_ERROR) {
+		return;
+	}
+
+	VectorAdd(cl.simerr_nudge, diff, cl.simerr_nudge);
+	len = VectorLength(cl.simerr_nudge);
+	if (len > CSQC_SMOOTH_MAX_OFFSET) {
+		VectorScale(cl.simerr_nudge, CSQC_SMOOTH_MAX_OFFSET / len, cl.simerr_nudge);
+	}
+}
+
+static void CL_PredictSmoothView_ApplyCSQC(int frame_num, player_state_t *state)
+{
+	float dt, len, half_life, decay;
+	vec3_t goal;
+	trace_t checktrace;
+
+	// Remember the predicted endpoint that the next server frame will validate.
+	cl.simerr_frame = frame_num;
+	VectorCopy(state->origin, cl.simerr_org);
+
+	dt = max(cl.time - cl.simerr_lastcheck, 0);
+	cl.simerr_lastcheck = cl.time;
+	if (dt > 0.1f) {
+		dt = 0.1f;
+	}
+
+	len = VectorLength(cl.simerr_nudge);
+	if (len <= CSQC_SMOOTH_MIN_ERROR) {
+		VectorClear(cl.simerr_nudge);
+		return;
+	}
+
+	/*
+	 * Higher cl_predict_smoothview values intentionally smooth longer.
+	 * This is visual-only; movement prediction keeps using the replayed state.
+	 */
+	half_life = bound(0.025f, 0.080f * cl_predict_smoothview.value, 0.250f);
+	decay = (dt > 0) ? pow(0.5, dt / half_life) : 1.0f;
+	VectorScale(cl.simerr_nudge, decay, cl.simerr_nudge);
+
+	if (VectorLength(cl.simerr_nudge) <= CSQC_SMOOTH_MIN_ERROR) {
+		VectorClear(cl.simerr_nudge);
+		return;
+	}
+
+	VectorAdd(cl.simorg, cl.simerr_nudge, goal);
+	checktrace = PM_PlayerTrace(cl.simorg, goal);
+	VectorSubtract(checktrace.endpos, cl.simorg, cl.simerr_nudge);
+	VectorCopy(checktrace.endpos, cl.simorg);
+}
+
 void CL_InitWepSounds(void)
 {
 	cl_sfx_jump = S_PrecacheSound("player/plyrjmp8.wav");
@@ -610,8 +677,14 @@ void CL_PredictMove (qbool physframe) {
 			{
 				// if our origin is significantly wrong, add it to our nudge vector
 				vec3_t diff;
+				float error;
 				VectorSubtract(cl.simerr_org, to->playerstate[cl.playernum].origin, diff);
-				if (VectorLength(diff) > 4 && VectorLength(diff) < 64)
+				error = VectorLength(diff);
+				if (CL_EZCSQC_Active())
+				{
+					CL_PredictSmoothView_AddCSQCError(diff);
+				}
+				else if (error > 4 && error < 64)
 				{
 					float mult;
 					mult = 1 - min(0.013 / cls.latency, 1);
@@ -638,37 +711,42 @@ void CL_PredictMove (qbool physframe) {
 		if (cl_predict_smoothview.value >= 0.1 && !cl.spectator)
 		{
 			// update and smooth our position
-			cl.simerr_frame = cl.validsequence + i - 1;
-			VectorCopy(to->playerstate[cl.playernum].origin, cl.simerr_org);
-			float nudge = VectorLength(cl.simerr_nudge);
-			vec3_t nudge_norm; VectorCopy(cl.simerr_nudge, nudge_norm);
-			VectorNormalize(nudge_norm);
+			if (CL_EZCSQC_Active()) {
+				CL_PredictSmoothView_ApplyCSQC(cl.validsequence + i - 1, &to->playerstate[cl.playernum]);
+			}
+			else {
+				cl.simerr_frame = cl.validsequence + i - 1;
+				VectorCopy(to->playerstate[cl.playernum].origin, cl.simerr_org);
+				float nudge = VectorLength(cl.simerr_nudge);
+				vec3_t nudge_norm; VectorCopy(cl.simerr_nudge, nudge_norm);
+				VectorNormalize(nudge_norm);
 
-			float check_deltatime = cl.time - cl.simerr_lastcheck;
-			cl.simerr_lastcheck = cl.time;
+				float check_deltatime = cl.time - cl.simerr_lastcheck;
+				cl.simerr_lastcheck = cl.time;
 
-			float nudge_mult = bound(0.1, 2 - cl_predict_smoothview.value, 2);
+				float nudge_mult = bound(0.1, 2 - cl_predict_smoothview.value, 2);
 
-			nudge = min(nudge, 64);
-			if (nudge < 220 * nudge_mult * check_deltatime)
-				nudge = 0;
-			else if (nudge < 8)
-				nudge -= 200 * nudge_mult * check_deltatime;
-			else if (nudge < 16)
-				nudge -= 500 * nudge_mult * check_deltatime;
-			else if (nudge < 32)
-				nudge -= 800 * nudge_mult * check_deltatime;
-			else
-				nudge -= 1400 * nudge_mult * check_deltatime;
-			nudge = max(0, nudge); // in case we overshot due to low framerate or something
+				nudge = min(nudge, 64);
+				if (nudge < 220 * nudge_mult * check_deltatime)
+					nudge = 0;
+				else if (nudge < 8)
+					nudge -= 200 * nudge_mult * check_deltatime;
+				else if (nudge < 16)
+					nudge -= 500 * nudge_mult * check_deltatime;
+				else if (nudge < 32)
+					nudge -= 800 * nudge_mult * check_deltatime;
+				else
+					nudge -= 1400 * nudge_mult * check_deltatime;
+				nudge = max(0, nudge); // in case we overshot due to low framerate or something
 
-			VectorScale(nudge_norm, nudge, cl.simerr_nudge);
+				VectorScale(nudge_norm, nudge, cl.simerr_nudge);
 
-			vec3_t goal;
-			VectorAdd(cl.simorg, cl.simerr_nudge, goal);
-			trace_t checktrace = PM_PlayerTrace(cl.simorg, goal);
-			VectorSubtract(checktrace.endpos, cl.simorg, cl.simerr_nudge);
-			VectorCopy(checktrace.endpos, cl.simorg);
+				vec3_t goal;
+				VectorAdd(cl.simorg, cl.simerr_nudge, goal);
+				trace_t checktrace = PM_PlayerTrace(cl.simorg, goal);
+				VectorSubtract(checktrace.endpos, cl.simorg, cl.simerr_nudge);
+				VectorCopy(checktrace.endpos, cl.simorg);
+			}
 
 			// update our expected weapon state as well
 			cl.simerr_wep = pmove.weapon;
