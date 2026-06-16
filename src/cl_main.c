@@ -510,10 +510,6 @@ unsigned int CL_SupportedFTEExtensions (void)
 	if (cl_pext_colourmod.value)
 		fteprotextsupported |= FTE_PEXT_COLOURMOD;
 #endif
-#ifdef FTE_PEXT_CSQC
-	if (cl_pext_ezcsqc.value)
-		fteprotextsupported |= FTE_PEXT_CSQC;
-#endif
 
 	if (cl_pext_limits.value) {
 #ifdef FTE_PEXT_MODELDBL
@@ -589,7 +585,7 @@ unsigned int CL_SupportedMVDExtensions1(void)
 
 #ifdef MVD_PEXT1_WEAPONPREDICTION
 	if (cl_pext_weaponprediction.value
-#ifdef FTE_PEXT_CSQC
+#ifdef MVD_PEXT1_EZCSQC
 		&& !cl_pext_ezcsqc.value
 #endif
 	) {
@@ -599,11 +595,17 @@ unsigned int CL_SupportedMVDExtensions1(void)
 
 #ifdef MVD_PEXT1_SIMPLEPROJECTILE
 	if (cl_pext_simpleprojectiles.value
-#ifdef FTE_PEXT_CSQC
+#ifdef MVD_PEXT1_EZCSQC
 		&& !cl_pext_ezcsqc.value
 #endif
 	) {
 		extensions_supported |= MVD_PEXT1_SIMPLEPROJECTILE;
+	}
+#endif
+
+#ifdef MVD_PEXT1_EZCSQC
+	if (cl_pext_ezcsqc.value) {
+		extensions_supported |= MVD_PEXT1_EZCSQC;
 	}
 #endif
 
@@ -656,6 +658,20 @@ static void CL_SendConnectPacket(
 #endif // PROTOCOL_VERSION_FTE
 #ifdef PROTOCOL_VERSION_MVD1
 	cls.mvdprotocolextensions1 = (mvdpext1 & CL_SupportedMVDExtensions1());
+#endif
+
+#if defined(FTE_PEXT_CSQC) && defined(MVD_PEXT1_EZCSQC)
+	/*
+	 * This client only understands the KTX/unezquake EZCSQC schema carried by
+	 * svc_fte_csqcentities, so expose the broader FTE CSQC transport only when
+	 * the server also negotiated the narrower EZCSQC payload contract.
+	 */
+	if (cl_pext_ezcsqc.value && (ftepext & FTE_PEXT_CSQC) && (cls.mvdprotocolextensions1 & MVD_PEXT1_EZCSQC)) {
+		cls.fteprotocolextensions |= FTE_PEXT_CSQC;
+	}
+	else {
+		cls.fteprotocolextensions &= ~FTE_PEXT_CSQC;
+	}
 #endif
 
 	connect_time = cls.realtime; // For retransmit requests

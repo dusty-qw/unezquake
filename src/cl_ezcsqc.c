@@ -187,7 +187,12 @@ void CL_EZCSQC_InitializeEntities(void)
 
 qbool CL_EZCSQC_Active(void)
 {
-	return cl_pext_ezcsqc.integer && (cls.fteprotocolextensions & FTE_PEXT_CSQC) && ezcsqc.active;
+	return cl_pext_ezcsqc.integer &&
+		(cls.fteprotocolextensions & FTE_PEXT_CSQC) &&
+#ifdef MVD_PEXT1_EZCSQC
+		(cls.mvdprotocolextensions1 & MVD_PEXT1_EZCSQC) &&
+#endif
+		ezcsqc.active;
 }
 
 static void CL_EZCSQC_InitProjectile(ezcsqc_entity_t *ent, int modelindex, int ownernum)
