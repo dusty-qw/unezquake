@@ -1114,14 +1114,17 @@ static qbool Predraw_Projectile(ezcsqc_entity_t *self)
 	return true;
 }
 
-static void WeaponPred_SpawnProjectile(usercmd_t *u, player_state_t *ps, ezcsqc_weapon_state_t *ws, weppredanim_t *anim)
+static qbool WeaponPred_SpawnProjectile(usercmd_t *u, player_state_t *ps, ezcsqc_weapon_state_t *ws, weppredanim_t *anim)
 {
 	vec3_t forward, right, up, velocity, origin;
 	ezcsqc_entity_t *ent;
 	int modelindex = anim->projectile_model;
 
-	if (!cl_predict_projectiles.integer || !modelindex || modelindex >= MAX_MODELS || !cl.model_precache[modelindex]) {
-		return;
+	if (!cl_predict_projectiles.integer) {
+		return true;
+	}
+	if (!modelindex || modelindex >= MAX_MODELS || !cl.model_precache[modelindex]) {
+		return false;
 	}
 
 	ent = CL_EZCSQC_AllocLocalProjectile();
@@ -1129,7 +1132,7 @@ static void WeaponPred_SpawnProjectile(usercmd_t *u, player_state_t *ps, ezcsqc_
 		if (cl_ezcsqc_debug.integer > 2) {
 			Com_Printf("EZCSQC local projectile alloc failed model=%d frame=%d\n", modelindex, current_predframe);
 		}
-		return;
+		return false;
 	}
 
 	/*
@@ -1159,7 +1162,7 @@ static void WeaponPred_SpawnProjectile(usercmd_t *u, player_state_t *ps, ezcsqc_
 	// Point-blank rocket impacts become a predicted explosion instead of a projectile model.
 	if (CL_EZCSQC_PredictRocketSpawnTouch(modelindex, origin, velocity, ps->state_time)) {
 		CL_EZCSQC_Ent_Remove(ent);
-		return;
+		return true;
 	}
 
 	// Initialize common projectile motion state from the predicted weapon definition.
@@ -1195,6 +1198,7 @@ static void WeaponPred_SpawnProjectile(usercmd_t *u, player_state_t *ps, ezcsqc_
 		Com_Printf("EZCSQC predicted projectile model=%d org=(%.1f %.1f %.1f) vel=(%.1f %.1f %.1f)\n",
 			modelindex, origin[0], origin[1], origin[2], velocity[0], velocity[1], velocity[2]);
 	}
+	return true;
 }
 
 static void CL_EZCSQC_AddPredictionSound(unsigned short index, unsigned short mask, byte chan)
@@ -1405,8 +1409,9 @@ static void WeaponPred_PlayEffects(usercmd_t *u, player_state_t *ps, ezcsqc_weap
 			Com_Printf("EZCSQC predicted projectile effect frame=%d model=%d client_time=%.3f\n",
 				current_predframe, anim->projectile_model, ws->client_time);
 		}
-		WeaponPred_SpawnProjectile(u, ps, ws, anim);
-		last_projectile_effectframe = max(last_projectile_effectframe, current_predframe);
+		if (WeaponPred_SpawnProjectile(u, ps, ws, anim)) {
+			last_projectile_effectframe = max(last_projectile_effectframe, current_predframe);
+		}
 	}
 
 	last_effectframe = min(last_sound_effectframe, last_projectile_effectframe);

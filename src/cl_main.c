@@ -1404,6 +1404,8 @@ void CL_Disconnect (void)
 		Netchan_Transmit (&cls.netchan, 6, final);
 
 		CL_UnqueOutputPacket(true);
+		// Drop delayed packets from this connection so reconnect starts with clean protocol state.
+		CL_ClearQueuedPackets();
 
 		// TCP connect, that gives TCP a chance to transfer data to the server...
 		if (cls.sockettcp != INVALID_SOCKET) {
