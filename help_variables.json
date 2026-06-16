@@ -2285,7 +2285,7 @@
     },
     "cl_pext_ezcsqc": {
       "default": "1",
-      "desc": "Enables the native CSQC/EZCSQC protocol path for server-authored weapon and projectile prediction. Supported servers can send weapon definitions, weapon timing, sounds, and projectile state through CSQC so local prediction is smoother than the legacy MVD weapon prediction/simple projectile extensions.",
+      "desc": "Enables the native CSQC/EZCSQC protocol path for server-authored weapon and projectile prediction. Supported servers negotiate the MVD EZCSQC extension before the client enables the FTE CSQC transport for weapon definitions, weapon timing, sounds, and projectile state.",
       "group-id": "21",
       "remarks": "You must reconnect to the server for changes to take effect.",
       "type": "boolean",
@@ -2295,7 +2295,7 @@
           "name": "0"
         },
         {
-          "description": "Advertise and use native CSQC/EZCSQC prediction when the server supports it.",
+          "description": "Advertise native EZCSQC support and use it only when the server negotiates the EZCSQC payload contract.",
           "name": "1"
         }
       ]

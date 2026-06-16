@@ -72,6 +72,15 @@ void R_TranslatePlayerSkin (int playernum);
 void Inlay_GameStart(void);
 qbool Inlay_Handle_Message(char *s, int flags, int offset);
 
+static qbool CL_ServerSupportsEZCSQC(void)
+{
+#if defined(FTE_PEXT_CSQC) && defined(MVD_PEXT1_EZCSQC)
+	return cl_pext_ezcsqc.integer && (cls.mvdprotocolextensions1 & MVD_PEXT1_EZCSQC);
+#else
+	return false;
+#endif
+}
+
 char *svc_strings[] = {
 	"svc_bad",
 	"svc_nop",
@@ -642,7 +651,7 @@ void CL_Prespawn (void)
 	}
 
 #ifdef FTE_PEXT_CSQC
-	if (!cls.mvdplayback && (cls.fteprotocolextensions & FTE_PEXT_CSQC) && cl_pext_ezcsqc.integer) {
+	if (!cls.mvdplayback && (cls.fteprotocolextensions & FTE_PEXT_CSQC) && CL_ServerSupportsEZCSQC()) {
 		MSG_WriteByte(&cls.netchan.message, clc_stringcmd);
 		MSG_WriteString(&cls.netchan.message, "enablecsqc");
 	}
@@ -4379,11 +4388,11 @@ void CL_ParseServerMessage (void)
 #ifdef FTE_PEXT_CSQC
 			case svc_fte_csqcentities:
 				{
-					if (cls.fteprotocolextensions & FTE_PEXT_CSQC) {
+					if ((cls.fteprotocolextensions & FTE_PEXT_CSQC) && CL_ServerSupportsEZCSQC()) {
 						CL_EZCSQC_ParseEntities();
 					}
 					else {
-						Host_Error("CL_ParseServerMessage: svc_fte_csqcentities without FTE_PEXT_CSQC");
+						Host_Error("CL_ParseServerMessage: svc_fte_csqcentities without native EZCSQC support");
 					}
 					break;
 				}
