@@ -30,7 +30,7 @@ typedef struct sfx_s {
 	void *buf;
 } sfx_t;
 
-extern sfx_t	*cl_sfx_jump, *cl_sfx_ax1, *cl_sfx_axhit1, *cl_sfx_sg, *cl_sfx_ssg, *cl_sfx_ng, *cl_sfx_sng, *cl_sfx_gl, *cl_sfx_rl, *cl_sfx_lg, *cl_sfx_lghit, *cl_sfx_coil, *cl_sfx_hook;
+extern sfx_t	*cl_sfx_jump, *cl_sfx_land, *cl_sfx_land2, *cl_sfx_h2ojump, *cl_sfx_inh2o, *cl_sfx_inlava, *cl_sfx_inslime, *cl_sfx_outwater, *cl_sfx_ax1, *cl_sfx_axhit1, *cl_sfx_sg, *cl_sfx_ssg, *cl_sfx_ng, *cl_sfx_sng, *cl_sfx_gl, *cl_sfx_rl, *cl_sfx_lg, *cl_sfx_lghit, *cl_sfx_coil, *cl_sfx_hook;
 
 // FIXME: REMOVE ME PLZ
 typedef struct snd_format_s {
