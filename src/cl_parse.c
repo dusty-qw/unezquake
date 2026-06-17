@@ -3992,6 +3992,10 @@ void CL_ParseServerMessage (void)
 		else if (cmd == svc_fte_csqcentities)
 			SHOWNET("svc_fte_csqcentities")
 #endif
+#ifdef MVD_PEXT1_EZCSQC
+		else if (cmd == svc_ezcsqc_setup)
+			SHOWNET("svc_ezcsqc_setup")
+#endif
 		else if (cmd < num_svc_strings)
 			SHOWNET(svc_strings[cmd]);
 
@@ -4427,6 +4431,18 @@ void CL_ParseServerMessage (void)
 					}
 					else {
 						Host_Error("CL_ParseServerMessage: svc_fte_csqcentities without native EZCSQC support");
+					}
+					break;
+				}
+#endif
+#ifdef MVD_PEXT1_EZCSQC
+			case svc_ezcsqc_setup:
+				{
+					if ((cls.fteprotocolextensions & FTE_PEXT_CSQC) && CL_ServerSupportsEZCSQC()) {
+						CL_EZCSQC_ParseSetup();
+					}
+					else {
+						Host_Error("CL_ParseServerMessage: svc_ezcsqc_setup without native EZCSQC support");
 					}
 					break;
 				}
