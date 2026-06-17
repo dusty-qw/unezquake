@@ -388,12 +388,20 @@ static qbool CL_EZCSQC_PredictRocketSpawnTouch(int modelindex, vec3_t origin, ve
 
 	/*
 	 * MVDSV simple-projectile render lookahead is applied after the server-side
-	 * newmis step has survived. Mirror that as a separate visual-only probe:
-	 * hide the model, but wait for the server explosion.
+	 * newmis step has survived. Mirror that as a high-confidence BSP probe so
+	 * close-but-not-instant own-rocket impacts do not wait on the server round trip.
 	 */
 	VectorMA(end, 0.02f, velocity, lookahead_end);
 	trace = PM_TraceLine(end, lookahead_end);
 	if (trace.fraction < 1 || trace.startsolid || trace.allsolid) {
+		if (CL_EZCSQC_TraceHitPredictableBSP(&trace)) {
+			vec3_t predicted_origin, back;
+
+			// The render lookahead is still a high-confidence own-rocket BSP hit; predict effects too.
+			VectorScale(velocity, -8.0f / speed, back);
+			VectorAdd(trace.endpos, back, predicted_origin);
+			CL_PredictRocketExplosion(predicted_origin, trace.endpos, prediction_time);
+		}
 		if (cl_ezcsqc_debug.integer > 2) {
 			Com_Printf("EZCSQC predicted rocket spawn-lookahead model=%d org=(%.1f %.1f %.1f) hit=(%.1f %.1f %.1f)\n",
 				modelindex, origin[0], origin[1], origin[2],
