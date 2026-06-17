@@ -695,6 +695,8 @@ typedef struct {
 	int			simerr_wep;
 	vec3_t		simerr_nudge;
 	vec3_t		simerr_org;
+	int			simerr_groundent;
+	vec3_t		simerr_groundorigin;
 
 	// pitch drifting vars
 	float		pitchvel;
