@@ -333,6 +333,13 @@ static qbool CL_EZCSQC_ProjectileTraceBlocked(vec3_t start, vec3_t end)
 	return false;
 }
 
+static qbool CL_EZCSQC_TraceHitPredictableBSP(trace_t *trace)
+{
+	// World and brush-model movers are deterministic BSP collision; player/entity hulls are not.
+	return trace->e.entnum == 0 ||
+		(trace->e.entnum > 0 && trace->e.entnum < pmove.numphysent && pmove.physents[trace->e.entnum].model);
+}
+
 static qbool CL_EZCSQC_PredictRocketSpawnTouch(int modelindex, vec3_t origin, vec3_t velocity, double prediction_time)
 {
 	model_t *model;
@@ -360,7 +367,7 @@ static qbool CL_EZCSQC_PredictRocketSpawnTouch(int modelindex, vec3_t origin, ve
 	VectorMA(origin, 0.05f, velocity, end);
 	trace = PM_TraceLine(origin, end);
 	if (trace.fraction < 1 || trace.startsolid || trace.allsolid) {
-		if (trace.e.entnum == 0) {
+		if (CL_EZCSQC_TraceHitPredictableBSP(&trace)) {
 			vec3_t predicted_origin, back;
 
 			// KTX backs the explosion temp entity off the true impact point by 8 units.
@@ -435,13 +442,13 @@ static qbool CL_EZCSQC_PredictOwnerRocketWorldImpact(ezcsqc_entity_t *self, vec3
 		return false;
 	}
 
-	// World hits are stable enough to predict; entity hits are left to the server.
-	if (trace.e.entnum == 0) {
+	// World and brush-model hits are stable enough to predict; entity/player hits are left to the server.
+	if (CL_EZCSQC_TraceHitPredictableBSP(&trace)) {
 		vec3_t predicted_origin, back;
 		double impact_state_time;
 
 		/*
-		 * Broader own-rocket prediction is limited to static world geometry.
+		 * Broader own-rocket prediction is limited to BSP collision.
 		 * Predicting entity/player impacts here would create visible false positives.
 		 */
 		VectorScale(velocity, -8.0f / speed, back);
