@@ -2083,6 +2083,9 @@ void CL_ParseStartSoundPacket(void)
 		{
 			if (CL_IsPredictedMovementSound(sound_num))
 				return;
+
+			if (CL_ShouldSuppressSelfMovementImpactSound(cl.sound_precache[sound_num]))
+				return;
 		}
 	}
 

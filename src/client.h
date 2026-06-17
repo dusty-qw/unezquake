@@ -116,6 +116,9 @@ extern prediction_event_sound_t		*p_event_sound;
 extern int							cl_last_predicted_movement_sound_frame;
 extern int							cl_last_predicted_movement_sound_chan;
 extern struct sfx_s				*cl_last_predicted_movement_sound_sample;
+extern int							cl_predicted_movement_sound_frame;
+extern double						cl_last_self_movement_impact_sound_time;
+qbool CL_ShouldSuppressSelfMovementImpactSound(struct sfx_s *sample);
 
 
 // player_state_t is the information needed by a player entity
