@@ -2538,8 +2538,14 @@
       ]
     },
     "cl_predict_projectiles": {
-      "default": "0",
+      "default": "1",
       "desc": "This variable controls if projectiles will be predicted, which can cause confusion if you die at the same time you shoot.",
+      "group-id": "21",
+      "type": "boolean"
+    },
+    "cl_predict_explosions": {
+      "default": "1",
+      "desc": "This variable controls client prediction of local own-rocket explosion effects, audio, and movement kick.",
       "group-id": "21",
       "type": "boolean"
     },
