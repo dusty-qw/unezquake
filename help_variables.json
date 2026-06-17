@@ -2509,9 +2509,9 @@
       "group-id": "21",
       "type": "integer"
     },
-    "cl_predict_jump": {
-      "default": "0",
-      "desc": "This variable controls if jump sounds will be predicted.",
+    "cl_predict_sound": {
+      "default": "1",
+      "desc": "This variable controls prediction of local movement feedback sounds, including jump, landing, and water transition sounds.",
       "group-id": "21",
       "type": "boolean"
     },

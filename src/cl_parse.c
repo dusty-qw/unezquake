@@ -2079,7 +2079,7 @@ void CL_ParseStartSoundPacket(void)
 			}
 		}
 
-		if (cl_predict_jump.integer && !cl_nopred.integer)
+		if (cl_predict_sound.integer && !cl_nopred.integer)
 		{
 			if (CL_IsPredictedMovementSound(sound_num))
 				return;

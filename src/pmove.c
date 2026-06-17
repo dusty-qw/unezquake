@@ -750,7 +750,7 @@ static void PM_CheckJump (void)
 	if (pmove.jump_held && !pmove.jump_msec)
 		return; // don't pogo stick
 
-	if (cl_predict_jump.integer)
+	if (cl_predict_sound.integer)
 		PM_SoundEffect(cl_sfx_jump, 4);
 
 	if (!movevars.pground) {
@@ -993,7 +993,7 @@ int PM_PlayerMove(void)
 	// set onground, watertype, and waterlevel for final spot
 	PM_CategorizePosition();
 
-	if (cl_predict_jump.integer && !initial_waterlevel && pmove.waterlevel) {
+	if (cl_predict_sound.integer && !initial_waterlevel && pmove.waterlevel) {
 		if (pmove.watertype == CONTENTS_LAVA) {
 			PM_SoundEffect(cl_sfx_inlava, 4);
 		}
@@ -1004,11 +1004,11 @@ int PM_PlayerMove(void)
 			PM_SoundEffect(cl_sfx_inslime, 4);
 		}
 	}
-	else if (cl_predict_jump.integer && initial_waterlevel && !pmove.waterlevel) {
+	else if (cl_predict_sound.integer && initial_waterlevel && !pmove.waterlevel) {
 		PM_SoundEffect(cl_sfx_outwater, 4);
 	}
 
-	if (cl_predict_jump.integer && pmove.onground && ktx_landing_velocity < -300) {
+	if (cl_predict_sound.integer && pmove.onground && ktx_landing_velocity < -300) {
 		if (pmove.watertype == CONTENTS_WATER) {
 			PM_SoundEffect(cl_sfx_h2ojump, 4);
 		}
