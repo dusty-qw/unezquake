@@ -1987,14 +1987,28 @@ void CL_ParseStaticSound (void)
 ACTION MESSAGES
 =====================================================================
 */
-static qbool CL_IsJumpSound(int sound_num)
+static qbool CL_IsPredictedMovementSound(int sound_num)
 {
 	if (sound_num <= 0 || sound_num >= MAX_SOUNDS || !cl.sound_precache[sound_num]) {
 		return false;
 	}
 
 	return cl.sound_precache[sound_num] == cl_sfx_jump ||
-		!strcmp(cl.sound_precache[sound_num]->name, "player/plyrjmp8.wav");
+		cl.sound_precache[sound_num] == cl_sfx_land ||
+		cl.sound_precache[sound_num] == cl_sfx_land2 ||
+		cl.sound_precache[sound_num] == cl_sfx_h2ojump ||
+		cl.sound_precache[sound_num] == cl_sfx_inh2o ||
+		cl.sound_precache[sound_num] == cl_sfx_inlava ||
+		cl.sound_precache[sound_num] == cl_sfx_inslime ||
+		cl.sound_precache[sound_num] == cl_sfx_outwater ||
+		!strcmp(cl.sound_precache[sound_num]->name, "player/plyrjmp8.wav") ||
+		!strcmp(cl.sound_precache[sound_num]->name, "player/land.wav") ||
+		!strcmp(cl.sound_precache[sound_num]->name, "player/land2.wav") ||
+		!strcmp(cl.sound_precache[sound_num]->name, "player/h2ojump.wav") ||
+		!strcmp(cl.sound_precache[sound_num]->name, "player/inh2o.wav") ||
+		!strcmp(cl.sound_precache[sound_num]->name, "player/inlava.wav") ||
+		!strcmp(cl.sound_precache[sound_num]->name, "player/slimbrn2.wav") ||
+		!strcmp(cl.sound_precache[sound_num]->name, "misc/outwater.wav");
 }
 
 void CL_ParseStartSoundPacket(void)
@@ -2067,7 +2081,7 @@ void CL_ParseStartSoundPacket(void)
 
 		if (cl_predict_jump.integer && !cl_nopred.integer)
 		{
-			if (CL_IsJumpSound(sound_num))
+			if (CL_IsPredictedMovementSound(sound_num))
 				return;
 		}
 	}

@@ -56,6 +56,11 @@ int pmove_nopred_weapon;
 
 #define MAX_JUMPFIX_DOTPRODUCT -0.1
 
+static int PM_KTXLandingDamageVelocity(void)
+{
+	return !strcmp(host_mapname.string, "q1dm17") ? -1000 : -650;
+}
+
 // Play a predicted sound
 void PM_SoundEffect(sfx_t *sample, int chan)
 {
@@ -922,6 +927,8 @@ static void PM_SpectatorMove(void)
 int PM_PlayerMove(void)
 {
 	int blocked = 0;
+	int initial_waterlevel;
+	float ktx_landing_velocity = 0;
 
 #ifndef SERVERONLY
 #ifdef EXPERIMENTAL_SHOW_ACCELERATION
@@ -951,6 +958,8 @@ int PM_PlayerMove(void)
 
 	// set onground, watertype, and waterlevel
 	PM_CategorizePosition();
+	initial_waterlevel = pmove.waterlevel;
+	ktx_landing_velocity = pmove.velocity[2];
 
 	if (pmove.waterlevel == 2 && pmove.pm_type != PM_FLY)
 		PM_CheckWaterJump();
@@ -983,6 +992,33 @@ int PM_PlayerMove(void)
 
 	// set onground, watertype, and waterlevel for final spot
 	PM_CategorizePosition();
+
+	if (cl_predict_jump.integer && !initial_waterlevel && pmove.waterlevel) {
+		if (pmove.watertype == CONTENTS_LAVA) {
+			PM_SoundEffect(cl_sfx_inlava, 4);
+		}
+		else if (pmove.watertype == CONTENTS_WATER) {
+			PM_SoundEffect(cl_sfx_inh2o, 4);
+		}
+		else if (pmove.watertype == CONTENTS_SLIME) {
+			PM_SoundEffect(cl_sfx_inslime, 4);
+		}
+	}
+	else if (cl_predict_jump.integer && initial_waterlevel && !pmove.waterlevel) {
+		PM_SoundEffect(cl_sfx_outwater, 4);
+	}
+
+	if (cl_predict_jump.integer && pmove.onground && ktx_landing_velocity < -300) {
+		if (pmove.watertype == CONTENTS_WATER) {
+			PM_SoundEffect(cl_sfx_h2ojump, 4);
+		}
+		else if (ktx_landing_velocity < PM_KTXLandingDamageVelocity()) {
+			PM_SoundEffect(cl_sfx_land2, 2);
+		}
+		else {
+			PM_SoundEffect(cl_sfx_land, 2);
+		}
+	}
 
 	if (!movevars.pground) {
 		// this is to make sure landing sound is not played twice

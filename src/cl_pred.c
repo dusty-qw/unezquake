@@ -48,8 +48,10 @@ qbool clpred_newpos = false;
 
 prediction_event_fakeproj_t		*p_event_fakeproj;
 prediction_event_sound_t		*p_event_sound;
-int		cl_last_predicted_jump_sound_frame = -1;
-sfx_t	*cl_sfx_jump, *cl_sfx_ax1, *cl_sfx_axhit1, *cl_sfx_sg, *cl_sfx_ssg, *cl_sfx_ng, *cl_sfx_sng, *cl_sfx_gl, *cl_sfx_rl, *cl_sfx_lg, *cl_sfx_lghit, *cl_sfx_coil, *cl_sfx_hook;
+int		cl_last_predicted_movement_sound_frame = -1;
+int		cl_last_predicted_movement_sound_chan = -1;
+struct sfx_s *cl_last_predicted_movement_sound_sample = NULL;
+sfx_t	*cl_sfx_jump, *cl_sfx_land, *cl_sfx_land2, *cl_sfx_h2ojump, *cl_sfx_inh2o, *cl_sfx_inlava, *cl_sfx_inslime, *cl_sfx_outwater, *cl_sfx_ax1, *cl_sfx_axhit1, *cl_sfx_sg, *cl_sfx_ssg, *cl_sfx_ng, *cl_sfx_sng, *cl_sfx_gl, *cl_sfx_rl, *cl_sfx_lg, *cl_sfx_lghit, *cl_sfx_coil, *cl_sfx_hook;
 extern cvar_t cl_nopred;
 extern cvar_t cl_nopred_weapon;
 extern cvar_t cl_predict_weaponsound;
@@ -132,6 +134,13 @@ static void CL_PredictSmoothView_ApplyCSQC(int frame_num, player_state_t *state)
 void CL_InitWepSounds(void)
 {
 	cl_sfx_jump = S_PrecacheSound("player/plyrjmp8.wav");
+	cl_sfx_land = S_PrecacheSound("player/land.wav");
+	cl_sfx_land2 = S_PrecacheSound("player/land2.wav");
+	cl_sfx_h2ojump = S_PrecacheSound("player/h2ojump.wav");
+	cl_sfx_inh2o = S_PrecacheSound("player/inh2o.wav");
+	cl_sfx_inlava = S_PrecacheSound("player/inlava.wav");
+	cl_sfx_inslime = S_PrecacheSound("player/slimbrn2.wav");
+	cl_sfx_outwater = S_PrecacheSound("misc/outwater.wav");
 	cl_sfx_ax1 = S_PrecacheSound("weapons/ax1.wav");
 	cl_sfx_axhit1 = S_PrecacheSound("player/axhit2.wav");
 	cl_sfx_sg = S_PrecacheSound("weapons/guncock.wav");
@@ -463,11 +472,40 @@ static void check_standing_on_entity(void)
         cl_independentPhysics.value);
 }
 
+static qbool CL_IsPredictedMovementSoundEvent(prediction_event_sound_t *event)
+{
+	return event &&
+		(event->sample == cl_sfx_jump || event->sample == cl_sfx_land ||
+		event->sample == cl_sfx_land2 || event->sample == cl_sfx_h2ojump ||
+		event->sample == cl_sfx_inh2o || event->sample == cl_sfx_inlava ||
+		event->sample == cl_sfx_inslime || event->sample == cl_sfx_outwater) &&
+		(event->chan == 2 || event->chan == 4);
+}
+
+static qbool CL_PlayPredictedMovementSound(prediction_event_sound_t *event)
+{
+	if (!CL_IsPredictedMovementSoundEvent(event)) {
+		return false;
+	}
+
+	if (event->frame_num == cl_last_predicted_movement_sound_frame &&
+		event->sample == cl_last_predicted_movement_sound_sample &&
+		event->chan == cl_last_predicted_movement_sound_chan) {
+		return true;
+	}
+
+	cl_last_predicted_movement_sound_frame = event->frame_num;
+	cl_last_predicted_movement_sound_sample = event->sample;
+	cl_last_predicted_movement_sound_chan = event->chan;
+	S_StartSound(cl.playernum + 1, event->chan, event->sample, pmove.origin, event->vol, 0);
+	return true;
+}
+
 void CL_PlayEvents(void)
 {
+	int movement_threshold = cls.netchan.outgoing_sequence - 1;
 	int threshold = bound(min(cl.validsequence + 2, cls.netchan.outgoing_sequence - 1), cls.netchan.outgoing_sequence - (cl_predict_buffer.integer + 1), cls.netchan.outgoing_sequence - 1);
-	if (pmove.effect_frame >= threshold)
-		return;
+	qbool play_buffered_events = pmove.effect_frame < threshold;
 
 	player_state_t *new_state = &cl.frames[(cls.netchan.outgoing_sequence - 1)& UPDATE_MASK].playerstate[cl.playernum];
 	player_state_t *state = &cl.frames[(threshold) & UPDATE_MASK].playerstate[cl.playernum];
@@ -475,13 +513,15 @@ void CL_PlayEvents(void)
 	prediction_event_sound_t *s_event;
 	for(s_event = p_event_sound; s_event != NULL; s_event = s_event->next)
 	{
+		// Movement feedback should follow local PMove immediately; weapon/projectile effects still honor the normal prediction buffer.
+		if (s_event->frame_num > pmove.effect_frame && s_event->frame_num <= movement_threshold && CL_PlayPredictedMovementSound(s_event)) {
+			continue;
+		}
+
 		if (s_event->frame_num > pmove.effect_frame && s_event->frame_num <= threshold)
 		{
-			if (s_event->sample == cl_sfx_jump && s_event->chan == 4) {
-				if (s_event->frame_num <= cl_last_predicted_jump_sound_frame) {
-					continue;
-				}
-				cl_last_predicted_jump_sound_frame = s_event->frame_num;
+			if (CL_PlayPredictedMovementSound(s_event)) {
+				continue;
 			}
 			S_StartSound(cl.playernum + 1, s_event->chan, s_event->sample, pmove.origin, s_event->vol, 0);
 		}
@@ -582,7 +622,9 @@ void CL_PlayEvents(void)
 	cl.simwepframe = state->weaponframe;
 	cl.simwep = state->weapon_index;
 
-	pmove.effect_frame = threshold;
+	if (play_buffered_events) {
+		pmove.effect_frame = threshold;
+	}
 }
 
 void CL_PredictMove (qbool physframe) {
