@@ -71,14 +71,40 @@ static qbool nolerp_nextpos;
 #define CSQC_SMOOTH_SNAP_ERROR 160.0f
 #define CSQC_SMOOTH_MAX_OFFSET 96.0f
 
+static int CL_PredictSmoothView_GroundEntity(vec3_t origin)
+{
+	// Moving BSP platforms are physents; world and players do not need platform-delta handling.
+	if (!pmove.onground || pmove.groundent <= 0 || pmove.groundent >= pmove.numphysent) {
+		return 0;
+	}
+	if (!pmove.physents[pmove.groundent].model) {
+		return 0;
+	}
+
+	VectorCopy(pmove.physents[pmove.groundent].origin, origin);
+	return pmove.physents[pmove.groundent].info;
+}
+
 static void CL_PredictSmoothView_AddCSQCError(vec3_t diff)
 {
+	int groundent;
 	float len = VectorLength(diff);
+	vec3_t groundorigin;
 
 	// Very large corrections can be teleports/server authority changes.
 	if (len >= CSQC_SMOOTH_SNAP_ERROR) {
 		VectorClear(cl.simerr_nudge);
 		return;
+	}
+
+	groundent = CL_PredictSmoothView_GroundEntity(groundorigin);
+	if (cl.simerr_groundent && cl.simerr_groundent == groundent) {
+		vec3_t grounddelta;
+
+		// Platform motion is authoritative support movement, not player prediction error.
+		VectorSubtract(cl.simerr_groundorigin, groundorigin, grounddelta);
+		VectorSubtract(diff, grounddelta, diff);
+		len = VectorLength(diff);
 	}
 
 	// Ignore sub-unit noise so the view does not slowly drift from tiny replay deltas.
@@ -102,6 +128,7 @@ static void CL_PredictSmoothView_ApplyCSQC(int frame_num, player_state_t *state)
 	// Remember the predicted endpoint that the next server frame will validate.
 	cl.simerr_frame = frame_num;
 	VectorCopy(state->origin, cl.simerr_org);
+	cl.simerr_groundent = CL_PredictSmoothView_GroundEntity(cl.simerr_groundorigin);
 
 	dt = max(cl.time - cl.simerr_lastcheck, 0);
 	cl.simerr_lastcheck = cl.time;

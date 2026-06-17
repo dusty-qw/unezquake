@@ -2911,6 +2911,7 @@ void CL_SetSolidEntities (void)
 				state->trans > 0 && state->trans < 255 ? true : false;
 #endif
 			VectorCopy (state->origin, pmove.physents[pmove.numphysent].origin);
+			pmove.physents[pmove.numphysent].info = state->number;
 			pmove.numphysent++;
 		}
 	}
