@@ -3299,6 +3299,8 @@ void CL_ClearPredict(void) {
 	cl_last_predicted_movement_sound_frame = -1;
 	cl_last_predicted_movement_sound_chan = -1;
 	cl_last_predicted_movement_sound_sample = NULL;
+	cl_predicted_movement_sound_frame = 0;
+	cl_last_self_movement_impact_sound_time = -999.0;
 }
 
 void CL_CalcPlayerFPS(player_info_t *info, int msec)

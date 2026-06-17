@@ -51,6 +51,8 @@ prediction_event_sound_t		*p_event_sound;
 int		cl_last_predicted_movement_sound_frame = -1;
 int		cl_last_predicted_movement_sound_chan = -1;
 struct sfx_s *cl_last_predicted_movement_sound_sample = NULL;
+int		cl_predicted_movement_sound_frame = 0;
+double	cl_last_self_movement_impact_sound_time = -999.0;
 sfx_t	*cl_sfx_jump, *cl_sfx_land, *cl_sfx_land2, *cl_sfx_h2ojump, *cl_sfx_inh2o, *cl_sfx_inlava, *cl_sfx_inslime, *cl_sfx_outwater, *cl_sfx_ax1, *cl_sfx_axhit1, *cl_sfx_sg, *cl_sfx_ssg, *cl_sfx_ng, *cl_sfx_sng, *cl_sfx_gl, *cl_sfx_rl, *cl_sfx_lg, *cl_sfx_lghit, *cl_sfx_coil, *cl_sfx_hook;
 extern cvar_t cl_nopred;
 extern cvar_t cl_nopred_weapon;
@@ -59,7 +61,6 @@ extern cvar_t cl_predict_smoothview;
 extern cvar_t cl_predict_beam;
 extern cvar_t cl_predict_jump;
 extern cvar_t cl_predict_buffer;
-
 
 static qbool nolerp[2];
 static qbool nolerp_nextpos;
@@ -482,6 +483,21 @@ static qbool CL_IsPredictedMovementSoundEvent(prediction_event_sound_t *event)
 		(event->chan == 2 || event->chan == 4);
 }
 
+qbool CL_ShouldSuppressSelfMovementImpactSound(sfx_t *sample)
+{
+	if (sample != cl_sfx_land && sample != cl_sfx_land2 && sample != cl_sfx_h2ojump) {
+		return false;
+	}
+
+	// Landing impact sounds should not stack; re-prediction/server echoes can otherwise double them at high ping.
+	if (cls.realtime - cl_last_self_movement_impact_sound_time < 0.150) {
+		return true;
+	}
+
+	cl_last_self_movement_impact_sound_time = cls.realtime;
+	return false;
+}
+
 static qbool CL_PlayPredictedMovementSound(prediction_event_sound_t *event)
 {
 	if (!CL_IsPredictedMovementSoundEvent(event)) {
@@ -497,6 +513,9 @@ static qbool CL_PlayPredictedMovementSound(prediction_event_sound_t *event)
 	cl_last_predicted_movement_sound_frame = event->frame_num;
 	cl_last_predicted_movement_sound_sample = event->sample;
 	cl_last_predicted_movement_sound_chan = event->chan;
+	if (CL_ShouldSuppressSelfMovementImpactSound(event->sample)) {
+		return true;
+	}
 	S_StartSound(cl.playernum + 1, event->chan, event->sample, pmove.origin, event->vol, 0);
 	return true;
 }
@@ -514,7 +533,7 @@ void CL_PlayEvents(void)
 	for(s_event = p_event_sound; s_event != NULL; s_event = s_event->next)
 	{
 		// Movement feedback should follow local PMove immediately; weapon/projectile effects still honor the normal prediction buffer.
-		if (s_event->frame_num > pmove.effect_frame && s_event->frame_num <= movement_threshold && CL_PlayPredictedMovementSound(s_event)) {
+		if (s_event->frame_num > cl_predicted_movement_sound_frame && s_event->frame_num <= movement_threshold && CL_PlayPredictedMovementSound(s_event)) {
 			continue;
 		}
 
@@ -624,6 +643,9 @@ void CL_PlayEvents(void)
 
 	if (play_buffered_events) {
 		pmove.effect_frame = threshold;
+	}
+	if (cl_predicted_movement_sound_frame < movement_threshold) {
+		cl_predicted_movement_sound_frame = movement_threshold;
 	}
 }
 
