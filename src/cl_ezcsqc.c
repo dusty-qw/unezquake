@@ -1352,7 +1352,8 @@ static qbool WeaponPred_DefinitionReady(int weapon_index)
 {
 	weppreddef_t *wep;
 
-	if (weapon_index < 0 || weapon_index >= MAX_PREDWEPS) {
+	// Weapon index 0 is reserved for uninitialized/no-weapon state.
+	if (weapon_index <= 0 || weapon_index >= MAX_PREDWEPS) {
 		return false;
 	}
 
