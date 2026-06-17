@@ -31,6 +31,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "gl_model.h"
 #include "vx_stuff.h"
 #include "cl_tent.h"
+#include "input.h"
 
 #ifdef FTE_PEXT_CSQC
 
@@ -76,6 +77,9 @@ static int last_effectframe;
 static int last_sound_effectframe;
 static int last_projectile_effectframe;
 static int current_predframe;
+static qbool setup_ready;
+static double setup_warning_time;
+static qbool setup_warning_printed;
 static float lg_twidth;
 
 #define EZCSQC_EFFECT_SOUND		(1 << 0)
@@ -159,12 +163,15 @@ void CL_EZCSQC_InitializeEntities(void)
 	memset(ws_saved, 0, sizeof(ws_saved));
 	memset(wpredict_definitions, 0, sizeof(wpredict_definitions));
 
+	setup_ready = false;
 	viewweapon = NULL;
 	last_effectframe = 0;
 	last_sound_effectframe = 0;
 	last_projectile_effectframe = 0;
 	current_effect_flags = 0;
 	current_predframe = 0;
+	setup_warning_time = 0;
+	setup_warning_printed = false;
 	lg_twidth = 0;
 	projectile_ringbufferseek = 0;
 
@@ -192,7 +199,36 @@ qbool CL_EZCSQC_Active(void)
 #ifdef MVD_PEXT1_EZCSQC
 		(cls.mvdprotocolextensions1 & MVD_PEXT1_EZCSQC) &&
 #endif
-		ezcsqc.active;
+		ezcsqc.active &&
+		setup_ready;
+}
+
+static qbool CL_EZCSQC_Negotiated(void)
+{
+	return cl_pext_ezcsqc.integer &&
+		(cls.fteprotocolextensions & FTE_PEXT_CSQC) &&
+#ifdef MVD_PEXT1_EZCSQC
+		(cls.mvdprotocolextensions1 & MVD_PEXT1_EZCSQC) &&
+#endif
+		!cls.demoplayback;
+}
+
+static void CL_EZCSQC_CheckSetupWarning(void)
+{
+	if (!CL_EZCSQC_Negotiated() || setup_ready) {
+		setup_warning_time = 0;
+		setup_warning_printed = false;
+		return;
+	}
+
+	if (!setup_warning_time) {
+		setup_warning_time = cls.realtime + 5.0;
+	}
+
+	if (!setup_warning_printed && cls.realtime >= setup_warning_time) {
+		Com_Printf("WARNING: EZCSQC setup has not completed; native weapon prediction is disabled.\n");
+		setup_warning_printed = true;
+	}
 }
 
 static void CL_EZCSQC_InitProjectile(ezcsqc_entity_t *ent, int modelindex, int ownernum)
@@ -1235,7 +1271,7 @@ static void CL_EZCSQC_AddPredictionSound(unsigned short index, unsigned short ma
 	}
 }
 
-static void EntUpdate_WeaponDef(ezcsqc_entity_t *self, qbool is_new)
+static void ParseWeaponDefPayload(const char *source, int entnum_for_error)
 {
 	int i, k;
 	int raw;
@@ -1245,13 +1281,10 @@ static void EntUpdate_WeaponDef(ezcsqc_entity_t *self, qbool is_new)
 	weppreddef_t *wep = &wpredict_definitions[wep_index];
 	qbool had_model = wep->modelindex != 0;
 
-	(void)self;
-	(void)is_new;
-
 	// A corrupt weapon index means the remaining CSQC stream cannot be trusted.
 	if (raw_wep_index < 0 || raw_wep_index >= MAX_PREDWEPS) {
-		Host_Error("CL_EZCSQC_Ent_Update: bad weapondef index %d flags=%02x ent=%d msg_readcount=%d msg_size=%d",
-			raw_wep_index, sendflags, self->entnum, msg_readcount, net_message.cursize);
+		Host_Error("CL_EZCSQC_ParseWeaponDef: bad weapondef index %d flags=%02x ent=%d msg_readcount=%d msg_size=%d",
+			raw_wep_index, sendflags, entnum_for_error, msg_readcount, net_message.cursize);
 	}
 
 	/*
@@ -1315,9 +1348,14 @@ static void EntUpdate_WeaponDef(ezcsqc_entity_t *self, qbool is_new)
 
 	if (cl_ezcsqc_debug.integer > 3 || (cl_ezcsqc_debug.integer > 1 && !had_model && wep->modelindex)) {
 		Com_Printf("EZCSQC weapondef %s index=%d flags=%02x model=%d attack_time=%d anims=%d impulse=%d item=%d\n",
-			is_new ? "new" : "update", wep_index, sendflags,
+			source, wep_index, sendflags,
 			wep->modelindex, wep->attack_time, wep->anim_number, wep->impulse, wep->itemflag);
 	}
+}
+
+static void EntUpdate_WeaponDef(ezcsqc_entity_t *self, qbool is_new)
+{
+	ParseWeaponDefPayload(is_new ? "new" : "update", self->entnum);
 }
 
 static void WeaponPred_SetModel(ezcsqc_entity_t *self)
@@ -1952,6 +1990,32 @@ void CL_EZCSQC_ParseEntities(void)
 	}
 }
 
+void CL_EZCSQC_ParseSetup(void)
+{
+	int version = MSG_ReadByte();
+	int count = MSG_ReadByte();
+	int i;
+
+	if (version != 1) {
+		Host_Error("CL_EZCSQC_ParseSetup: unsupported setup version %d", version);
+	}
+	if (count < 0 || count > MAX_PREDWEPS) {
+		Host_Error("CL_EZCSQC_ParseSetup: bad weapondef count %d", count);
+	}
+
+	for (i = 0; i < count; i++) {
+		int type = MSG_ReadByte();
+
+		if (type != EZCSQC_WEAPONDEF) {
+			Host_Error("CL_EZCSQC_ParseSetup: unexpected setup type %d at record %d", type, i);
+		}
+		ParseWeaponDefPayload("setup", -1);
+	}
+
+	setup_ready = true;
+	CL_SendClientCommand(true, "ezcsqc_ready");
+}
+
 qbool CL_EZCSQC_Event_Sound(int entnum, int channel, int soundnumber, float vol, float attenuation, vec3_t pos, float pitchmod, float flags)
 {
 	weppredsound_t *snd;
@@ -2324,6 +2388,9 @@ void CL_EZCSQC_PrepareParticleFrame(void)
 
 void CL_EZCSQC_UpdateView(void)
 {
+	// Warn once if native EZCSQC was negotiated but the reliable setup handshake never completed.
+	CL_EZCSQC_CheckSetupWarning();
+
 	if (!ezcsqc.active && !ezcsqc.weapon_prediction) {
 		if (cl_ezcsqc_debug.integer > 1) {
 			Com_DPrintf("EZCSQC UpdateView skipped: inactive\n");

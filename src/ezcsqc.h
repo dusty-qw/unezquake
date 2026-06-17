@@ -193,6 +193,7 @@ extern ezcsqc_entity_t *ezcsqc_networkedents[MAX_EDICTS];
 extern weppredsound_t *predictionsoundlist;
 
 void CL_EZCSQC_ParseEntities(void);
+void CL_EZCSQC_ParseSetup(void);
 void CL_EZCSQC_InitializeEntities(void);
 qbool CL_EZCSQC_Active(void);
 qbool CL_EZCSQC_Event_Sound(int entnum, int channel, int soundnumber, float vol, float attenuation, vec3_t pos, float pitchmod, float flags);
