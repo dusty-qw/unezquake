@@ -1987,6 +1987,16 @@ void CL_ParseStaticSound (void)
 ACTION MESSAGES
 =====================================================================
 */
+static qbool CL_IsJumpSound(int sound_num)
+{
+	if (sound_num <= 0 || sound_num >= MAX_SOUNDS || !cl.sound_precache[sound_num]) {
+		return false;
+	}
+
+	return cl.sound_precache[sound_num] == cl_sfx_jump ||
+		!strcmp(cl.sound_precache[sound_num]->name, "player/plyrjmp8.wav");
+}
+
 void CL_ParseStartSoundPacket(void)
 {
     vec3_t pos;
@@ -2057,11 +2067,8 @@ void CL_ParseStartSoundPacket(void)
 
 		if (cl_predict_jump.integer && !cl_nopred.integer)
 		{
-			if (channel == 4)
-			{
-				if (strcmp(cl.sound_precache[sound_num]->name, "player/plyrjmp8.wav") == 0)
-					return;
-			}
+			if (CL_IsJumpSound(sound_num))
+				return;
 		}
 	}
 
