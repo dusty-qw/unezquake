@@ -525,6 +525,11 @@ void CL_CheckPredictedExplosions(player_state_t *from, player_state_t *to)
 {
 	predexplosion_t *expl;
 	int i;
+
+	if (!cl_predict_explosions.integer) {
+		return;
+	}
+
 	for (i = 0, expl = cl_predictedexplosions; i < MAX_PREDEXPLOSIONS; i++, expl++)
 	{
 		if (expl->time == 0)
@@ -983,6 +988,10 @@ static qbool CL_MatchPredictedRocketExplosion(vec3_t pos)
 {
 	int i;
 
+	if (!cl_predict_explosions.integer) {
+		return false;
+	}
+
 	for (i = 0; i < MAX_PREDEXPLOSIONS; i++) {
 		predicted_te_explosion_t *expl = &cl_predicted_te_explosions[i];
 
@@ -1004,6 +1013,10 @@ static qbool CL_MatchPredictedRocketExplosion(vec3_t pos)
 
 void CL_PredictRocketExplosion(vec3_t te_origin, vec3_t kick_origin, double prediction_time)
 {
+	if (!cl_predict_explosions.integer) {
+		return;
+	}
+
 	CL_RecordPredictedRocketExplosionKick(kick_origin, prediction_time);
 	CL_RecordPredictedRocketExplosion(te_origin);
 	CL_Parse_TE_EXPLOSION(te_origin);
@@ -1563,7 +1576,7 @@ static void CL_UpdateFakeProjectiles(void)
 				prj->endtime = cl.time;
 				VectorCopy(trace.endpos, prj->org);
 				#ifdef MVD_PEXT1_SIMPLEPROJECTILE
-				if (prj->modelindex == cl_modelindices[mi_rocket])
+				if (cl_predict_explosions.integer && prj->modelindex == cl_modelindices[mi_rocket])
 				{
 					predexplosion_t *expl = CL_AllocatePredictedExplosion();
 					expl->time = cls.realtime;

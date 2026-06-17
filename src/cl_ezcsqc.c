@@ -348,6 +348,9 @@ static qbool CL_EZCSQC_PredictRocketSpawnTouch(int modelindex, vec3_t origin, ve
 	float speed;
 
 	// Only rockets get local close-start explosion prediction.
+	if (!cl_predict_explosions.integer) {
+		return false;
+	}
 	if (!modelindex || modelindex >= MAX_MODELS) {
 		return false;
 	}
@@ -426,7 +429,7 @@ static qbool CL_EZCSQC_PredictOwnerRocketWorldImpact(ezcsqc_entity_t *self, vec3
 	vec3_t velocity;
 
 	// Only the local player's own rockets get speculative world-impact effects.
-	if (self->predicted_explosion || !(visual_effects & EF_ROCKET) || !CL_EZCSQC_OwnerProjectile(self)) {
+	if (!cl_predict_explosions.integer || self->predicted_explosion || !(visual_effects & EF_ROCKET) || !CL_EZCSQC_OwnerProjectile(self)) {
 		return false;
 	}
 

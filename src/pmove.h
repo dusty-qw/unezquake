@@ -126,6 +126,7 @@ extern cvar_t cl_predict_legacy;
 extern cvar_t cl_predict_smoothview;
 extern cvar_t cl_predict_beam;
 extern cvar_t cl_predict_projectiles;
+extern cvar_t cl_predict_explosions;
 extern cvar_t cl_predict_sound;
 extern cvar_t cl_predict_buffer;
 

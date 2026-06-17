@@ -22,6 +22,7 @@ unezQuake now has full support for spray decals in game. Place a spray.png image
  * `cl_predict_buffer` - how many frames are buffered before prediction is used. `"0"` is the fastest but will result in more errors like phantom rockets
  * `cl_predict_sound` - controls prediction of local movement feedback sounds
  * `cl_predict_projectiles` - controls if projectiles are predicted
+ * `cl_predict_explosions` - controls prediction of local own-rocket explosion effects, audio, and movement kick
  * `cl_predict_smoothview` - values between 0.1 and 2 will attempt to smooth fast position changes from packet loss or knockback
  * `cl_predict_weaponsound` - controls prediction of weapon sounds
 

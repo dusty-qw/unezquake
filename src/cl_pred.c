@@ -31,6 +31,7 @@ cvar_t	cl_predict_legacy = { "cl_predict_legacy", "0" };
 cvar_t	cl_predict_smoothview = { "cl_predict_smoothview", "1" };
 cvar_t	cl_predict_beam = { "cl_predict_beam", "1" };
 cvar_t	cl_predict_projectiles = { "cl_predict_projectiles", "1" };
+cvar_t	cl_predict_explosions = { "cl_predict_explosions", "1" };
 cvar_t	cl_predict_sound = { "cl_predict_sound", "1" };
 cvar_t	cl_predict_buffer = { "cl_predict_buffer", "1" };
 
@@ -59,6 +60,7 @@ extern cvar_t cl_nopred_weapon;
 extern cvar_t cl_predict_weaponsound;
 extern cvar_t cl_predict_smoothview;
 extern cvar_t cl_predict_beam;
+extern cvar_t cl_predict_explosions;
 extern cvar_t cl_predict_sound;
 extern cvar_t cl_predict_buffer;
 
@@ -876,6 +878,7 @@ void CL_InitPrediction(void)
 	Cvar_Register(&cl_predict_smoothview);
 	Cvar_Register(&cl_predict_beam);
 	Cvar_Register(&cl_predict_projectiles);
+	Cvar_Register(&cl_predict_explosions);
 	Cvar_Register(&cl_predict_sound);
 	Cvar_Register(&cl_predict_buffer);
 	Cvar_ResetCurrentGroup();
