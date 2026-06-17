@@ -3578,13 +3578,32 @@ void CL_ParseStufftext (void)
 #ifdef PROTOCOL_VERSION_MVD1
 		extern unsigned int CL_SupportedMVDExtensions1(void);
 #endif
+#ifdef MVD_PEXT1_WEAPONPREDICTION
+		extern cvar_t cl_pext_weaponprediction;
+#endif
+#ifdef MVD_PEXT1_SIMPLEPROJECTILE
+		extern cvar_t cl_pext_simpleprojectiles;
+#endif
 
 		char tmp[128];
 		char data[1024] = "cmd pext";
 		int ext;
+		qbool ezcsqc_selected = false;
+
+#ifdef MVD_PEXT1_EZCSQC
+		ezcsqc_selected = (cls.mvdprotocolextensions1 & MVD_PEXT1_EZCSQC) != 0;
+#endif
 
 #ifdef PROTOCOL_VERSION_FTE
 		ext = cls.fteprotocolextensions ? cls.fteprotocolextensions : CL_SupportedFTEExtensions();
+#if defined(FTE_PEXT_CSQC) && defined(MVD_PEXT1_EZCSQC)
+		if (ezcsqc_selected) {
+			ext |= FTE_PEXT_CSQC;
+		}
+		else {
+			ext &= ~FTE_PEXT_CSQC;
+		}
+#endif
 		snprintf(tmp, sizeof(tmp), " 0x%x 0x%x", PROTOCOL_VERSION_FTE, ext);
 		Com_Printf_State(PRINT_DBG, "PEXT: 0x%x is fte protocol ver and 0x%x is fteprotocolextensions\n", PROTOCOL_VERSION_FTE, ext);
 		strlcat(data, tmp, sizeof(data));
@@ -3599,6 +3618,21 @@ void CL_ParseStufftext (void)
 
 #ifdef PROTOCOL_VERSION_MVD1
 		ext = cls.mvdprotocolextensions1 ? cls.mvdprotocolextensions1 : CL_SupportedMVDExtensions1();
+#ifdef MVD_PEXT1_EZCSQC
+		if (!ezcsqc_selected) {
+			ext &= ~MVD_PEXT1_EZCSQC;
+#ifdef MVD_PEXT1_WEAPONPREDICTION
+			if (cl_pext_weaponprediction.value) {
+				ext |= MVD_PEXT1_WEAPONPREDICTION;
+			}
+#endif
+#ifdef MVD_PEXT1_SIMPLEPROJECTILE
+			if (cl_pext_simpleprojectiles.value) {
+				ext |= MVD_PEXT1_SIMPLEPROJECTILE;
+			}
+#endif
+		}
+#endif
 		snprintf(tmp, sizeof(tmp), " 0x%x 0x%x", PROTOCOL_VERSION_MVD1, ext);
 		Com_Printf_State(PRINT_DBG, "PEXT: 0x%x is mvdsv protocol ver and 0x%x is mvdprotocolextensions1\n", PROTOCOL_VERSION_MVD1, ext);
 		strlcat(data, tmp, sizeof(data));

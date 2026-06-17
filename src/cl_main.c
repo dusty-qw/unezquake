@@ -623,6 +623,46 @@ unsigned int CL_SupportedMVDExtensions1(void)
 }
 #endif
 
+#if defined(PROTOCOL_VERSION_MVD1) && defined(FTE_PEXT_CSQC) && defined(MVD_PEXT1_EZCSQC)
+static qbool CL_ServerCanUseEZCSQC(unsigned int server_ftepext, unsigned int server_mvdpext1)
+{
+	return cl_pext_ezcsqc.value &&
+		(server_ftepext & FTE_PEXT_CSQC) &&
+		(server_mvdpext1 & MVD_PEXT1_EZCSQC);
+}
+
+static unsigned int CL_SelectMVDExtensions1(unsigned int server_ftepext, unsigned int server_mvdpext1)
+{
+	unsigned int selected = server_mvdpext1 & CL_SupportedMVDExtensions1();
+
+	if (CL_ServerCanUseEZCSQC(server_ftepext, server_mvdpext1)) {
+		selected |= MVD_PEXT1_EZCSQC;
+#ifdef MVD_PEXT1_WEAPONPREDICTION
+		selected &= ~MVD_PEXT1_WEAPONPREDICTION;
+#endif
+#ifdef MVD_PEXT1_SIMPLEPROJECTILE
+		selected &= ~MVD_PEXT1_SIMPLEPROJECTILE;
+#endif
+		return selected;
+	}
+
+	selected &= ~MVD_PEXT1_EZCSQC;
+
+#ifdef MVD_PEXT1_WEAPONPREDICTION
+	if (cl_pext_weaponprediction.value && (server_mvdpext1 & MVD_PEXT1_WEAPONPREDICTION)) {
+		selected |= MVD_PEXT1_WEAPONPREDICTION;
+	}
+#endif
+#ifdef MVD_PEXT1_SIMPLEPROJECTILE
+	if (cl_pext_simpleprojectiles.value && (server_mvdpext1 & MVD_PEXT1_SIMPLEPROJECTILE)) {
+		selected |= MVD_PEXT1_SIMPLEPROJECTILE;
+	}
+#endif
+
+	return selected;
+}
+#endif
+
 // Called by CL_Connect_f and CL_CheckResend
 static void CL_SendConnectPacket(
 #ifdef PROTOCOL_VERSION_FTE
@@ -657,7 +697,11 @@ static void CL_SendConnectPacket(
 	cls.fteprotocolextensions2  = (ftepext2 & CL_SupportedFTEExtensions2());
 #endif // PROTOCOL_VERSION_FTE
 #ifdef PROTOCOL_VERSION_MVD1
+#if defined(FTE_PEXT_CSQC) && defined(MVD_PEXT1_EZCSQC)
+	cls.mvdprotocolextensions1 = CL_SelectMVDExtensions1(ftepext, mvdpext1);
+#else
 	cls.mvdprotocolextensions1 = (mvdpext1 & CL_SupportedMVDExtensions1());
+#endif
 #endif
 
 #if defined(FTE_PEXT_CSQC) && defined(MVD_PEXT1_EZCSQC)
@@ -666,7 +710,7 @@ static void CL_SendConnectPacket(
 	 * svc_fte_csqcentities, so expose the broader FTE CSQC transport only when
 	 * the server also negotiated the narrower EZCSQC payload contract.
 	 */
-	if (cl_pext_ezcsqc.value && (ftepext & FTE_PEXT_CSQC) && (cls.mvdprotocolextensions1 & MVD_PEXT1_EZCSQC)) {
+	if (CL_ServerCanUseEZCSQC(ftepext, mvdpext1) && (cls.mvdprotocolextensions1 & MVD_PEXT1_EZCSQC)) {
 		cls.fteprotocolextensions |= FTE_PEXT_CSQC;
 	}
 	else {
