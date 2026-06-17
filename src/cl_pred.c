@@ -48,6 +48,7 @@ qbool clpred_newpos = false;
 
 prediction_event_fakeproj_t		*p_event_fakeproj;
 prediction_event_sound_t		*p_event_sound;
+int		cl_last_predicted_jump_sound_frame = -1;
 sfx_t	*cl_sfx_jump, *cl_sfx_ax1, *cl_sfx_axhit1, *cl_sfx_sg, *cl_sfx_ssg, *cl_sfx_ng, *cl_sfx_sng, *cl_sfx_gl, *cl_sfx_rl, *cl_sfx_lg, *cl_sfx_lghit, *cl_sfx_coil, *cl_sfx_hook;
 extern cvar_t cl_nopred;
 extern cvar_t cl_nopred_weapon;
@@ -476,6 +477,12 @@ void CL_PlayEvents(void)
 	{
 		if (s_event->frame_num > pmove.effect_frame && s_event->frame_num <= threshold)
 		{
+			if (s_event->sample == cl_sfx_jump && s_event->chan == 4) {
+				if (s_event->frame_num <= cl_last_predicted_jump_sound_frame) {
+					continue;
+				}
+				cl_last_predicted_jump_sound_frame = s_event->frame_num;
+			}
 			S_StartSound(cl.playernum + 1, s_event->chan, s_event->sample, pmove.origin, s_event->vol, 0);
 		}
 	}

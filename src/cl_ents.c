@@ -3296,6 +3296,7 @@ void CL_ClearPredict(void) {
 	pmove.effect_frame = 0;
 	pmove.t_width = 0;
 	pmove.impulse = 0;
+	cl_last_predicted_jump_sound_frame = -1;
 }
 
 void CL_CalcPlayerFPS(player_info_t *info, int msec)
