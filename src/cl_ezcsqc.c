@@ -215,7 +215,7 @@ static qbool CL_EZCSQC_Negotiated(void)
 
 static void CL_EZCSQC_CheckSetupWarning(void)
 {
-	if (!CL_EZCSQC_Negotiated() || setup_ready) {
+	if (!CL_EZCSQC_Negotiated() || setup_ready || cl.spectator) {
 		setup_warning_time = 0;
 		setup_warning_printed = false;
 		return;
