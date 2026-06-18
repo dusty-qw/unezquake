@@ -1574,6 +1574,12 @@ static void WeaponPred_WAttack(usercmd_t *u, player_state_t *ps, ezcsqc_weapon_s
 		return;
 	}
 
+	if (ws->weapon_index == 1) {
+		// Axe has no CSQC weapondef yet, but its attack timing still blocks switches.
+		ws->attack_finished = ws->client_time + 0.5f;
+		return;
+	}
+
 	// Local +attack starts the visual shot; the server state only supplied the script.
 	for (i = 0; i < wep->anim_number; i++) {
 		anim = WEPANIM(wep, i);
@@ -1717,8 +1723,10 @@ static void WeaponPred_Simulate(usercmd_t u, player_state_t ps, ezcsqc_weapon_st
 		had_impulse = true;
 		switch_result = WeaponPred_SwitchWeapon(ws->impulse, ws);
 
-		// Server impulses are per-command; do not leave unresolved impulses sticky.
-		ws->impulse = 0;
+		// KTX keeps blocked weapon switches queued until attack_finished expires.
+		if (switch_result != WEAPONPRED_SWITCH_BLOCKED) {
+			ws->impulse = 0;
+		}
 	}
 
 	// If this command carried an impulse, KTX consumes it before weapon attack.
@@ -1730,6 +1738,7 @@ static void WeaponPred_Simulate(usercmd_t u, player_state_t ps, ezcsqc_weapon_st
 			ws->client_thinkindex = 0;
 			ws->client_nextthink = 0;
 		}
+		// A queued weapon switch blocks old-weapon local attacks until it applies.
 		if (switch_result != WEAPONPRED_SWITCH_APPLIED) {
 			return;
 		}
