@@ -2050,7 +2050,8 @@ qbool CL_EZCSQC_Event_Sound(int entnum, int channel, int soundnumber, float vol,
 
 	// Return true to tell normal sound parsing that prediction already played it.
 	for (snd = predictionsoundlist; snd; snd = snd->next) {
-		if (snd->chan == channel && snd->index == soundnumber && !(cl_predict_weaponsound.integer & snd->mask)) {
+		// SOUNDAUTO predictions use channel 0, but server echoes may arrive on a weapon channel.
+		if ((snd->chan == channel || snd->chan == 0) && snd->index == soundnumber && !(cl_predict_weaponsound.integer & snd->mask)) {
 			return true;
 		}
 	}
