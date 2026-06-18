@@ -4,6 +4,17 @@ unezQuake is a fork of the ezQuake client that aims to bring more permissive sta
 ## Features
 unezQuake has all of the latest ezQuake features, plus:
 
+### EZCSQC Antilag Support
+unezQuake supports **NEW** EZCSQC antilag and extended prediction functionality, including enhanced weapon prediction, audio prediction, smoothing, and high-confidence explosion prediction. Legacy antilag cl_predict_* functionality remains intact while playing on older or non-csqc-ready servers. The default values are highly recommended.
+
+ * `cl_predict_buffer` - how many frames are buffered before prediction is used. `"0"` is the fastest but will result in more errors like phantom rockets
+ * `cl_predict_sound` - controls prediction of local movement feedback sounds
+ * `cl_predict_projectiles` - controls if projectiles are predicted
+ * `cl_predict_explosions` - controls prediction of local own-rocket explosion effects, audio, and movement kick
+ * `cl_predict_smoothview` - values between 0.1 and 2 will attempt to smooth fast position changes from packet loss or knockback
+ * `cl_predict_weaponsound` - controls prediction of weapon sounds
+ * `cl_predict_legacy` - makes the EZCSQC prediction path mimic legacy antilag timing.
+
 ### Spray Decals
 unezQuake now has full support for spray decals in game. Place a spray.png image in qw/sprays and bind a key to +spray. 
 128x128 maximum resolution. Larger images will be downscaled within the client.
@@ -16,15 +27,6 @@ unezQuake now has full support for spray decals in game. Place a spray.png image
  * `cl_spray_preview_alpha` - how transparent your spray preview will appear
  * `cl_spray_colorize` - tint all sprays to match your color scheme
  * `cl_spray_distance` - how close you need to be from a surface to 
-
-### Antilag Support
-
- * `cl_predict_buffer` - how many frames are buffered before prediction is used. `"0"` is the fastest but will result in more errors like phantom rockets
- * `cl_predict_sound` - controls prediction of local movement feedback sounds
- * `cl_predict_projectiles` - controls if projectiles are predicted
- * `cl_predict_explosions` - controls prediction of local own-rocket explosion effects, audio, and movement kick
- * `cl_predict_smoothview` - values between 0.1 and 2 will attempt to smooth fast position changes from packet loss or knockback
- * `cl_predict_weaponsound` - controls prediction of weapon sounds
 
 ### Improved Player Prediction / Movement
 
