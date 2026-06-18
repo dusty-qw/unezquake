@@ -1376,14 +1376,20 @@ static void EntUpdate_WeaponDef(ezcsqc_entity_t *self, qbool is_new)
 	ParseWeaponDefPayload(is_new ? "new" : "update", self->entnum);
 }
 
+static qbool WeaponPred_DefinitionReady(int weapon_index);
+
 static void WeaponPred_SetModel(ezcsqc_entity_t *self)
 {
-	weppreddef_t *wep = &wpredict_definitions[bound(0, ws_predicted.weapon_index, MAX_PREDWEPS - 1)];
+	int weapon_index = ws_predicted.weapon_index;
+	weppreddef_t *wep = &wpredict_definitions[bound(0, weapon_index, MAX_PREDWEPS - 1)];
 
 	// The predicted weapon entity only draws after its definition has arrived.
-	if (wep->modelindex) {
+	if (WeaponPred_DefinitionReady(weapon_index)) {
 		self->modelindex = wep->modelindex;
 		self->frame = ws_predicted.frame;
+	}
+	else {
+		self->modelindex = 0;
 	}
 }
 
@@ -1609,14 +1615,46 @@ static void WeaponPred_Logic(usercmd_t *u, player_state_t *ps, ezcsqc_weapon_sta
 	ws->client_time = time_held;
 }
 
-static qbool WeaponPred_SwitchWeapon(int impulse, ezcsqc_weapon_state_t *ws)
+typedef enum {
+	WEAPONPRED_SWITCH_UNRESOLVED,
+	WEAPONPRED_SWITCH_BLOCKED,
+	WEAPONPRED_SWITCH_APPLIED
+} weaponpred_switch_result_t;
+
+static qbool WeaponPred_CanUseWeapon(weppreddef_t *wep, ezcsqc_weapon_state_t *ws)
 {
-	int i, found = false;
 	int items = cl.stats[STAT_ITEMS];
+
+	if (!(items & wep->itemflag)) {
+		return false;
+	}
+
+	switch (wep->impulse) {
+	case 2:
+		return ws->ammo_shells >= 1;
+	case 3:
+		return ws->ammo_shells >= 2;
+	case 4:
+		return ws->ammo_nails >= 1;
+	case 5:
+		return ws->ammo_nails >= 2;
+	case 6:
+	case 7:
+		return ws->ammo_rockets >= 1;
+	case 8:
+		return ws->ammo_cells >= 1;
+	default:
+		return true;
+	}
+}
+
+static weaponpred_switch_result_t WeaponPred_SwitchWeapon(int impulse, ezcsqc_weapon_state_t *ws)
+{
+	int i;
 
 	// Weapon switches obey the same attack_finished gate as the server.
 	if (ws->client_time < ws->attack_finished) {
-		return false;
+		return WEAPONPRED_SWITCH_BLOCKED;
 	}
 
 	// Find the predicted weapon definition mapped to the requested impulse.
@@ -1625,26 +1663,32 @@ static qbool WeaponPred_SwitchWeapon(int impulse, ezcsqc_weapon_state_t *ws)
 		if (wep->impulse != impulse) {
 			continue;
 		}
+
+		if (!WeaponPred_CanUseWeapon(wep, ws)) {
+			return WEAPONPRED_SWITCH_UNRESOLVED;
+		}
+
 		if (ws->weapon_index == i) {
-			found = true;
-			continue;
+			return WEAPONPRED_SWITCH_APPLIED;
 		}
-		if (items & wep->itemflag) {
-			// Reset the predicted FSM to the new weapon's first frame.
-			ws->weapon_index = i;
-			ws->weapon = wep->itemflag;
-			ws->client_thinkindex = 0;
-			ws->client_nextthink = 0;
-			ws->frame = WEPANIM(wep, 0)->mdlframe;
-			return true;
-		}
+
+		// Reset the predicted FSM to the new weapon's first frame.
+		ws->weapon_index = i;
+		ws->weapon = wep->itemflag;
+		ws->client_thinkindex = 0;
+		ws->client_nextthink = 0;
+		ws->frame = WEPANIM(wep, 0)->mdlframe;
+		return WEAPONPRED_SWITCH_APPLIED;
 	}
 
-	return found;
+	return WEAPONPRED_SWITCH_UNRESOLVED;
 }
 
 static void WeaponPred_Simulate(usercmd_t u, player_state_t ps, ezcsqc_weapon_state_t *ws)
 {
+	qbool had_impulse = false;
+	weaponpred_switch_result_t switch_result = WEAPONPRED_SWITCH_APPLIED;
+
 	// KTX can force prediction off while still letting time advance.
 	if (ws->client_predflags == PRDFL_FORCEOFF) {
 		ws->client_time += u.msec * 0.001f;
@@ -1668,9 +1712,29 @@ static void WeaponPred_Simulate(usercmd_t u, player_state_t ps, ezcsqc_weapon_st
 
 	// Run scheduled animation logic before accepting switches or attacks.
 	WeaponPred_Logic(&u, &ps, ws);
-	if (ws->impulse && WeaponPred_SwitchWeapon(ws->impulse, ws)) {
+
+	if (ws->impulse) {
+		had_impulse = true;
+		switch_result = WeaponPred_SwitchWeapon(ws->impulse, ws);
+
+		// Server impulses are per-command; do not leave unresolved impulses sticky.
 		ws->impulse = 0;
 	}
+
+	// If this command carried an impulse, KTX consumes it before weapon attack.
+	if (had_impulse) {
+		if (switch_result == WEAPONPRED_SWITCH_UNRESOLVED) {
+			// A missing local definition, such as axe, must not fire the previous weapon.
+			ws->weapon_index = 0;
+			ws->weapon = 0;
+			ws->client_thinkindex = 0;
+			ws->client_nextthink = 0;
+		}
+		if (switch_result != WEAPONPRED_SWITCH_APPLIED) {
+			return;
+		}
+	}
+
 	WeaponPred_WAttack(&u, &ps, ws);
 }
 
@@ -1687,10 +1751,6 @@ static qbool WeaponPred_Predraw(ezcsqc_entity_t *self)
 	 * move attack_finished forward before the current +attack is processed.
 	 */
 	ws_predicted = ws_server[cl.validsequence & UPDATE_MASK];
-	if (!WeaponPred_DefinitionReady(ws_predicted.weapon_index)) {
-		self->modelindex = 0;
-		return false;
-	}
 	effect_threshold = bound(
 		cl.validsequence + 1,
 		cls.netchan.outgoing_sequence - (cl_predict_buffer.integer + 1),

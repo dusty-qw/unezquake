@@ -823,7 +823,6 @@ static int V_CurrentWeaponModel(void)
 	int ez_model, ez_frame;
 
 	if (CL_EZCSQC_UpdateViewWeapon(&ez_model, &ez_frame)) {
-		cl.stats[STAT_WEAPON] = ez_model;
 		view_message.weaponframe = ez_frame;
 		return ez_model;
 	}
