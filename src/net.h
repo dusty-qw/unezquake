@@ -69,6 +69,9 @@ typedef SOCKET socket_t;
 #ifdef EAFNOSUPPORT
 #undef EAFNOSUPPORT
 #endif
+#ifdef ENOBUFS
+#undef ENOBUFS
+#endif
 
 #define EWOULDBLOCK     WSAEWOULDBLOCK
 #define EMSGSIZE        WSAEMSGSIZE
@@ -77,6 +80,7 @@ typedef SOCKET socket_t;
 #define ECONNREFUSED    WSAECONNREFUSED
 #define EADDRNOTAVAIL   WSAEADDRNOTAVAIL
 #define EAFNOSUPPORT    WSAEAFNOSUPPORT
+#define ENOBUFS         WSAENOBUFS
 #define qerrno          WSAGetLastError()
 #else //_WIN32
 

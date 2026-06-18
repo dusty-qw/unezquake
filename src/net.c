@@ -970,7 +970,7 @@ qbool NET_SendUDPPacket (netsrc_t netsrc, int length, void *data, netadr_t to)
 	{
 		int err = qerrno;
 
-		if (err == EWOULDBLOCK || err == ECONNREFUSED || err == EADDRNOTAVAIL)
+		if (err == EWOULDBLOCK || err == ECONNREFUSED || err == EADDRNOTAVAIL || err == ENOBUFS)
 			; // nothing
 		else
 			Con_Printf ("NET_SendPacket: sendto: (%i): %s %i\n", err, strerror(err), socket);
