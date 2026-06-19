@@ -155,12 +155,16 @@ typedef struct {
 #define WEPPREDANIM_MOREBYTES		0x0080
 #define WEPPREDANIM_SOUNDAUTO		(0x0100 | WEPPREDANIM_MOREBYTES)
 #define WEPPREDANIM_LTIME		(0x0200 | WEPPREDANIM_MOREBYTES)
+#define WEPPREDANIM_SOUND2		(0x0400 | WEPPREDANIM_MOREBYTES)
+#define WEPPREDANIM_HAS(flags, flag)	(((flags) & (flag)) == (flag))
 
 typedef struct weppredanim_s {
 	signed char	mdlframe;
 	unsigned short	flags;
 	unsigned short	sound;
 	unsigned short	soundmask;
+	unsigned short	sound2;
+	unsigned short	soundmask2;
 	unsigned short	projectile_model;
 	short		projectile_velocity[3];
 	signed char	projectile_offset[3];

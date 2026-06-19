@@ -1255,6 +1255,30 @@ static qbool WeaponPred_SpawnProjectile(usercmd_t *u, player_state_t *ps, ezcsqc
 	return true;
 }
 
+static qbool WeaponPred_SoundMaskEnabled(unsigned short mask);
+
+static qbool WeaponPred_PlayLGBeam(usercmd_t *u, player_state_t *ps)
+{
+	vec3_t start, end, forward;
+	trace_t hittrace;
+
+	if (!cl_predict_beam.integer) {
+		return true;
+	}
+
+	VectorCopy(ps->origin, start);
+	start[2] += 16;
+	VectorCopy(start, end);
+
+	AngleVectors(u->angles, forward, NULL, NULL);
+	VectorMA(end, 600, forward, end);
+	hittrace = PM_TraceLine(start, end);
+
+	// Match the legacy predictor's local TE_LIGHTNING2 beam for own LG fire.
+	CL_CreateBeam(2, cl.playernum + 1, start, hittrace.endpos);
+	return true;
+}
+
 static void CL_EZCSQC_AddPredictionSound(unsigned short index, unsigned short mask, byte chan)
 {
 	weppredsound_t *snd, *last = NULL;
@@ -1343,7 +1367,14 @@ static void ParseWeaponDefPayload(const char *source, int entnum_for_error)
 				anim->sound = bound(0, raw, MAX_SOUNDS - 1);
 				anim->soundmask = MSG_ReadShort();
 				// Register predicted sounds before replay can emit them.
-				CL_EZCSQC_AddPredictionSound(anim->sound, anim->soundmask, (anim->flags & WEPPREDANIM_SOUNDAUTO) ? 0 : 1);
+				CL_EZCSQC_AddPredictionSound(anim->sound, anim->soundmask, WEPPREDANIM_HAS(anim->flags, WEPPREDANIM_SOUNDAUTO) ? 0 : 1);
+			}
+			if (WEPPREDANIM_HAS(anim->flags, WEPPREDANIM_SOUND2)) {
+				raw = MSG_ReadShort();
+				anim->sound2 = bound(0, raw, MAX_SOUNDS - 1);
+				anim->soundmask2 = MSG_ReadShort();
+				// Secondary sounds share the same frame but use the normal weapon channel.
+				CL_EZCSQC_AddPredictionSound(anim->sound2, anim->soundmask2, 1);
 			}
 			if (anim->flags & WEPPREDANIM_PROJECTILE) {
 				raw = MSG_ReadShort();
@@ -1427,7 +1458,7 @@ static qbool WeaponPred_DefinitionReady(int weapon_index)
 	return true;
 }
 
-static qbool WeaponPred_SoundEnabled(weppredanim_t *anim)
+static qbool WeaponPred_SoundMaskEnabled(unsigned short mask)
 {
 	int value = cl_predict_weaponsound.integer;
 
@@ -1435,10 +1466,21 @@ static qbool WeaponPred_SoundEnabled(weppredanim_t *anim)
 		return false;
 	}
 
-	return value == 1 || !(value & anim->soundmask);
+	return value == 1 || !(value & mask);
 }
 
-static void WeaponPred_PlayEffects(usercmd_t *u, player_state_t *ps, ezcsqc_weapon_state_t *ws, weppredanim_t *anim)
+static void WeaponPred_PlaySoundIndex(int sound, unsigned short mask, int chan, ezcsqc_weapon_state_t *ws)
+{
+	if (WeaponPred_SoundMaskEnabled(mask) && sound > 0 && sound < MAX_SOUNDS && cl.sound_precache[sound]) {
+		if (cl_ezcsqc_debug.integer > 1) {
+			Com_Printf("EZCSQC predicted sound frame=%d sound=%d mask=%x client_time=%.3f\n",
+				current_predframe, sound, mask, ws->client_time);
+		}
+		S_StartSound(cl.playernum + 1, chan, cl.sound_precache[sound], pmove.origin, 1, 0);
+	}
+}
+
+static void WeaponPred_PlayEffects(usercmd_t *u, player_state_t *ps, ezcsqc_weapon_state_t *ws, weppreddef_t *wep, weppredanim_t *anim)
 {
 	/*
 	 * Prediction replays several historical usercmds every render frame. Effects
@@ -1456,26 +1498,30 @@ static void WeaponPred_PlayEffects(usercmd_t *u, player_state_t *ps, ezcsqc_weap
 	}
 
 	if ((current_effect_flags & EZCSQC_EFFECT_SOUND) && (anim->flags & WEPPREDANIM_SOUND)) {
-		int chan = (anim->flags & WEPPREDANIM_SOUNDAUTO) ? 0 : 1;
-		// Lightning uses a minimum local active window so replay does not stutter the loop.
-		if ((anim->flags & WEPPREDANIM_LTIME) && ws->client_time < lg_twidth) {
-			if (cl_ezcsqc_debug.integer > 1) {
-				Com_Printf("EZCSQC sound suppressed: LG time gate frame=%d client_time=%.3f lg_twidth=%.3f\n",
-					current_predframe, ws->client_time, lg_twidth);
-			}
-			return;
+		int chan = WEPPREDANIM_HAS(anim->flags, WEPPREDANIM_SOUNDAUTO) ? 0 : 1;
+		qbool lg_sound_throttled = WEPPREDANIM_HAS(anim->flags, WEPPREDANIM_LTIME) && ws->client_time < lg_twidth;
+		// Lightning throttles only the loop sound; beam/muzzle effects still run every LG tick.
+		if (lg_sound_throttled && cl_ezcsqc_debug.integer > 1) {
+			Com_Printf("EZCSQC sound suppressed: LG time gate frame=%d client_time=%.3f lg_twidth=%.3f\n",
+				current_predframe, ws->client_time, lg_twidth);
 		}
 		// The cvar can enable all sounds or mask off specific predicted sound classes.
-		if (WeaponPred_SoundEnabled(anim)) {
-			if (anim->sound > 0 && anim->sound < MAX_SOUNDS && cl.sound_precache[anim->sound]) {
-				if (cl_ezcsqc_debug.integer > 1) {
-					Com_Printf("EZCSQC predicted sound frame=%d sound=%d mask=%x client_time=%.3f\n",
-						current_predframe, anim->sound, anim->soundmask, ws->client_time);
+		if (!lg_sound_throttled) {
+			WeaponPred_PlaySoundIndex(anim->sound, anim->soundmask, chan, ws);
+			if (WEPPREDANIM_HAS(anim->flags, WEPPREDANIM_SOUND2)) {
+				// LG restarts lstart rapidly, but lhit still follows the native loop cadence.
+				if ((anim->flags & WEPPREDANIM_LGBEAM) && !WEPPREDANIM_HAS(anim->flags, WEPPREDANIM_LTIME)) {
+					if (ws->client_time >= lg_twidth) {
+						WeaponPred_PlaySoundIndex(anim->sound2, anim->soundmask2, 1, ws);
+						lg_twidth = ws->client_time + 0.6f;
+					}
 				}
-				S_StartSound(cl.playernum + 1, chan, cl.sound_precache[anim->sound], pmove.origin, 1, 0);
+				else {
+					WeaponPred_PlaySoundIndex(anim->sound2, anim->soundmask2, 1, ws);
+				}
 			}
 		}
-		if (anim->flags & WEPPREDANIM_LTIME) {
+		if (WEPPREDANIM_HAS(anim->flags, WEPPREDANIM_LTIME) && !lg_sound_throttled) {
 			// Remember the predicted LG window so repeated replay frames stay quiet.
 			lg_twidth = ws->client_time + 0.6f;
 		}
@@ -1489,6 +1535,12 @@ static void WeaponPred_PlayEffects(usercmd_t *u, player_state_t *ps, ezcsqc_weap
 				current_predframe, anim->projectile_model, ws->client_time);
 		}
 		if (WeaponPred_SpawnProjectile(u, ps, ws, anim)) {
+			last_projectile_effectframe = max(last_projectile_effectframe, current_predframe);
+		}
+	}
+	if ((current_effect_flags & EZCSQC_EFFECT_PROJECTILE) && (anim->flags & WEPPREDANIM_LGBEAM)) {
+		// LG uses the projectile effect gate for its one-frame predicted beam.
+		if (WeaponPred_PlayLGBeam(u, ps)) {
 			last_projectile_effectframe = max(last_projectile_effectframe, current_predframe);
 		}
 	}
@@ -1525,12 +1577,19 @@ static void WeaponPred_StartFrame(usercmd_t *u, player_state_t *ps, ezcsqc_weapo
 	// Branch attack states check +attack when the scheduled state executes.
 	if ((anim->flags & (WEPPREDANIM_ATTACK | WEPPREDANIM_BRANCH)) == (WEPPREDANIM_ATTACK | WEPPREDANIM_BRANCH) &&
 		(!(u->buttons & BUTTON_ATTACK) || ws->impulse)) {
-		WeaponPred_StartFrame(u, ps, ws, wep, anim->altanim);
+		if (anim->altanim >= 0 && anim->altanim < wep->anim_number && (WEPANIM(wep, anim->altanim)->flags & WEPPREDANIM_DEFAULT)) {
+			WeaponPred_StartFrame(u, ps, ws, wep, anim->altanim);
+		}
+		else {
+			// LG has no idle state in its definition; stop the loop and let a fresh press restart it.
+			ws->client_thinkindex = 0;
+			ws->client_nextthink = 0;
+		}
 		return;
 	}
 
 	// Entering a weapon state is when predicted sounds/projectiles should fire.
-	WeaponPred_PlayEffects(u, ps, ws, anim);
+	WeaponPred_PlayEffects(u, ps, ws, wep, anim);
 
 	if (anim->mdlframe >= 0) {
 		ws->frame = anim->mdlframe;
@@ -1546,7 +1605,15 @@ static void WeaponPred_StartFrame(usercmd_t *u, player_state_t *ps, ezcsqc_weapo
 	// Branching attack states loop while +attack is held, otherwise they return idle.
 	nextanim = anim->nextanim;
 	if (anim->flags & WEPPREDANIM_ATTACK) {
-		if (anim->flags & WEPPREDANIM_BRANCH) {
+		if ((anim->flags & WEPPREDANIM_BRANCH) && wep->itemflag == IT_LIGHTNING) {
+			/*
+			 * Native player_light1/2 schedule the next beam think at 100 ms
+			 * but hold W_Attack off for 200 ms, preventing held LG from
+			 * re-entering the lstart state every branch tick.
+			 */
+			ws->attack_finished = ws->client_time + 0.2f;
+		}
+		else if (anim->flags & WEPPREDANIM_BRANCH) {
 			ws->attack_finished = ws->client_time + LENGTH2S(wep->attack_time);
 		}
 		else {
@@ -1600,6 +1667,11 @@ static void WeaponPred_WAttack(usercmd_t *u, player_state_t *ps, ezcsqc_weapon_s
 		// The default attack state authorizes the shot; state 1 carries the visible effect.
 		ws->attack_finished = ws->client_time + LENGTH2S(wep->attack_time);
 		break;
+	}
+
+	if (i == wep->anim_number && wep->anim_number > 0 && (WEPANIM(wep, 0)->flags & WEPPREDANIM_ATTACK)) {
+		// Weapons without a default state, such as LG, start directly from state 0.
+		WeaponPred_StartFrame(u, ps, ws, wep, 0);
 	}
 }
 
@@ -1718,7 +1790,6 @@ static void WeaponPred_Simulate(usercmd_t u, player_state_t ps, ezcsqc_weapon_st
 	if (u.impulse) {
 		ws->impulse = u.impulse;
 	}
-
 	// Run scheduled animation logic before accepting switches or attacks.
 	WeaponPred_Logic(&u, &ps, ws);
 
@@ -2114,6 +2185,7 @@ void CL_EZCSQC_ParseSetup(void)
 qbool CL_EZCSQC_Event_Sound(int entnum, int channel, int soundnumber, float vol, float attenuation, vec3_t pos, float pitchmod, float flags)
 {
 	weppredsound_t *snd;
+	sfx_t *server_sfx = NULL;
 
 	(void)vol;
 	(void)attenuation;
@@ -2121,14 +2193,23 @@ qbool CL_EZCSQC_Event_Sound(int entnum, int channel, int soundnumber, float vol,
 	(void)pitchmod;
 	(void)flags;
 
-	if (!ezcsqc.weapon_prediction || cl_nopred_weapon.integer || entnum != cl.playernum + 1 || !cl_predict_weaponsound.integer) {
+	if (!ezcsqc.weapon_prediction || cl_nopred_weapon.integer || !cl_predict_weaponsound.integer) {
+		return false;
+	}
+	if (soundnumber > 0 && soundnumber < MAX_SOUNDS) {
+		server_sfx = cl.sound_precache[soundnumber];
+	}
+	if (entnum != cl.playernum + 1) {
 		return false;
 	}
 
 	// Return true to tell normal sound parsing that prediction already played it.
 	for (snd = predictionsoundlist; snd; snd = snd->next) {
 		// SOUNDAUTO predictions use channel 0, but server echoes may arrive on a weapon channel.
-		if ((snd->chan == channel || snd->chan == 0) && snd->index == soundnumber && !(cl_predict_weaponsound.integer & snd->mask)) {
+		if ((snd->chan == channel || snd->chan == 0) && !(cl_predict_weaponsound.integer & snd->mask) &&
+			(snd->index == soundnumber ||
+			 (server_sfx && snd->index > 0 && snd->index < MAX_SOUNDS &&
+			  cl.sound_precache[snd->index] && !strcmp(cl.sound_precache[snd->index]->name, server_sfx->name)))) {
 			return true;
 		}
 	}
