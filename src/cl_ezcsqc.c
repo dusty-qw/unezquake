@@ -1574,12 +1574,6 @@ static void WeaponPred_WAttack(usercmd_t *u, player_state_t *ps, ezcsqc_weapon_s
 		return;
 	}
 
-	if (ws->weapon_index == 1) {
-		// Axe has no CSQC weapondef yet, but its attack timing still blocks switches.
-		ws->attack_finished = ws->client_time + 0.5f;
-		return;
-	}
-
 	// Local +attack starts the visual shot; the server state only supplied the script.
 	for (i = 0; i < wep->anim_number; i++) {
 		anim = WEPANIM(wep, i);
@@ -1593,7 +1587,16 @@ static void WeaponPred_WAttack(usercmd_t *u, player_state_t *ps, ezcsqc_weapon_s
 			Com_Printf("EZCSQC default attack frame=%d weapon=%d anim=%d animflags=%x client_time=%.3f\n",
 				current_predframe, ws->weapon_index, i, anim->flags, ws->client_time);
 		}
-		WeaponPred_StartFrame(u, ps, ws, wep, anim->nextanim);
+		if (ws->weapon_index == 1) {
+			float r;
+
+			// KTX picks between axe frame groups deterministically from client_time.
+			r = fabs((((int)(ws->client_time * 931.75) << 11) + ((int)(ws->client_time) >> 6)) % 1000) / 1000.0f;
+			WeaponPred_StartFrame(u, ps, ws, wep, ((r >= 0.25f && r < 0.5f) || r >= 0.75f) ? 5 : 1);
+		}
+		else {
+			WeaponPred_StartFrame(u, ps, ws, wep, anim->nextanim);
+		}
 		// The default attack state authorizes the shot; state 1 carries the visible effect.
 		ws->attack_finished = ws->client_time + LENGTH2S(wep->attack_time);
 		break;
@@ -1853,6 +1856,11 @@ static void EntUpdate_WeaponInfo(ezcsqc_entity_t *self, qbool is_new)
 		// Pred flags include server-side permission to predict local attacks.
 		ws_current->client_predflags = MSG_ReadByte();
 		ws_current->client_ping = MSG_ReadByte() / 1000.0f;
+	}
+	if (ws_current->weapon_index == 1 && ws_current->frame >= 5 &&
+		ws_current->client_thinkindex >= 2 && ws_current->client_thinkindex <= 4) {
+		// KTX reuses axe think indices 2-4 for both viewmodel frame groups.
+		ws_current->client_thinkindex += 4;
 	}
 
 	/*
