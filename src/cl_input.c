@@ -1066,6 +1066,14 @@ void CL_FinishMove(usercmd_t* cmd)
 	// avoids weird problems with prediction
 	game_input_active = (key_dest == key_game);
 
+	if (!game_input_active) {
+		// Dropping game input should also drop held fire state so it cannot resume when the console closes.
+		if (in_attack.state & 1)
+			KeyUp_common(&in_attack, NULL_KEY);
+		if (in_attack2.state & 1)
+			KeyUp_common(&in_attack2, NULL_KEY);
+	}
+
 	// figure button bits
 	if (game_input_active && (in_attack.state & 3)) {
 		if (cl_smartspawn.integer && !cl.spectator && (cl.stats[STAT_HEALTH] <= 0)) {
