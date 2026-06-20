@@ -2182,6 +2182,31 @@ void CL_EZCSQC_ParseSetup(void)
 	CL_SendClientCommand(true, "ezcsqc_ready");
 }
 
+static qbool CL_EZCSQC_CanSuppressPredictedWeaponSound(void)
+{
+	player_state_t *ps;
+	ezcsqc_weapon_state_t *ws;
+
+	// Without a confirmed frame, there is no local prediction state to compare against.
+	if (cl.validsequence <= 0) {
+		return false;
+	}
+
+	ps = &cl.frames[cl.validsequence & UPDATE_MASK].playerstate[cl.playernum];
+	// Dead/locked/non-playable states do not run local weapon prediction, so server sounds are authoritative.
+	if (ps->pm_type == PM_DEAD || ps->pm_type == PM_NONE || ps->pm_type == PM_LOCK) {
+		return false;
+	}
+
+	ws = &ws_server[cl.validsequence & UPDATE_MASK];
+	// KTX uses PRDFL_FORCEOFF for states like wipeout round_pause where real server weapon sounds still play.
+	if (ws->client_predflags == PRDFL_FORCEOFF) {
+		return false;
+	}
+
+	return true;
+}
+
 qbool CL_EZCSQC_Event_Sound(int entnum, int channel, int soundnumber, float vol, float attenuation, vec3_t pos, float pitchmod, float flags)
 {
 	weppredsound_t *snd;
@@ -2194,6 +2219,10 @@ qbool CL_EZCSQC_Event_Sound(int entnum, int channel, int soundnumber, float vol,
 	(void)flags;
 
 	if (!ezcsqc.weapon_prediction || cl_nopred_weapon.integer || !cl_predict_weaponsound.integer) {
+		return false;
+	}
+	// Suppress only sounds the client could have predicted; otherwise preserve the server sound.
+	if (!CL_EZCSQC_CanSuppressPredictedWeaponSound()) {
 		return false;
 	}
 	if (soundnumber > 0 && soundnumber < MAX_SOUNDS) {
