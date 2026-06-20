@@ -2326,8 +2326,8 @@ qbool CL_EZCSQC_UpdateViewWeapon(int *modelindex, int *weaponframe)
 		return false;
 	}
 
-	// cl_view.c asks for the predicted model/frame just before drawing the gun.
-	if (viewweapon->predraw) {
+	// Freeze the last predicted weapon frame while paused; queued usercmds must not advance its FSM.
+	if (viewweapon->predraw && !ISPAUSED) {
 		viewweapon->predraw(viewweapon);
 	}
 
