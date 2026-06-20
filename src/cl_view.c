@@ -819,11 +819,31 @@ static int V_CurrentWeaponModel(void)
 	extern cvar_t cl_weaponpreselect;
 	int bestgun;
 	int realw = cl.stats[STAT_WEAPON];
+	int real_weaponframe = view_message.weaponframe;
 #ifdef FTE_PEXT_CSQC
 	int ez_model, ez_frame;
+	qbool ez_viewweapon = CL_EZCSQC_UpdateViewWeapon(&ez_model, &ez_frame);
 
-	if (CL_EZCSQC_UpdateViewWeapon(&ez_model, &ez_frame)) {
+	if (ez_viewweapon) {
 		view_message.weaponframe = ez_frame;
+	}
+#endif
+
+	// A preselected weapon changes only the idle viewmodel; the server still owns the active weapon.
+	if (ShowPreselectedWeap() && r_viewpreselgun.integer && !real_weaponframe) {
+		bestgun = IN_BestWeaponReal(true);
+		if (bestgun == 1) {
+			return cl_modelindices[mi_vaxe];
+		}
+		if (bestgun > 1 && bestgun <= 8) {
+			if (!pmove_nopred_weapon && pmove.client_predflags & PRDFL_COILGUN)
+				if (bestgun == 2) { bestgun = 9; }
+
+			return cl_modelindices[mi_weapon1 - 1 + bestgun];
+		}
+	}
+#ifdef FTE_PEXT_CSQC
+	if (ez_viewweapon) {
 		return ez_model;
 	}
 #endif
@@ -854,19 +874,7 @@ static int V_CurrentWeaponModel(void)
 		}
 	}
 	else {
-		if (ShowPreselectedWeap() && r_viewpreselgun.integer && !view_message.weaponframe) {
-			bestgun = IN_BestWeaponReal(true);
-			if (bestgun == 1) {
-				return cl_modelindices[mi_vaxe];
-			}
-			if (bestgun > 1 && bestgun <= 8) {
-				if (!pmove_nopred_weapon && pmove.client_predflags & PRDFL_COILGUN)
-					if (bestgun == 2) { bestgun = 9; }
-
-				return cl_modelindices[mi_weapon1 - 1 + bestgun];
-			}
-		}
-		else if (!CL_EZCSQC_Active() && !pmove_nopred_weapon && cls.mvdprotocolextensions1 & MVD_PEXT1_WEAPONPREDICTION) {
+		if (!CL_EZCSQC_Active() && !pmove_nopred_weapon && cls.mvdprotocolextensions1 & MVD_PEXT1_WEAPONPREDICTION) {
 			if (cl.simwep == 1)
 				return cl_modelindices[mi_vaxe];
 			else if (cl.simwep > 1 && cl.simwep <= 9)
