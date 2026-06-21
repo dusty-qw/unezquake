@@ -1759,6 +1759,13 @@ static weaponpred_switch_result_t WeaponPred_SwitchWeapon(int impulse, ezcsqc_we
 			return WEAPONPRED_SWITCH_APPLIED;
 		}
 
+		// A completed switch away from LG must retire its persistent local beam and sounds.
+		if (wpredict_definitions[bound(0, ws->weapon_index, MAX_PREDWEPS - 1)].itemflag == IT_LIGHTNING &&
+			wep->itemflag != IT_LIGHTNING) {
+			CL_ClearBeam(cl.playernum + 1);
+			lg_twidth = 0;
+		}
+
 		// Reset the predicted FSM to the new weapon's first frame.
 		ws->weapon_index = i;
 		ws->weapon = wep->itemflag;

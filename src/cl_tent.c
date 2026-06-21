@@ -759,6 +759,25 @@ void CL_CreateBeam(int type, int ent, vec3_t start, vec3_t end)
 	Com_DPrintf ("beam list overflow!\n");
 }
 
+void CL_ClearBeam(int ent)
+{
+	int i;
+	beam_t *b;
+
+	// Retire every beam segment owned by this entity immediately.
+	for (i = 0, b = cl_beams; i < MAX_BEAMS; i++, b++) {
+		if (b->entity == ent) {
+			b->model = NULL;
+			b->endtime = 0;
+		}
+	}
+
+	// Prevent fakeshaft from refreshing an owner beam after it has been cleared.
+	if (ent == cl.viewplayernum + 1) {
+		playerbeam_update = false;
+	}
+}
+
 void CL_ExplosionSprite(vec3_t pos) 
 {					
 	explosion_t	*ex;
