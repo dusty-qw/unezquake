@@ -260,7 +260,7 @@ static void CL_EZCSQC_InitProjectile(ezcsqc_entity_t *ent, int modelindex, int o
 
 	if ((model->flags & EF_GRENADE) || model->modhint == MOD_GRENADE) {
 		ent->projectile_type = 1;
-		ent->endtime = cl.time + max(latency, 0.05f);
+		ent->endtime = cl.time + max(latency + 0.013f, 0.05f);
 		ent->effects = EF_GRENADE;
 	}
 	else if (model->flags & EF_ROCKET) {
@@ -1230,10 +1230,13 @@ static qbool WeaponPred_SpawnProjectile(usercmd_t *u, player_state_t *ps, ezcsqc
 	VectorCopy(origin, ent->partorg);
 	VectorClear(ent->avel);
 	if (ent->projectile_type == 1) {
-		// Grenades keep native-looking spin and do not get the non-grenade newmis phase lead.
-		ent->prediction_start_state_time = ps->state_time;
+		const float newmis_time = 0.05f;
+
+		// Match the fixed native newmis phase
+		ent->prediction_start_state_time = ps->state_time - newmis_time;
 		VectorSet(ent->avel, 300, 300, 300);
 		VectorCopy(ent->angles, ent->sim_angles);
+		CL_EZCSQC_ProjectileBounce(ent, newmis_time, true);
 	}
 	else {
 		float speed = VectorLength(velocity);
