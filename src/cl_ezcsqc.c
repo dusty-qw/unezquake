@@ -2304,6 +2304,8 @@ static void CL_EZCSQC_DebugViewWeaponSkip(const char *reason)
 
 qbool CL_EZCSQC_UpdateViewWeapon(int *modelindex, int *weaponframe)
 {
+	pmtype_t pm_type = cl.frames[cl.validsequence & UPDATE_MASK].playerstate[cl.playernum].pm_type;
+
 	if (!ezcsqc.weapon_prediction) {
 		CL_EZCSQC_DebugViewWeaponSkip("no weapon prediction entity");
 		return false;
@@ -2322,6 +2324,11 @@ qbool CL_EZCSQC_UpdateViewWeapon(int *modelindex, int *weaponframe)
 	}
 	if (cl.spectator) {
 		CL_EZCSQC_DebugViewWeaponSkip("spectator");
+		return false;
+	}
+	// Dead players and trackent observers use non-playable movement states.
+	if (pm_type != PM_NORMAL && pm_type != PM_FLY) {
+		CL_EZCSQC_DebugViewWeaponSkip("non-playable movement state");
 		return false;
 	}
 	if (cls.demoplayback) {
