@@ -45,10 +45,11 @@ extern cvar_t gl_no24bit;
 #define EZCSQC_LOCAL_PROJECTILE_BASE MAX_EDICTS
 
 /*
- * Weapon prediction is stored in three rings:
+ * Weapon prediction uses server/saved rings plus render-time scratch states:
  * - ws_server: last server-authored weapon state for each parsed network frame
  * - ws_saved:  local prediction snapshots for later comparison/replay
  * - ws_predicted: scratch state rebuilt each render frame from ws_server + usercmds
+ * - ws_presented: buffered state displayed in sync with predicted effects
  *
  * The client only uses this to choose local viewmodel frames/sounds. KTX remains
  * authoritative for hits, ammo, projectiles, damage, and final entity state.
@@ -56,6 +57,7 @@ extern cvar_t gl_no24bit;
 ezcsqc_weapon_state_t ws_server[UPDATE_BACKUP];
 ezcsqc_weapon_state_t ws_predicted;
 ezcsqc_weapon_state_t ws_saved[UPDATE_BACKUP];
+static ezcsqc_weapon_state_t ws_presented;
 
 /*
  * EZCSQC entities are not normal packet entities. mvdsv sends a compact stream
@@ -161,6 +163,7 @@ void CL_EZCSQC_InitializeEntities(void)
 	memset(ws_server, 0, sizeof(ws_server));
 	memset(&ws_predicted, 0, sizeof(ws_predicted));
 	memset(ws_saved, 0, sizeof(ws_saved));
+	memset(&ws_presented, 0, sizeof(ws_presented));
 	memset(wpredict_definitions, 0, sizeof(wpredict_definitions));
 
 	setup_ready = false;
@@ -1409,15 +1412,15 @@ static void EntUpdate_WeaponDef(ezcsqc_entity_t *self, qbool is_new)
 
 static qbool WeaponPred_DefinitionReady(int weapon_index);
 
-static void WeaponPred_SetModel(ezcsqc_entity_t *self)
+static void WeaponPred_SetModel(ezcsqc_entity_t *self, ezcsqc_weapon_state_t *ws)
 {
-	int weapon_index = ws_predicted.weapon_index;
+	int weapon_index = ws->weapon_index;
 	weppreddef_t *wep = &wpredict_definitions[bound(0, weapon_index, MAX_PREDWEPS - 1)];
 
 	// The predicted weapon entity only draws after its definition has arrived.
 	if (WeaponPred_DefinitionReady(weapon_index)) {
 		self->modelindex = wep->modelindex;
-		self->frame = ws_predicted.frame;
+		self->frame = ws->frame;
 	}
 	else {
 		self->modelindex = 0;
@@ -1834,6 +1837,7 @@ static qbool WeaponPred_Predraw(ezcsqc_entity_t *self)
 	 * move attack_finished forward before the current +attack is processed.
 	 */
 	ws_predicted = ws_server[cl.validsequence & UPDATE_MASK];
+	ws_presented = ws_predicted;
 	effect_threshold = bound(
 		cl.validsequence + 1,
 		cls.netchan.outgoing_sequence - (cl_predict_buffer.integer + 1),
@@ -1845,8 +1849,8 @@ static qbool WeaponPred_Predraw(ezcsqc_entity_t *self)
 
 	/*
 	 * Rebuild the weapon state by replaying pending usercmds on top of the last
-	 * server update. This mirrors movement prediction: the server supplies the
-	 * baseline, local input makes the viewmodel responsive until correction.
+	 * server update. Newer commands are retained for prediction bookkeeping,
+	 * while the rendered state stops at the same threshold as their effects.
 	 */
 	for (; i < UPDATE_BACKUP - 1 && cl.validsequence + i < cls.netchan.outgoing_sequence; i++) {
 		frame_t *to = &cl.frames[(cl.validsequence + i) & UPDATE_MASK];
@@ -1873,11 +1877,14 @@ static qbool WeaponPred_Predraw(ezcsqc_entity_t *self)
 			is_effectframe = true;
 		}
 		WeaponPred_Simulate(to->cmd, to->playerstate[cl.playernum], &ws_predicted);
+		if (frame_num <= effect_threshold && WeaponPred_FrameDelayElapsed(frame_num, effect_delay)) {
+			ws_presented = ws_predicted;
+		}
 		// Save the post-command state so later prediction starts from matching indices.
 		ws_saved[(cl.validsequence + i + 1) & UPDATE_MASK] = ws_predicted;
 	}
 
-	WeaponPred_SetModel(self);
+	WeaponPred_SetModel(self, &ws_presented);
 	return false;
 }
 
@@ -2336,12 +2343,12 @@ qbool CL_EZCSQC_UpdateViewWeapon(int *modelindex, int *weaponframe)
 		if (cl_ezcsqc_debug.integer > 1) {
 			static double next_no_model_print_time;
 			double now = Sys_DoubleTime();
-			weppreddef_t *wep = &wpredict_definitions[bound(0, ws_predicted.weapon_index, MAX_PREDWEPS - 1)];
+			weppreddef_t *wep = &wpredict_definitions[bound(0, ws_presented.weapon_index, MAX_PREDWEPS - 1)];
 			if (now >= next_no_model_print_time) {
 				next_no_model_print_time = now + 1.0;
 				Com_Printf("EZCSQC no predicted model: weapon_index=%d def_model=%d def_anims=%d def_attack=%d frame=%d client_time=%.3f attack_finished=%.3f\n",
-					ws_predicted.weapon_index, wep->modelindex, wep->anim_number, wep->attack_time,
-					ws_predicted.frame, ws_predicted.client_time, ws_predicted.attack_finished);
+					ws_presented.weapon_index, wep->modelindex, wep->anim_number, wep->attack_time,
+					ws_presented.frame, ws_presented.client_time, ws_presented.attack_finished);
 			}
 		}
 		CL_EZCSQC_DebugViewWeaponSkip("no predicted model");
