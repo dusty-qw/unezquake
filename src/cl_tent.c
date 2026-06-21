@@ -1573,10 +1573,8 @@ static void CL_UpdateFakeProjectiles(void)
 			trace_t trace = PM_TraceLine(prj->start, ent.origin);
 			if (trace.fraction < 1)
 			{
-				prj->endtime = cl.time;
-				VectorCopy(trace.endpos, prj->org);
 				#ifdef MVD_PEXT1_SIMPLEPROJECTILE
-				if (cl_predict_explosions.integer && prj->modelindex == cl_modelindices[mi_rocket])
+				if (prj->modelindex == cl_modelindices[mi_rocket])
 				{
 					predexplosion_t *expl = CL_AllocatePredictedExplosion();
 					expl->time = cls.realtime;
@@ -1584,8 +1582,14 @@ static void CL_UpdateFakeProjectiles(void)
 					expl->radius = expl->damage + 40;
 					VectorCopy(trace.endpos, expl->origin);
 				}
+
+				if (prj->parttime)
+					continue;
+				else
+					VectorCopy(trace.endpos, prj->org);
+				#else
+				continue;//prj->endtime = cl.time;
 				#endif
-				continue;
 			}
 		}
 
