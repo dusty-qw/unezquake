@@ -92,6 +92,7 @@ typedef struct cl_spray_s {
 	texture_ref texture;
 	int texture_index;
 	int upload_id;
+	unsigned long long hash;
 
 	// A spray is an oriented world-space quad. right/up are tangent to the
 	// target surface and are player-view relative when placed.
@@ -193,6 +194,7 @@ static void CL_SprayCancelUpload(void);
 static void CL_SprayClearServerImageCache(void);
 static void CL_SprayPlayRejectSound(void);
 static cl_spray_texture_t *CL_SprayTextureCacheForName(const char *filename);
+static cl_spray_texture_t *CL_SprayTextureCacheForHash(unsigned long long hash);
 void FS_EnumerateFiles(char *match, int (*func)(char *, int, void *), void *parm);
 
 #ifdef RENDERER_OPTION_MODERN_OPENGL
@@ -841,8 +843,75 @@ void CL_SpraysRefreshRendererTextures(void)
 		}
 	}
 
+	// Received images also survive renderer reloads. Rebuild them from their
+	// verified network pixels, or from the matching local image for the sender's
+	// metadata-only echo, then reconnect placed decals to the new references.
+	for (i = 0; i < CL_MAX_SERVER_SPRAY_IMAGES; ++i) {
+		cl_server_spray_image_t *image = &cl_server_spray_images[i];
+		cl_spray_texture_t *local_cached;
+
+		if (!image->active || !image->complete) {
+			continue;
+		}
+
+		local_cached = CL_SprayTextureCacheForHash(image->hash);
+		if (local_cached) {
+			int texture_index;
+			image->texture = CL_SprayCacheTexture(local_cached, &texture_index, true);
+		}
+		else {
+			image->texture = CL_SprayTextureFromPixels(image->id, image->pixels,
+					image->width, image->height, image->byte_count, &image->texture_array);
+		}
+	}
+
+	for (i = 0; i < CL_MAX_SPRAYS; ++i) {
+		int j;
+		qbool resolved = false;
+
+		if (!cl_sprays[i].active) {
+			continue;
+		}
+		for (j = 0; j < CL_MAX_SERVER_SPRAY_IMAGES; ++j) {
+			if (cl_server_spray_images[j].active && cl_server_spray_images[j].complete
+					&& cl_server_spray_images[j].id == cl_sprays[i].upload_id) {
+				cl_sprays[i].texture = cl_server_spray_images[j].texture;
+				resolved = true;
+				break;
+			}
+		}
+		if (!resolved && cl_sprays[i].hash) {
+			cl_spray_texture_t *cached = CL_SprayTextureCacheForHash(cl_sprays[i].hash);
+
+			if (cached) {
+				int texture_index;
+				cl_sprays[i].texture = CL_SprayCacheTexture(cached, &texture_index, true);
+			}
+		}
+	}
+
 	if (cl_spray_debug.value) {
 		Con_Printf("spray debug: refreshed renderer textures for %d cached images\n", refreshed);
+	}
+}
+
+void CL_SpraysInvalidateRendererTextures(void)
+{
+	int i;
+
+	// CPU pixels and hashes deliberately outlive renderer restarts. Texture
+	// references do not: a recycled index can otherwise appear valid while
+	// naming an unrelated texture.
+	for (i = 0; i < cl_spray_texture_count; ++i) {
+		cl_spray_textures[i].texture = null_texture_reference;
+		cl_spray_textures[i].texture_array = null_texture_reference;
+	}
+	for (i = 0; i < CL_MAX_SERVER_SPRAY_IMAGES; ++i) {
+		cl_server_spray_images[i].texture = null_texture_reference;
+		cl_server_spray_images[i].texture_array = null_texture_reference;
+	}
+	for (i = 0; i < CL_MAX_SPRAYS; ++i) {
+		cl_sprays[i].texture = null_texture_reference;
 	}
 }
 
@@ -1287,6 +1356,15 @@ static qbool CL_SprayCreateAtCrosshair(cl_spray_t *spray, qbool quiet)
 	spray->active = true;
 	spray->texture = texture;
 	spray->texture_index = texture_index;
+	{
+		char filename[MAX_QPATH];
+		cl_spray_texture_t *cached = NULL;
+
+		if (CL_SprayImagePath(filename, sizeof(filename))) {
+			cached = CL_SprayTextureCacheForName(filename);
+		}
+		spray->hash = cached && cached->have_hash ? cached->hash : 0;
+	}
 
 	// Lift the quad slightly off the surface to avoid z-fighting with the map.
 	VectorMA(spray_center, 0.5f, normal, spray->origin);
@@ -1787,7 +1865,7 @@ static void CL_SprayClearServerImageCache(void)
 	}
 }
 
-static void CL_SprayCommitServerTexture(int id, texture_ref texture, vec3_t origin, vec3_t right, vec3_t up, float half_width, float half_height, float alpha, qbool silent)
+static void CL_SprayCommitServerTexture(int id, unsigned long long hash, texture_ref texture, vec3_t origin, vec3_t right, vec3_t up, float half_width, float half_height, float alpha, qbool silent)
 {
 	cl_spray_t spray;
 
@@ -1798,6 +1876,7 @@ static void CL_SprayCommitServerTexture(int id, texture_ref texture, vec3_t orig
 	spray.texture = texture;
 	spray.texture_index = 0;
 	spray.upload_id = id;
+	spray.hash = hash;
 	VectorCopy(origin, spray.origin);
 	VectorCopy(right, spray.right);
 	VectorCopy(up, spray.up);
@@ -1829,7 +1908,7 @@ static void CL_SprayPlaceServerImage(cl_server_spray_image_t *image)
 	// Once the raw bytes are complete, convert the receive buffer into the same
 	// renderable spray representation used by local decals.
 	image->complete = true;
-	CL_SprayCommitServerTexture(image->id, texture, image->origin, image->right, image->up, image->half_width, image->half_height, image->alpha, image->silent);
+	CL_SprayCommitServerTexture(image->id, image->hash, texture, image->origin, image->right, image->up, image->half_width, image->half_height, image->alpha, image->silent);
 }
 
 static void CL_SprayTrackResolvedServerImage(int id, unsigned long long hash, int width, int height, int byte_count, texture_ref texture, qbool silent)
@@ -1910,7 +1989,7 @@ void CL_SpraysParseServerMessage(qbool demo_tolerant)
 					hash,
 					va("size=%dx%d bytes=%d cached=server-image payload=metadata-only", width, height, byte_count));
 			CL_SprayTrackResolvedServerImage(id, hash, width, height, byte_count, cached->texture, silent);
-			CL_SprayCommitServerTexture(id, cached->texture, origin, right, up, half_width, half_height, alpha, silent);
+			CL_SprayCommitServerTexture(id, hash, cached->texture, origin, right, up, half_width, half_height, alpha, silent);
 			return;
 		}
 		local_cached = CL_SprayTextureCacheForHash(hash);
@@ -1926,7 +2005,7 @@ void CL_SpraysParseServerMessage(qbool demo_tolerant)
 						hash,
 						va("size=%dx%d bytes=%d cached=local-image payload=metadata-only", width, height, byte_count));
 				CL_SprayTrackResolvedServerImage(id, hash, width, height, byte_count, texture, silent);
-				CL_SprayCommitServerTexture(id, texture, origin, right, up, half_width, half_height, alpha, silent);
+				CL_SprayCommitServerTexture(id, hash, texture, origin, right, up, half_width, half_height, alpha, silent);
 				return;
 			}
 		}

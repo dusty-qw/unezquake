@@ -126,6 +126,8 @@ void R_TexturesInvalidateAllReferences(void)
 {
 	int i;
 
+	CL_SpraysInvalidateRendererTextures();
+
 	for (i = 1; i < MAX_MODELS; ++i) {
 		R_ClearModelTextureReferences(cl.model_precache[i], true);
 	}
