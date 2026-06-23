@@ -67,6 +67,35 @@ static cvar_t crosshairscalemethod         = {"crosshairscalemethod", "0"};
 static cvar_t crosshairscale               = {"crosshairscale", "0"};
 static int    current_crosshair_pixel_size = 0;
 
+// --- Custom (drawn) crosshair ----------------------------------------------
+// A crosshair defined entirely by floating-point parameters and rasterized with
+// sub-pixel anti-aliasing at the on-screen size, instead of an 8x8 bitmap or a
+// PNG. Resolution-independent and crisp at any scale. Gated behind crosshairvec
+// so the existing crosshair/crosshairimage/crosshair.txt paths are untouched.
+// The four lines are independent, so any subset works (just left, left+right, a T, ...).
+// Lengths/radii are fractions of the crosshair's half-extent (so they're scale-free).
+static void OnChange_crosshairvec(cvar_t *var, char *value, qbool *cancel);
+
+static cvar_t crosshairvec           = {"crosshairvec", "0"}; // 1 = use the custom (drawn) crosshair
+// Shape of the custom crosshair: lengths/radii as fractions of the crosshair half-extent,
+// 0 = that element off. Each re-rasterizes the texture on change via OnChange_crosshairvec;
+// see help_variables.json (or /describe crosshairvec_*) for what each one does.
+static cvar_t crosshairvec_up        = {"crosshairvec_up",        "0.25",   0, OnChange_crosshairvec};
+static cvar_t crosshairvec_down      = {"crosshairvec_down",      "0.25",   0, OnChange_crosshairvec};
+static cvar_t crosshairvec_left      = {"crosshairvec_left",      "0.25",   0, OnChange_crosshairvec};
+static cvar_t crosshairvec_right     = {"crosshairvec_right",     "0.25",   0, OnChange_crosshairvec};
+static cvar_t crosshairvec_gap       = {"crosshairvec_gap",       "0.5",    0, OnChange_crosshairvec};
+static cvar_t crosshairvec_thickness = {"crosshairvec_thickness", "0.125",  0, OnChange_crosshairvec};
+static cvar_t crosshairvec_dot       = {"crosshairvec_dot",       "0",      0, OnChange_crosshairvec};
+static cvar_t crosshairvec_ring      = {"crosshairvec_ring",      "0.75",   0, OnChange_crosshairvec};
+static cvar_t crosshairvec_innerring = {"crosshairvec_innerring", "0",      0, OnChange_crosshairvec};
+static cvar_t crosshairvec_outline   = {"crosshairvec_outline",   "0.0625", 0, OnChange_crosshairvec};
+
+#define PARAMETRIC_CROSSHAIR_MAXSIZE 1024
+static texture_ref crosshair_parametric;
+static qbool       crosshair_parametric_valid     = false;
+static int         crosshair_parametric_last_size = -1;
+
 mpic_t			*draw_disc;
 static mpic_t	*draw_backtile;
 
@@ -149,6 +178,154 @@ static void CreateBuiltinCrosshair(byte* data, int size, int format)
 		}
 		break;
 	}
+}
+
+// Analytic coverage of the 1x1 pixel box at (px,py) by an axis-aligned rect.
+// Returns 0..1; partial overlap along an edge yields a fractional value, which
+// is exactly what gives the parametric crosshair anti-aliased (non-jaggy) edges.
+static float ParametricRectCoverage(float px, float py, float rx0, float ry0, float rx1, float ry1)
+{
+	float ox = min(px + 1.0f, rx1) - max(px, rx0);
+	float oy = min(py + 1.0f, ry1) - max(py, ry0);
+
+	if (ox <= 0.0f || oy <= 0.0f) {
+		return 0.0f;
+	}
+	return (ox > 1.0f ? 1.0f : ox) * (oy > 1.0f ? 1.0f : oy);
+}
+
+// Coverage of a stroked circle (annulus) for a pixel whose centre is `dist` texels
+// from the crosshair centre. `radius` is the circle radius, `halfwidth` half the
+// stroke width. A 1px signed-distance ramp anti-aliases the curve.
+static float ParametricRingCoverage(float dist, float radius, float halfwidth)
+{
+	float sd;
+
+	if (radius <= 0.0f) {
+		return 0.0f;
+	}
+	sd = fabsf(dist - radius) - halfwidth; // < 0 inside the stroke band
+	return bound(0.0f, 0.5f - sd, 1.0f);
+}
+
+// Geometry of the custom crosshair, in texels (filled once, sampled per pixel).
+typedef struct {
+	float cx, cy;                 // centre
+	float hw;                     // stroke half-thickness
+	float inner;                  // gap radius (where the lines start)
+	float up, down, left, right;  // per-line tip radius (== inner means that line is off)
+	float ring1, ring2;           // ring radii (0 = off)
+	float dotr;                   // centre dot radius (0 = off)
+} parametric_geom_t;
+
+// Union coverage of every primitive at one pixel, each grown outward by `grow` texels.
+// grow=0 yields the shape; grow=outline yields the dilated shape used for the outline.
+static float ParametricCoverage(const parametric_geom_t* gm, float fx, float fy, float dist, float grow)
+{
+	float h   = gm->hw + grow;
+	float in  = gm->inner - grow;
+	float cov = 0.0f;
+
+	if (gm->up > gm->inner) {     // each line is drawn only if it has length
+		cov = max(cov, ParametricRectCoverage(fx, fy, gm->cx - h, gm->cy - (gm->up + grow), gm->cx + h, gm->cy - in));
+	}
+	if (gm->down > gm->inner) {
+		cov = max(cov, ParametricRectCoverage(fx, fy, gm->cx - h, gm->cy + in, gm->cx + h, gm->cy + (gm->down + grow)));
+	}
+	if (gm->left > gm->inner) {
+		cov = max(cov, ParametricRectCoverage(fx, fy, gm->cx - (gm->left + grow), gm->cy - h, gm->cx - in, gm->cy + h));
+	}
+	if (gm->right > gm->inner) {
+		cov = max(cov, ParametricRectCoverage(fx, fy, gm->cx + in, gm->cy - h, gm->cx + (gm->right + grow), gm->cy + h));
+	}
+	cov = max(cov, ParametricRingCoverage(dist, gm->ring1, h));                                             // outer ring
+	cov = max(cov, ParametricRingCoverage(dist, gm->ring2, h));                                             // inner ring
+	if (gm->dotr > 0.0f) {
+		cov = max(cov, bound(0.0f, 0.5f - (dist - (gm->dotr + grow)), 1.0f));                               // centre dot
+	}
+	return cov;
+}
+
+// Rasterize the parametric crosshair (arms + optional rings + dot, with optional black
+// outline) into a premultiplied RGBA buffer and upload it. R_DrawImage modulates rgb by
+// crosshaircolor, so the white fill is tinted while the black outline stays black.
+static void BuildParametricCrosshair(int size)
+{
+	const float R    = size * 0.5f;   // half-extent, in texels
+	byte* rgba = (byte*)Q_malloc(size * size * 4);
+	parametric_geom_t gm;
+	float ow;
+	int x, y;
+
+	// all geometry is floating point -> the shape is exact, not quantised to a grid
+	float t  = bound(0.01f, crosshairvec_thickness.value, 1.0f);
+	float g  = bound(0.0f,  crosshairvec_gap.value,       0.95f);
+	float lu = bound(0.0f,  crosshairvec_up.value,        1.0f);
+	float ld = bound(0.0f,  crosshairvec_down.value,      1.0f);
+	float ll = bound(0.0f,  crosshairvec_left.value,      1.0f);
+	float lr = bound(0.0f,  crosshairvec_right.value,     1.0f);
+	float d  = bound(0.0f,  crosshairvec_dot.value,       1.0f);
+	float r1 = bound(0.0f,  crosshairvec_ring.value,      1.0f);
+	float r2 = bound(0.0f,  crosshairvec_innerring.value, 1.0f);
+
+	gm.cx    = gm.cy = R;                          // centre
+	gm.hw    = 0.5f * t * R;                       // stroke half-thickness (texels)
+	gm.inner = g * R;                              // gap radius
+	gm.up    = min(gm.inner + lu * R, R - 1.0f);   // per-line tip radius (== inner => line off)
+	gm.down  = min(gm.inner + ld * R, R - 1.0f);
+	gm.left  = min(gm.inner + ll * R, R - 1.0f);
+	gm.right = min(gm.inner + lr * R, R - 1.0f);
+	gm.dotr  = 0.5f * d * R;                        // dot radius (0 when dot off)
+	gm.ring1 = min(r1 * R, R - gm.hw - 1.0f);       // outer ring radius (clamped so stroke fits)
+	gm.ring2 = min(r2 * R, R - gm.hw - 1.0f);       // inner ring radius
+	ow       = bound(0.0f, crosshairvec_outline.value, 0.5f) * R; // black outline width (texels)
+
+	for (y = 0; y < size; y++) {
+		for (x = 0; x < size; x++) {
+			float fx = (float)x, fy = (float)y;
+			float dx = (fx + 0.5f) - gm.cx, dy = (fy + 0.5f) - gm.cy;
+			float dist = sqrtf(dx * dx + dy * dy);
+			float fill = ParametricCoverage(&gm, fx, fy, dist, 0.0f);
+			float line = (ow > 0.0f) ? ParametricCoverage(&gm, fx, fy, dist, ow) : 0.0f;
+			float a    = fill + line * (1.0f - fill);  // black outline shows where the fill does not
+			int   o    = (y * size + x) * 4;
+
+			// Premultiplied: fill is white (tinted by crosshaircolor), outline is black
+			// (rgb 0, survives the colour modulate). rgb carries only the fill coverage.
+			rgba[o + 0] = rgba[o + 1] = rgba[o + 2] = (byte)(bound(0.0f, fill, 1.0f) * 255.0f + 0.5f);
+			rgba[o + 3] = (byte)(bound(0.0f, a, 1.0f) * 255.0f + 0.5f);
+		}
+	}
+
+	// Data is already premultiplied above (rgb = fill coverage; black outline = 0): TEX_ALPHA
+	// keeps the alpha channel and TEX_LUMA skips gamma (which would touch only rgb and break the
+	// premultiplied invariant). ezquake's 2D blend is premultiplied; R_DrawImage then modulates
+	// rgb by crosshaircolor, so the white fill is tinted and the black outline stays black.
+	crosshair_parametric = R_LoadTexturePixels(rgba, "cross:parametric", size, size, TEX_ALPHA | TEX_NOSCALE | TEX_LUMA);
+	renderer.TextureWrapModeClamp(crosshair_parametric);
+
+	Q_free(rgba);
+}
+
+// A shape cvar changed -> drop the cached texture; the next draw rebuilds it. Same
+// OnChange-invalidation idiom as OnChange_crosshairimage above.
+static void OnChange_crosshairvec(cvar_t *var, char *value, qbool *cancel)
+{
+	crosshair_parametric_valid = false;
+}
+
+// Rebuild the texture only when it was invalidated (a shape cvar changed, or a renderer
+// reload) or when the on-screen size changed; otherwise this is a cheap early-out.
+static void EnsureParametricCrosshair(int size)
+{
+	if (crosshair_parametric_valid && crosshair_parametric_last_size == size) {
+		return;
+	}
+
+	BuildParametricCrosshair(size);
+
+	crosshair_parametric_last_size = size;
+	crosshair_parametric_valid = true;
 }
 
 /*
@@ -286,6 +463,7 @@ void Draw_InitCrosshairs(void)
 {
 	char str[256] = {0};
 
+	crosshair_parametric_valid = false; // texture handle is stale after a renderer reload; force rebuild
 	BuildBuiltinCrosshairs();
 	customCrosshair_Init(); // safe re-init
 
@@ -570,6 +748,18 @@ void Draw_Init (void)
 		Cvar_Register(&crosshairscalemethod);
 		Cvar_Register(&r_smoothcrosshair);
 
+		Cvar_Register(&crosshairvec);
+		Cvar_Register(&crosshairvec_up);
+		Cvar_Register(&crosshairvec_down);
+		Cvar_Register(&crosshairvec_left);
+		Cvar_Register(&crosshairvec_right);
+		Cvar_Register(&crosshairvec_gap);
+		Cvar_Register(&crosshairvec_thickness);
+		Cvar_Register(&crosshairvec_dot);
+		Cvar_Register(&crosshairvec_ring);
+		Cvar_Register(&crosshairvec_innerring);
+		Cvar_Register(&crosshairvec_outline);
+
 		Cvar_ResetCurrentGroup();
 	}
 
@@ -614,7 +804,8 @@ void Draw_Crosshair (void)
 		BuildBuiltinCrosshairs();
 	}
 
-	if ((crosshair.value >= 2 && crosshair.value <= NUMCROSSHAIRS + 1) ||
+	if (crosshairvec.integer ||
+		(crosshair.value >= 2 && crosshair.value <= NUMCROSSHAIRS + 1) ||
 		((customcrosshair_loaded & CROSSHAIR_TXT) && crosshair.value == 1) ||
 		(customcrosshair_loaded & CROSSHAIR_IMAGE)) {
 		texture_ref texnum;
@@ -639,7 +830,20 @@ void Draw_Crosshair (void)
 		col[2] = crosshaircolor.color[2];
 		col[3] = bound(0, crosshairalpha.value, 1) * 255;
 
-		if (customcrosshair_loaded & CROSSHAIR_IMAGE) {
+		if (crosshairvec.integer) {
+			// Rasterize at the on-screen pixel size (~1:1) so the anti-aliasing stays crisp at
+			// any scale instead of bilinear-minifying a fixed-size texture. One size per frame:
+			// a multiview inset draws this same texture scaled (via the half_size block below).
+			float r = (crosshair_pixel_size * 0.5f) * crosshair_scale * bound(0, crosshairsize.value, 20);
+			int target = (int)(2.0f * r * (float)glwidth / width2d + 0.5f);
+
+			EnsureParametricCrosshair(bound(32, target, PARAMETRIC_CROSSHAIR_MAXSIZE));
+			texnum = crosshair_parametric;
+			ofs1 = ofs2 = r;       // symmetric: the parametric texture is centred exactly
+			sl = tl = 0.0f;
+			sh = th = 1.0f;
+		}
+		else if (customcrosshair_loaded & CROSSHAIR_IMAGE) {
 			texnum = crosshairpic.texnum;
 			ofs1 = (crosshairpic.width * 0.5f - 0.5f) * bound(0, crosshairsize.value, 20);
 			ofs2 = (crosshairpic.height * 0.5f + 0.5f) * bound(0, crosshairsize.value, 20);
