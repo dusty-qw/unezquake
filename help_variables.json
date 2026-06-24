@@ -3906,6 +3906,78 @@
       "remarks": "Maximum value 20. For example, /crosshairsize 0.5 halves the size, and /crosshair 2 doubles it.",
       "type": "float"
     },
+    "crosshairvec": {
+      "default": "0",
+      "desc": "Use the custom crosshair drawn from the crosshair* shape cvars (lines, gap, rings, dot, outline) instead of a built-in number or a PNG image.",
+      "group-id": "6",
+      "type": "boolean"
+    },
+    "crosshairvec_up": {
+      "default": "0.25",
+      "desc": "Length of the top line of the custom crosshair, as a fraction of the crosshair size. 0 hides the top line. Requires crosshairvec 1.",
+      "group-id": "6",
+      "type": "float"
+    },
+    "crosshairvec_down": {
+      "default": "0.25",
+      "desc": "Length of the bottom line of the custom crosshair, as a fraction of the crosshair size. 0 hides the bottom line. Requires crosshairvec 1.",
+      "group-id": "6",
+      "type": "float"
+    },
+    "crosshairvec_left": {
+      "default": "0.25",
+      "desc": "Length of the left line of the custom crosshair, as a fraction of the crosshair size. 0 hides the left line. Requires crosshairvec 1.",
+      "group-id": "6",
+      "type": "float"
+    },
+    "crosshairvec_right": {
+      "default": "0.25",
+      "desc": "Length of the right line of the custom crosshair, as a fraction of the crosshair size. 0 hides the right line. Requires crosshairvec 1.",
+      "group-id": "6",
+      "type": "float"
+    },
+    "crosshairvec_gap": {
+      "default": "0.5",
+      "desc": "Size of the empty gap in the middle of the custom crosshair, before the lines begin, as a fraction of the crosshair size.",
+      "group-id": "6",
+      "type": "float"
+    },
+    "crosshairvec_thickness": {
+      "default": "0.125",
+      "desc": "Thickness of the custom crosshair's lines and rings, as a fraction of the crosshair size.",
+      "group-id": "6",
+      "type": "float"
+    },
+    "crosshairvec_dot": {
+      "default": "0",
+      "desc": "Diameter of a filled dot in the centre of the custom crosshair, as a fraction of the crosshair size. 0 means no dot. Requires crosshairvec 1.",
+      "group-id": "6",
+      "type": "float"
+    },
+    "crosshairvec_ring": {
+      "default": "0.75",
+      "desc": "Radius of a circle drawn around the centre of the custom crosshair, as a fraction of the crosshair size. 0 means no ring. Requires crosshairvec 1.",
+      "group-id": "6",
+      "type": "float"
+    },
+    "crosshairvec_innerring": {
+      "default": "0",
+      "desc": "Radius of a second, smaller circle inside the custom crosshair, as a fraction of the crosshair size. 0 means no inner ring. Requires crosshairvec 1.",
+      "group-id": "6",
+      "type": "float"
+    },
+    "crosshairvec_outline": {
+      "default": "0.0625",
+      "desc": "Width of an outline drawn around the whole custom crosshair so it stays visible on any background, as a fraction of the crosshair size. 0 means no outline. Its colour is set by crosshairvec_outline_color.",
+      "group-id": "6",
+      "type": "float"
+    },
+    "crosshairvec_outline_color": {
+      "default": "0 0 0 255",
+      "desc": "Colour and opacity of the custom crosshair's outline, given as four numbers R G B A (each 0-255). The default 0 0 0 255 is opaque black; 255 255 255 127 is a white outline at about 50% opacity. Requires crosshairvec 1 and crosshairvec_outline greater than 0.",
+      "group-id": "6",
+      "type": "string"
+    },
     "cvar_viewdefault": {
       "default": "1",
       "desc": "When you type a cvar name into console (like 'gl_gamma' or 'r_rocketlight'), the client will tell you the default value of the cvar.",
