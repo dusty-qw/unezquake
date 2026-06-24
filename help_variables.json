@@ -3968,9 +3968,15 @@
     },
     "crosshairvec_outline": {
       "default": "0.0625",
-      "desc": "Width of a black outline drawn around the whole custom crosshair so it stays visible on any background, as a fraction of the crosshair size. 0 means no outline.",
+      "desc": "Width of an outline drawn around the whole custom crosshair so it stays visible on any background, as a fraction of the crosshair size. 0 means no outline. Its colour is set by crosshairvec_outline_color.",
       "group-id": "6",
       "type": "float"
+    },
+    "crosshairvec_outline_color": {
+      "default": "0 0 0 255",
+      "desc": "Colour and opacity of the custom crosshair's outline, given as four numbers R G B A (each 0-255). The default 0 0 0 255 is opaque black; 255 255 255 127 is a white outline at about 50% opacity. Requires crosshairvec 1 and crosshairvec_outline greater than 0.",
+      "group-id": "6",
+      "type": "string"
     },
     "cvar_viewdefault": {
       "default": "1",

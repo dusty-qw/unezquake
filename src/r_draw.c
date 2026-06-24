@@ -90,11 +90,13 @@ static cvar_t crosshairvec_dot       = {"crosshairvec_dot",       "0",      0, O
 static cvar_t crosshairvec_ring      = {"crosshairvec_ring",      "0.75",   0, OnChange_crosshairvec};
 static cvar_t crosshairvec_innerring = {"crosshairvec_innerring", "0",      0, OnChange_crosshairvec};
 static cvar_t crosshairvec_outline   = {"crosshairvec_outline",   "0.0625", 0, OnChange_crosshairvec};
+static cvar_t crosshairvec_outline_color = {"crosshairvec_outline_color", "0 0 0 255", CVAR_COLOR, OnChange_crosshairvec}; // RGBA; default black + opaque
 
 #define PARAMETRIC_CROSSHAIR_MAXSIZE 1024
 static texture_ref crosshair_parametric;
 static qbool       crosshair_parametric_valid     = false;
 static int         crosshair_parametric_last_size = -1;
+static byte        crosshair_parametric_last_fill[4];    // crosshaircolor at last rebuild (it's baked in)
 
 mpic_t			*draw_disc;
 static mpic_t	*draw_backtile;
@@ -246,9 +248,9 @@ static float ParametricCoverage(const parametric_geom_t* gm, float fx, float fy,
 	return cov;
 }
 
-// Rasterize the parametric crosshair (arms + optional rings + dot, with optional black
-// outline) into a premultiplied RGBA buffer and upload it. R_DrawImage modulates rgb by
-// crosshaircolor, so the white fill is tinted while the black outline stays black.
+// Rasterize the parametric crosshair (arms + optional rings + dot, with optional outline) into
+// a premultiplied RGBA buffer and upload it. The fill (crosshaircolor) and outline
+// (crosshairvec_outline_color) colours are composited in; the draw only fades by crosshairalpha.
 static void BuildParametricCrosshair(int size)
 {
 	const float R    = size * 0.5f;   // half-extent, in texels
@@ -268,6 +270,12 @@ static void BuildParametricCrosshair(int size)
 	float r1 = bound(0.0f,  crosshairvec_ring.value,      1.0f);
 	float r2 = bound(0.0f,  crosshairvec_innerring.value, 1.0f);
 
+	// fill colour (crosshaircolor) and outline colour (crosshairvec_outline_color, RGBA) are
+	// baked into the texture so the outline can differ from the fill in both hue and opacity.
+	float fc_r = crosshaircolor.color[0], fc_g = crosshaircolor.color[1], fc_b = crosshaircolor.color[2];
+	float oc_r = crosshairvec_outline_color.color[0], oc_g = crosshairvec_outline_color.color[1], oc_b = crosshairvec_outline_color.color[2];
+	float oc_a = crosshairvec_outline_color.color[3] / 255.0f;
+
 	gm.cx    = gm.cy = R;                          // centre
 	gm.hw    = 0.5f * t * R;                       // stroke half-thickness (texels)
 	gm.inner = g * R;                              // gap radius
@@ -278,7 +286,7 @@ static void BuildParametricCrosshair(int size)
 	gm.dotr  = 0.5f * d * R;                        // dot radius (0 when dot off)
 	gm.ring1 = min(r1 * R, R - gm.hw - 1.0f);       // outer ring radius (clamped so stroke fits)
 	gm.ring2 = min(r2 * R, R - gm.hw - 1.0f);       // inner ring radius
-	ow       = bound(0.0f, crosshairvec_outline.value, 0.5f) * R; // black outline width (texels)
+	ow       = bound(0.0f, crosshairvec_outline.value, 0.5f) * R; // outline width (texels)
 
 	for (y = 0; y < size; y++) {
 		for (x = 0; x < size; x++) {
@@ -287,20 +295,24 @@ static void BuildParametricCrosshair(int size)
 			float dist = sqrtf(dx * dx + dy * dy);
 			float fill = ParametricCoverage(&gm, fx, fy, dist, 0.0f);
 			float line = (ow > 0.0f) ? ParametricCoverage(&gm, fx, fy, dist, ow) : 0.0f;
-			float a    = fill + line * (1.0f - fill);  // black outline shows where the fill does not
+			float oa   = line * oc_a;                  // outline coverage * its own opacity
+			float omul = oa * (1.0f - fill);           // outline showing behind a partial fill
+			float al   = fill + omul;                  // combined premultiplied alpha
+			float vr   = fc_r * fill + oc_r * omul;    // premultiplied composite: fill over outline
+			float vg   = fc_g * fill + oc_g * omul;
+			float vb   = fc_b * fill + oc_b * omul;
 			int   o    = (y * size + x) * 4;
 
-			// Premultiplied: fill is white (tinted by crosshaircolor), outline is black
-			// (rgb 0, survives the colour modulate). rgb carries only the fill coverage.
-			rgba[o + 0] = rgba[o + 1] = rgba[o + 2] = (byte)(bound(0.0f, fill, 1.0f) * 255.0f + 0.5f);
-			rgba[o + 3] = (byte)(bound(0.0f, a, 1.0f) * 255.0f + 0.5f);
+			rgba[o + 0] = (byte)(bound(0.0f, vr, 255.0f) + 0.5f);
+			rgba[o + 1] = (byte)(bound(0.0f, vg, 255.0f) + 0.5f);
+			rgba[o + 2] = (byte)(bound(0.0f, vb, 255.0f) + 0.5f);
+			rgba[o + 3] = (byte)(bound(0.0f, al, 1.0f) * 255.0f + 0.5f);
 		}
 	}
 
-	// Data is already premultiplied above (rgb = fill coverage; black outline = 0): TEX_ALPHA
-	// keeps the alpha channel and TEX_LUMA skips gamma (which would touch only rgb and break the
-	// premultiplied invariant). ezquake's 2D blend is premultiplied; R_DrawImage then modulates
-	// rgb by crosshaircolor, so the white fill is tinted and the black outline stays black.
+	// The buffer is premultiplied (the composite above did it): TEX_ALPHA keeps the alpha
+	// channel and TEX_LUMA skips gamma (it would touch only rgb and break the premultiplied
+	// invariant). The colours are baked in, so the draw only fades the texel by crosshairalpha.
 	crosshair_parametric = R_LoadTexturePixels(rgba, "cross:parametric", size, size, TEX_ALPHA | TEX_NOSCALE | TEX_LUMA);
 	renderer.TextureWrapModeClamp(crosshair_parametric);
 
@@ -318,13 +330,19 @@ static void OnChange_crosshairvec(cvar_t *var, char *value, qbool *cancel)
 // reload) or when the on-screen size changed; otherwise this is a cheap early-out.
 static void EnsureParametricCrosshair(int size)
 {
-	if (crosshair_parametric_valid && crosshair_parametric_last_size == size) {
+	// crosshaircolor is baked into the texture, so a change to it forces a rebuild. It is an
+	// upstream cvar with no OnChange we can hook, so it is polled here; the shape cvars and
+	// crosshairvec_outline_color invalidate through OnChange_crosshairvec instead.
+	qbool colour_changed = memcmp(crosshair_parametric_last_fill, crosshaircolor.color, sizeof(crosshaircolor.color)) != 0;
+
+	if (crosshair_parametric_valid && crosshair_parametric_last_size == size && !colour_changed) {
 		return;
 	}
 
 	BuildParametricCrosshair(size);
 
 	crosshair_parametric_last_size = size;
+	memcpy(crosshair_parametric_last_fill, crosshaircolor.color, sizeof(crosshaircolor.color));
 	crosshair_parametric_valid = true;
 }
 
@@ -759,6 +777,7 @@ void Draw_Init (void)
 		Cvar_Register(&crosshairvec_ring);
 		Cvar_Register(&crosshairvec_innerring);
 		Cvar_Register(&crosshairvec_outline);
+		Cvar_Register(&crosshairvec_outline_color);
 
 		Cvar_ResetCurrentGroup();
 	}
@@ -842,6 +861,10 @@ void Draw_Crosshair (void)
 			ofs1 = ofs2 = r;       // symmetric: the parametric texture is centred exactly
 			sl = tl = 0.0f;
 			sh = th = 1.0f;
+			// colours are baked in, so neutralise only the fill tint to white; col[3] already
+			// holds crosshairalpha*255 (set above), and the renderer pre-multiplies rgb by it,
+			// so the premultiplied texel fades correctly (white*alpha, not alpha-squared).
+			col[0] = col[1] = col[2] = 255;
 		}
 		else if (customcrosshair_loaded & CROSSHAIR_IMAGE) {
 			texnum = crosshairpic.texnum;
