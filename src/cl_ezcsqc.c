@@ -1818,17 +1818,11 @@ static void WeaponPred_Simulate(usercmd_t u, player_state_t ps, ezcsqc_weapon_st
 
 	// If this command carried an impulse, KTX consumes it before weapon attack.
 	if (had_impulse) {
-		if (switch_result == WEAPONPRED_SWITCH_UNRESOLVED) {
-			// A missing local definition, such as axe, must not fire the previous weapon.
-			ws->weapon_index = 0;
-			ws->weapon = 0;
-			ws->client_thinkindex = 0;
-			ws->client_nextthink = 0;
-		}
-		// A queued weapon switch blocks old-weapon local attacks until it applies.
-		if (switch_result != WEAPONPRED_SWITCH_APPLIED) {
+		// A timing-blocked switch remains queued and must not fire the old weapon.
+		if (switch_result == WEAPONPRED_SWITCH_BLOCKED) {
 			return;
 		}
+		// KTX consumes unavailable weapon impulses but still fires the current weapon.
 	}
 
 	WeaponPred_WAttack(&u, &ps, ws);
