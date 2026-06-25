@@ -516,7 +516,7 @@ static qbool CL_IsPredictedMovementSoundEvent(prediction_event_sound_t *event)
 
 qbool CL_ShouldSuppressSelfMovementImpactSound(sfx_t *sample)
 {
-	if (sample != cl_sfx_land && sample != cl_sfx_land2 && sample != cl_sfx_h2ojump) {
+	if (sample != cl_sfx_land && sample != cl_sfx_land2) {
 		return false;
 	}
 

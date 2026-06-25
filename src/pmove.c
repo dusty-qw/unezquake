@@ -993,26 +993,12 @@ int PM_PlayerMove(void)
 	// set onground, watertype, and waterlevel for final spot
 	PM_CategorizePosition();
 
-	if (cl_predict_sound.integer && !initial_waterlevel && pmove.waterlevel) {
-		if (pmove.watertype == CONTENTS_LAVA) {
-			PM_SoundEffect(cl_sfx_inlava, 4);
-		}
-		else if (pmove.watertype == CONTENTS_WATER) {
-			PM_SoundEffect(cl_sfx_inh2o, 4);
-		}
-		else if (pmove.watertype == CONTENTS_SLIME) {
-			PM_SoundEffect(cl_sfx_inslime, 4);
-		}
-	}
-	else if (cl_predict_sound.integer && initial_waterlevel && !pmove.waterlevel) {
+	if (cl_predict_sound.integer && initial_waterlevel && !pmove.waterlevel) {
 		PM_SoundEffect(cl_sfx_outwater, 4);
 	}
 
-	if (cl_predict_sound.integer && pmove.onground && ktx_landing_velocity < -300) {
-		if (pmove.watertype == CONTENTS_WATER) {
-			PM_SoundEffect(cl_sfx_h2ojump, 4);
-		}
-		else if (ktx_landing_velocity < PM_KTXLandingDamageVelocity()) {
+	if (cl_predict_sound.integer && pmove.onground && pmove.watertype != CONTENTS_WATER && ktx_landing_velocity < -300) {
+		if (ktx_landing_velocity < PM_KTXLandingDamageVelocity()) {
 			PM_SoundEffect(cl_sfx_land2, 2);
 		}
 		else {

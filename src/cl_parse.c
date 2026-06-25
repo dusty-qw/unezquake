@@ -1996,18 +1996,10 @@ static qbool CL_IsPredictedMovementSound(int sound_num)
 	return cl.sound_precache[sound_num] == cl_sfx_jump ||
 		cl.sound_precache[sound_num] == cl_sfx_land ||
 		cl.sound_precache[sound_num] == cl_sfx_land2 ||
-		cl.sound_precache[sound_num] == cl_sfx_h2ojump ||
-		cl.sound_precache[sound_num] == cl_sfx_inh2o ||
-		cl.sound_precache[sound_num] == cl_sfx_inlava ||
-		cl.sound_precache[sound_num] == cl_sfx_inslime ||
 		cl.sound_precache[sound_num] == cl_sfx_outwater ||
 		!strcmp(cl.sound_precache[sound_num]->name, "player/plyrjmp8.wav") ||
 		!strcmp(cl.sound_precache[sound_num]->name, "player/land.wav") ||
 		!strcmp(cl.sound_precache[sound_num]->name, "player/land2.wav") ||
-		!strcmp(cl.sound_precache[sound_num]->name, "player/h2ojump.wav") ||
-		!strcmp(cl.sound_precache[sound_num]->name, "player/inh2o.wav") ||
-		!strcmp(cl.sound_precache[sound_num]->name, "player/inlava.wav") ||
-		!strcmp(cl.sound_precache[sound_num]->name, "player/slimbrn2.wav") ||
 		!strcmp(cl.sound_precache[sound_num]->name, "misc/outwater.wav");
 }
 
