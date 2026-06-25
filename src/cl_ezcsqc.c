@@ -83,6 +83,7 @@ static qbool setup_ready;
 static double setup_warning_time;
 static qbool setup_warning_printed;
 static float lg_twidth;
+static float respawn_attack_guard_until;
 
 #define EZCSQC_EFFECT_SOUND		(1 << 0)
 #define EZCSQC_EFFECT_PROJECTILE	(1 << 1)
@@ -176,6 +177,7 @@ void CL_EZCSQC_InitializeEntities(void)
 	setup_warning_time = 0;
 	setup_warning_printed = false;
 	lg_twidth = 0;
+	respawn_attack_guard_until = 0;
 	projectile_ringbufferseek = 0;
 
 	// Mark every EZCSQC slot free; server entity mappings are rebuilt from CSQC updates.
@@ -1803,6 +1805,10 @@ static void WeaponPred_Simulate(usercmd_t u, player_state_t ps, ezcsqc_weapon_st
 	if (u.impulse) {
 		ws->impulse = u.impulse;
 	}
+	// KTX discards attacks and weapon switches for 50 ms after respawn.
+	if (ws->client_time < respawn_attack_guard_until) {
+		return;
+	}
 	// Run scheduled animation logic before accepting switches or attacks.
 	WeaponPred_Logic(&u, &ps, ws);
 
@@ -1943,6 +1949,10 @@ static void EntUpdate_WeaponInfo(ezcsqc_entity_t *self, qbool is_new)
 		ws_current->client_thinkindex >= 2 && ws_current->client_thinkindex <= 4) {
 		// KTX reuses axe think indices 2-4 for both viewmodel frame groups.
 		ws_current->client_thinkindex += 4;
+	}
+	if (was_viewweapon && sendflags == WEAPONINFO_ALL) {
+		// KTX sends a full weapon baseline on respawn before its 50 ms attack guard.
+		respawn_attack_guard_until = ws_current->client_time + 0.05f;
 	}
 
 	/*
