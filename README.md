@@ -66,6 +66,14 @@ unezQuake now has full support for spray decals in game. Place a spray.png image
 
 ### Hud and Scoreboard Enhancements
 
+ * `crosshairvec` - enable custom vector-style crosshair. Relies on existing crosshair size, position, `crosshaircolor`, and `crosshairalpha` settings
+    * `crosshairvec_up`, `crosshairvec_down`, `crosshairvec_left`, `crosshairvec_right` - set the length of each crosshair arm
+    * `crosshairvec_gap` - set the empty space between the center and the arms
+    * `crosshairvec_thickness` - set the thickness of the arms and rings
+    * `crosshairvec_dot` - set the size of the center dot; `0` disables it
+    * `crosshairvec_ring`, `crosshairvec_innerring` - set the outer and inner ring sizes; `0` disables a ring
+    * `crosshairvec_outline` - set the outline width; `0` disables it
+    * `crosshairvec_outline_color "R G B A"` - set the outline color and opacity
  * `hud_[element]_border x` - sets a border of "x" thickness around any hud element  
     * `hud_[element]_border_color "R G B A"` - set color of border
     * `hud_[element]_border_radius` - give your hud elements rounded corners
