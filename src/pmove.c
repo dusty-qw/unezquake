@@ -1052,32 +1052,41 @@ prediction_event_fakeproj_t* PM_AddEvent_FakeProj(int type)
 
 int PM_FilterWeaponSound(byte sound_num)
 {
+	const char *sound_name;
+
+	if (sound_num <= 0 || sound_num >= MAX_SOUNDS || !cl.sound_name[sound_num][0]) {
+		// If the server sound index is not current, let the authoritative sound play.
+		return false;
+	}
+
+	sound_name = cl.sound_name[sound_num];
+
 	if (cl_predict_weaponsound.integer & 2)
-		if (strcmp(cl.sound_precache[sound_num]->name, "weapons/ax1.wav") == 0)
+		if (strcmp(sound_name, "weapons/ax1.wav") == 0)
 			return false;
 	if (cl_predict_weaponsound.integer & 4)
-		if (strcmp(cl.sound_precache[sound_num]->name, "weapons/guncock.wav") == 0)
+		if (strcmp(sound_name, "weapons/guncock.wav") == 0)
 			return false;
 	if (cl_predict_weaponsound.integer & 8)
-		if (strcmp(cl.sound_precache[sound_num]->name, "weapons/shotgn2.wav") == 0)
+		if (strcmp(sound_name, "weapons/shotgn2.wav") == 0)
 			return false;
 	if (cl_predict_weaponsound.integer & 16)
-		if (strcmp(cl.sound_precache[sound_num]->name, "weapons/rocket1i.wav") == 0)
+		if (strcmp(sound_name, "weapons/rocket1i.wav") == 0)
 			return false;
 	if (cl_predict_weaponsound.integer & 32)
-		if (strcmp(cl.sound_precache[sound_num]->name, "weapons/spike2.wav") == 0)
+		if (strcmp(sound_name, "weapons/spike2.wav") == 0)
 			return false;
 	if (cl_predict_weaponsound.integer & 64)
-		if (strcmp(cl.sound_precache[sound_num]->name, "weapons/grenade.wav") == 0)
+		if (strcmp(sound_name, "weapons/grenade.wav") == 0)
 			return false;
 	if (cl_predict_weaponsound.integer & 128)
-		if (strcmp(cl.sound_precache[sound_num]->name, "weapons/sgun1.wav") == 0)
+		if (strcmp(sound_name, "weapons/sgun1.wav") == 0)
 			return false;
 	if (cl_predict_weaponsound.integer & 256)
 	{
-		if (strcmp(cl.sound_precache[sound_num]->name, "weapons/lstart.wav") == 0)
+		if (strcmp(sound_name, "weapons/lstart.wav") == 0)
 			return false;
-		if (strcmp(cl.sound_precache[sound_num]->name, "weapons/lhit.wav") == 0)
+		if (strcmp(sound_name, "weapons/lhit.wav") == 0)
 			return false;
 	}
 

@@ -1671,6 +1671,8 @@ void CL_ParseServerData (void)
 
 	// ask for the sound list next
 	memset(cl.sound_name, 0, sizeof(cl.sound_name));
+	// Sound indexes are server-local, so cached sfx pointers must not survive a new list.
+	memset(cl.sound_precache, 0, sizeof(cl.sound_precache));
 
 	if (cls.mvdplayback == QTV_PLAYBACK) 
 	{
@@ -1700,11 +1702,14 @@ void CL_ParseSoundlist (void)
 	char *str;
 
 	// precache sounds
-	// memset (cl.sound_precache, 0, sizeof(cl.sound_precache));
 
 	if (cl.protoversion >= 26) 
 	{
 		numsounds = MSG_ReadByte();
+		if (numsounds == 0) {
+			// Full soundlists replace every index; partial continuations append to the current list.
+			memset(cl.sound_precache, 0, sizeof(cl.sound_precache));
+		}
 
 		while (1) 
 		{
@@ -1741,6 +1746,7 @@ void CL_ParseSoundlist (void)
 	else 
 	{
 		// Taken from http://www.quakewiki.net/archives/demospecs/qwd/qwd.html#AEN562
+		memset(cl.sound_precache, 0, sizeof(cl.sound_precache));
 		numsounds = 0;
 		do {
 			if (++numsounds > 255)
@@ -1989,18 +1995,22 @@ ACTION MESSAGES
 */
 static qbool CL_IsPredictedMovementSound(int sound_num)
 {
+	const char *sound_name;
+
 	if (sound_num <= 0 || sound_num >= MAX_SOUNDS || !cl.sound_precache[sound_num]) {
 		return false;
 	}
 
+	sound_name = cl.sound_name[sound_num];
+	// Suppression decisions should follow the server's current soundlist, not stale sfx pointers.
 	return cl.sound_precache[sound_num] == cl_sfx_jump ||
 		cl.sound_precache[sound_num] == cl_sfx_land ||
 		cl.sound_precache[sound_num] == cl_sfx_land2 ||
 		cl.sound_precache[sound_num] == cl_sfx_outwater ||
-		!strcmp(cl.sound_precache[sound_num]->name, "player/plyrjmp8.wav") ||
-		!strcmp(cl.sound_precache[sound_num]->name, "player/land.wav") ||
-		!strcmp(cl.sound_precache[sound_num]->name, "player/land2.wav") ||
-		!strcmp(cl.sound_precache[sound_num]->name, "misc/outwater.wav");
+		!strcmp(sound_name, "player/plyrjmp8.wav") ||
+		!strcmp(sound_name, "player/land.wav") ||
+		!strcmp(sound_name, "player/land2.wav") ||
+		!strcmp(sound_name, "misc/outwater.wav");
 }
 
 void CL_ParseStartSoundPacket(void)
@@ -2051,7 +2061,7 @@ void CL_ParseStartSoundPacket(void)
 				{
 					predict_sound = PM_FilterWeaponSound(sound_num);
 				}
-				else if (strcmp(cl.sound_precache[sound_num]->name, "player/axhit2.wav") == 0)
+				else if (sound_num > 0 && sound_num < MAX_SOUNDS && !strcmp(cl.sound_name[sound_num], "player/axhit2.wav"))
 				{
 					predict_sound = false;
 				}
@@ -2065,7 +2075,7 @@ void CL_ParseStartSoundPacket(void)
 			{
 				if (!(cl_predict_weaponsound.integer & 256))
 				{
-					if (strcmp(cl.sound_precache[sound_num]->name, "weapons/lstart.wav") == 0)
+					if (sound_num > 0 && sound_num < MAX_SOUNDS && !strcmp(cl.sound_name[sound_num], "weapons/lstart.wav"))
 						return;
 				}
 			}
