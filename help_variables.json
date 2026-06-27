@@ -3966,6 +3966,30 @@
       "group-id": "6",
       "type": "float"
     },
+    "crosshairvec_rotate": {
+      "default": "0",
+      "desc": "Rotate the custom crosshair's lines clockwise by this many degrees; 45 turns a plus into an X. Full rings and the centre dot are circular, so rotation does not change them, and the ring brackets are aimed separately with crosshairvec_segmentrotate. Requires crosshairvec 1.",
+      "group-id": "6",
+      "type": "float"
+    },
+    "crosshairvec_segments": {
+      "default": "0",
+      "desc": "Cut both rings into this many evenly spaced arc segments (brackets) instead of full circles. 0 means full rings. With crosshairvec_segmentrotate 0, 4 places the brackets on the top, bottom, left and right; use crosshairvec_segmentrotate 45 to move them onto the corners, and crosshairvec_segmentgap to size the gaps. A very high count, or a small ring, can leave no room to draw distinct brackets and falls back to a solid ring. Requires crosshairvec 1 and a ring.",
+      "group-id": "6",
+      "type": "integer"
+    },
+    "crosshairvec_segmentgap": {
+      "default": "0.4",
+      "desc": "When crosshairvec_segments is on, the fraction of each segment's slot left empty between brackets, from 0 (brackets touch) to nearly 1 (short ticks). At 0 the brackets meet with only a faint one-pixel join; for a perfectly solid ring use crosshairvec_segments 0 instead. Has no effect when crosshairvec_segments is 0. Requires crosshairvec 1.",
+      "group-id": "6",
+      "type": "float"
+    },
+    "crosshairvec_segmentrotate": {
+      "default": "0",
+      "desc": "Rotate the ring brackets clockwise by this many degrees, independently of the lines. With crosshairvec_segments 4, 0 puts the brackets on the top, bottom, left and right and 45 puts them on the corners. Has no effect when crosshairvec_segments is 0. Requires crosshairvec 1.",
+      "group-id": "6",
+      "type": "float"
+    },
     "crosshairvec_outline": {
       "default": "0.0625",
       "desc": "Width of an outline drawn around the whole custom crosshair so it stays visible on any background, as a fraction of the crosshair size. 0 means no outline. Its colour is set by crosshairvec_outline_color.",
