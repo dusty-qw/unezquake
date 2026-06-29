@@ -29,6 +29,7 @@ cvar_t	cl_nopred_weapon = { "cl_nopred_weapon", "0" };
 cvar_t	cl_predict_weaponsound = { "cl_predict_weaponsound", "1" };
 cvar_t	cl_predict_legacy = { "cl_predict_legacy", "0" };
 cvar_t	cl_predict_smoothview = { "cl_predict_smoothview", "1" };
+cvar_t	cl_predict_smoothview_show_errors = { "cl_predict_smoothview_show_errors", "0" };
 cvar_t	cl_predict_beam = { "cl_predict_beam", "1" };
 cvar_t	cl_predict_projectiles = { "cl_predict_projectiles", "1" };
 cvar_t	cl_predict_explosions = { "cl_predict_explosions", "1" };
@@ -119,16 +120,21 @@ static void CL_PredictSmoothView_AddCSQCError(vec3_t diff)
 	}
 }
 
+static void CL_PredictSmoothView_SetCheckFrame(int frame_num, player_state_t *state)
+{
+	// Remember the predicted endpoint that the next server frame will validate.
+	cl.simerr_frame = frame_num;
+	VectorCopy(state->origin, cl.simerr_org);
+	cl.simerr_groundent = CL_PredictSmoothView_GroundEntity(cl.simerr_groundorigin);
+}
+
 static void CL_PredictSmoothView_ApplyCSQC(int frame_num, player_state_t *state)
 {
 	float dt, len, half_life, decay;
 	vec3_t goal;
 	trace_t checktrace;
 
-	// Remember the predicted endpoint that the next server frame will validate.
-	cl.simerr_frame = frame_num;
-	VectorCopy(state->origin, cl.simerr_org);
-	cl.simerr_groundent = CL_PredictSmoothView_GroundEntity(cl.simerr_groundorigin);
+	CL_PredictSmoothView_SetCheckFrame(frame_num, state);
 
 	dt = max(cl.time - cl.simerr_lastcheck, 0);
 	cl.simerr_lastcheck = cl.time;
@@ -741,6 +747,9 @@ void CL_PredictMove (qbool physframe) {
 	}
 	else if (physframe || !cl_independentPhysics.value)
 	{
+		qbool smoothview_enabled = cl_predict_smoothview.value >= 0.1 && !cl.spectator;
+		qbool show_smoothview_errors = cl_predict_smoothview_show_errors.value > 0 && !cl.spectator;
+
 		oldphysent = pmove.numphysent;
 		CL_SetSolidPlayers (cl.playernum);
 
@@ -783,11 +792,15 @@ void CL_PredictMove (qbool physframe) {
 				float error;
 				VectorSubtract(cl.simerr_org, to->playerstate[cl.playernum].origin, diff);
 				error = VectorLength(diff);
-				if (CL_EZCSQC_Active())
+				if (cl_predict_smoothview_show_errors.value > 0 && error >= cl_predict_smoothview_show_errors.value) {
+					Com_Printf("Prediction error: distance=%.2f\n",
+						error);
+				}
+				if (smoothview_enabled && CL_EZCSQC_Active())
 				{
 					CL_PredictSmoothView_AddCSQCError(diff);
 				}
-				else if (error > 4 && error < 64)
+				else if (smoothview_enabled && error > 4 && error < 64)
 				{
 					float mult;
 					mult = 1 - min(0.013 / cls.latency, 1);
@@ -796,7 +809,7 @@ void CL_PredictMove (qbool physframe) {
 				}
 
 				// we missed some weapon state change, replay all the sounds since then
-				if (cl.simerr_wep != pmove.weapon || cl.simerr_wepframe != pmove.weaponframe)
+				if (smoothview_enabled && (cl.simerr_wep != pmove.weapon || cl.simerr_wepframe != pmove.weaponframe))
 					pmove.effect_frame = cl.validsequence;
 			}
 		}
@@ -811,49 +824,57 @@ void CL_PredictMove (qbool physframe) {
 
 		//
 		// error smoothing
-		if (cl_predict_smoothview.value >= 0.1 && !cl.spectator)
+		if (smoothview_enabled || show_smoothview_errors)
 		{
 			// update and smooth our position
 			if (CL_EZCSQC_Active()) {
-				CL_PredictSmoothView_ApplyCSQC(cl.validsequence + i - 1, &to->playerstate[cl.playernum]);
+				if (smoothview_enabled) {
+					CL_PredictSmoothView_ApplyCSQC(cl.validsequence + i - 1, &to->playerstate[cl.playernum]);
+				}
+				else {
+					CL_PredictSmoothView_SetCheckFrame(cl.validsequence + i - 1, &to->playerstate[cl.playernum]);
+				}
 			}
 			else {
-				cl.simerr_frame = cl.validsequence + i - 1;
-				VectorCopy(to->playerstate[cl.playernum].origin, cl.simerr_org);
-				float nudge = VectorLength(cl.simerr_nudge);
-				vec3_t nudge_norm; VectorCopy(cl.simerr_nudge, nudge_norm);
-				VectorNormalize(nudge_norm);
+				CL_PredictSmoothView_SetCheckFrame(cl.validsequence + i - 1, &to->playerstate[cl.playernum]);
+				if (smoothview_enabled) {
+					float nudge = VectorLength(cl.simerr_nudge);
+					vec3_t nudge_norm; VectorCopy(cl.simerr_nudge, nudge_norm);
+					VectorNormalize(nudge_norm);
 
-				float check_deltatime = cl.time - cl.simerr_lastcheck;
-				cl.simerr_lastcheck = cl.time;
+					float check_deltatime = cl.time - cl.simerr_lastcheck;
+					cl.simerr_lastcheck = cl.time;
 
-				float nudge_mult = bound(0.1, 2 - cl_predict_smoothview.value, 2);
+					float nudge_mult = bound(0.1, 2 - cl_predict_smoothview.value, 2);
 
-				nudge = min(nudge, 64);
-				if (nudge < 220 * nudge_mult * check_deltatime)
-					nudge = 0;
-				else if (nudge < 8)
-					nudge -= 200 * nudge_mult * check_deltatime;
-				else if (nudge < 16)
-					nudge -= 500 * nudge_mult * check_deltatime;
-				else if (nudge < 32)
-					nudge -= 800 * nudge_mult * check_deltatime;
-				else
-					nudge -= 1400 * nudge_mult * check_deltatime;
-				nudge = max(0, nudge); // in case we overshot due to low framerate or something
+					nudge = min(nudge, 64);
+					if (nudge < 220 * nudge_mult * check_deltatime)
+						nudge = 0;
+					else if (nudge < 8)
+						nudge -= 200 * nudge_mult * check_deltatime;
+					else if (nudge < 16)
+						nudge -= 500 * nudge_mult * check_deltatime;
+					else if (nudge < 32)
+						nudge -= 800 * nudge_mult * check_deltatime;
+					else
+						nudge -= 1400 * nudge_mult * check_deltatime;
+					nudge = max(0, nudge); // in case we overshot due to low framerate or something
 
-				VectorScale(nudge_norm, nudge, cl.simerr_nudge);
+					VectorScale(nudge_norm, nudge, cl.simerr_nudge);
 
-				vec3_t goal;
-				VectorAdd(cl.simorg, cl.simerr_nudge, goal);
-				trace_t checktrace = PM_PlayerTrace(cl.simorg, goal);
-				VectorSubtract(checktrace.endpos, cl.simorg, cl.simerr_nudge);
-				VectorCopy(checktrace.endpos, cl.simorg);
+					vec3_t goal;
+					VectorAdd(cl.simorg, cl.simerr_nudge, goal);
+					trace_t checktrace = PM_PlayerTrace(cl.simorg, goal);
+					VectorSubtract(checktrace.endpos, cl.simorg, cl.simerr_nudge);
+					VectorCopy(checktrace.endpos, cl.simorg);
+				}
 			}
 
 			// update our expected weapon state as well
-			cl.simerr_wep = pmove.weapon;
-			cl.simerr_wepframe = pmove.weaponframe;
+			if (smoothview_enabled) {
+				cl.simerr_wep = pmove.weapon;
+				cl.simerr_wepframe = pmove.weaponframe;
+			}
 		}
 		//
 		//
@@ -905,6 +926,7 @@ void CL_InitPrediction(void)
 	Cvar_Register(&cl_predict_weaponsound);
 	Cvar_Register(&cl_predict_legacy);
 	Cvar_Register(&cl_predict_smoothview);
+	Cvar_Register(&cl_predict_smoothview_show_errors);
 	Cvar_Register(&cl_predict_beam);
 	Cvar_Register(&cl_predict_projectiles);
 	Cvar_Register(&cl_predict_explosions);

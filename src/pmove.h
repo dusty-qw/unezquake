@@ -124,6 +124,7 @@ extern cvar_t cl_nopred_weapon;
 extern cvar_t cl_predict_weaponsound;
 extern cvar_t cl_predict_legacy;
 extern cvar_t cl_predict_smoothview;
+extern cvar_t cl_predict_smoothview_show_errors;
 extern cvar_t cl_predict_beam;
 extern cvar_t cl_predict_projectiles;
 extern cvar_t cl_predict_explosions;
