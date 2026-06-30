@@ -124,8 +124,22 @@ static void CL_PredictSmoothView_SetCheckFrame(int frame_num, player_state_t *st
 {
 	// Remember the predicted endpoint that the next server frame will validate.
 	cl.simerr_frame = frame_num;
+	cl.simerr_pm_type = state->pm_type;
 	VectorCopy(state->origin, cl.simerr_org);
 	cl.simerr_groundent = CL_PredictSmoothView_GroundEntity(cl.simerr_groundorigin);
+}
+
+static qbool CL_PredictSmoothView_SkipError(player_state_t *state)
+{
+	if (cl.simerr_pm_type != PM_NORMAL || state->pm_type != PM_NORMAL) {
+		return true;
+	}
+	if (cl.simerr_discontinuity) {
+		// svc_setangle/no-lerp updates are server snaps, not prediction misses.
+		cl.simerr_discontinuity = false;
+		return true;
+	}
+	return false;
 }
 
 static void CL_PredictSmoothView_ApplyCSQC(int frame_num, player_state_t *state)
@@ -369,6 +383,10 @@ void CL_CalcCrouch (void)
 void CL_DisableLerpMove(void)
 {
 	nolerp[0] = nolerp[1] = nolerp_nextpos = true;
+
+	// svc_setangle / no-lerp updates are authoritative server snaps (spawns / teleports).
+	// tell smoothview to accept the new position and don't try to smooth it.
+	cl.simerr_discontinuity = true;
 }
 
 static void CL_LerpMove (qbool angles_lerp)
@@ -776,6 +794,7 @@ void CL_PredictMove (qbool physframe) {
 
 		// run frames
 		for (i = 1; i < UPDATE_BACKUP - 1 && cl.validsequence + i < cls.netchan.outgoing_sequence; i++) {
+			player_state_t server_state;
 
 			pmove.frame_current = (cl.validsequence + i);
 			if (cl.validsequence + i >= cls.netchan.outgoing_sequence - 1)
@@ -783,6 +802,7 @@ void CL_PredictMove (qbool physframe) {
 
 			from = to;
 			to = &cl.frames[(cl.validsequence + i) & UPDATE_MASK];
+			server_state = to->playerstate[cl.playernum];
 			CL_PredictUsercmd (&from->playerstate[cl.playernum], &to->playerstate[cl.playernum], &to->cmd, true);
 
 			if ((cl.validsequence + i) == cl.simerr_frame)
@@ -792,25 +812,31 @@ void CL_PredictMove (qbool physframe) {
 				float error;
 				VectorSubtract(cl.simerr_org, to->playerstate[cl.playernum].origin, diff);
 				error = VectorLength(diff);
-				if (cl_predict_smoothview_show_errors.value > 0 && error >= cl_predict_smoothview_show_errors.value) {
-					Com_Printf("Prediction error: distance=%.2f\n",
-						error);
+				if (CL_PredictSmoothView_SkipError(&server_state)) {
+					// Do not carry an old nudge across respawns, teleports, or PM type changes.
+					VectorClear(cl.simerr_nudge);
 				}
-				if (smoothview_enabled && CL_EZCSQC_Active())
-				{
-					CL_PredictSmoothView_AddCSQCError(diff);
-				}
-				else if (smoothview_enabled && error > 4 && error < 64)
-				{
-					float mult;
-					mult = 1 - min(0.013 / cls.latency, 1);
-					VectorScale(diff, mult, diff);
-					VectorAdd(diff, cl.simerr_nudge, cl.simerr_nudge);
-				}
+				else {
+					if (cl_predict_smoothview_show_errors.value > 0 && error >= cl_predict_smoothview_show_errors.value) {
+						Com_Printf("Prediction error: distance=%.2f\n",
+							error);
+					}
+					if (smoothview_enabled && CL_EZCSQC_Active())
+					{
+						CL_PredictSmoothView_AddCSQCError(diff);
+					}
+					else if (smoothview_enabled && error > 4 && error < 64)
+					{
+						float mult;
+						mult = 1 - min(0.013 / cls.latency, 1);
+						VectorScale(diff, mult, diff);
+						VectorAdd(diff, cl.simerr_nudge, cl.simerr_nudge);
+					}
 
-				// we missed some weapon state change, replay all the sounds since then
-				if (smoothview_enabled && (cl.simerr_wep != pmove.weapon || cl.simerr_wepframe != pmove.weaponframe))
-					pmove.effect_frame = cl.validsequence;
+					// we missed some weapon state change, replay all the sounds since then
+					if (smoothview_enabled && (cl.simerr_wep != pmove.weapon || cl.simerr_wepframe != pmove.weaponframe))
+						pmove.effect_frame = cl.validsequence;
+				}
 			}
 		}
 
