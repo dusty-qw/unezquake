@@ -31,8 +31,9 @@ unezQuake now has full support for spray decals in game. Place a spray.png image
 ### Improved Player Prediction / Movement
 
  * `cl_predict_lerp` - interpolate errors in player prediction
- * `cl_predict_show_errors` - Prints prediction errors for other players
  * `cl_predict_scale` - reduces player jitter while strafing when enabled (1 = on, 0 = off)
+ * `cl_debug_local_prediction_errors` - prints local prediction errors
+ * `cl_debug_remote_prediction_errors` - prints prediction errors for other players
 
 ### New Gameplay Features
 

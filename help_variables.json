@@ -2471,13 +2471,21 @@
         }
       ]
     },
-    "cl_predict_show_errors": {
+    "cl_debug_remote_prediction_errors": {
       "default": "0",
       "desc": "Prints prediction errors for other players when the error distance exceeds this threshold. Set to 0 to disable, or any positive value to set the threshold in units.",
       "group-id": "21",
       "type": "float",
       "min-value": 0,
       "remarks": "Useful for debugging player prediction issues. Shows player name and error distance."
+    },
+    "cl_debug_local_prediction_errors": {
+      "default": "0",
+      "desc": "Prints local client prediction errors when the error distance exceeds this threshold. Set to 0 to disable, or any positive value to set the threshold in units.",
+      "group-id": "21",
+      "type": "float",
+      "min-value": 0,
+      "remarks": "Useful for debugging local prediction smoothing issues. Shows local prediction error distance."
     },
     "cl_predict_scale": {
       "default": "1",

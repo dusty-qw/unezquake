@@ -33,7 +33,7 @@ void TP_ParsePlayerInfo(player_state_t *, player_state_t *, player_info_t *info)
 
 extern cvar_t cl_predict_players, cl_solid_players, cl_rocket2grenade;
 extern cvar_t cl_predict_half, cl_predict_scale, cl_predict_lerp;
-extern cvar_t cl_predict_show_errors;
+extern cvar_t cl_debug_remote_prediction_errors;
 extern cvar_t cl_model_bobbing;		
 extern cvar_t cl_model_height;
 extern cvar_t cl_nolerp, cl_lerp_monsters, cl_newlerp;
@@ -2671,9 +2671,8 @@ static void CL_LinkPlayers(void)
 			VectorSubtract(exact.origin, predicted_players[j].drawn_origin, prediction_error);
 			error_distance = VectorLength(prediction_error);
 
-			// cl_predict_show_errors
-			if (cl_predict_show_errors.value > 0 && error_distance >= cl_predict_show_errors.value) {
-				Com_Printf("Prediction error: player=%s distance=%.2f\n",
+			if (cl_debug_remote_prediction_errors.value > 0 && error_distance >= cl_debug_remote_prediction_errors.value) {
+				Com_Printf("Remote prediction error: player=%s distance=%.2f\n",
 					info->name, error_distance);
 			}
 			

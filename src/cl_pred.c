@@ -29,7 +29,7 @@ cvar_t	cl_nopred_weapon = { "cl_nopred_weapon", "0" };
 cvar_t	cl_predict_weaponsound = { "cl_predict_weaponsound", "1" };
 cvar_t	cl_predict_legacy = { "cl_predict_legacy", "0" };
 cvar_t	cl_predict_smoothview = { "cl_predict_smoothview", "1" };
-cvar_t	cl_predict_smoothview_show_errors = { "cl_predict_smoothview_show_errors", "0" };
+cvar_t	cl_debug_local_prediction_errors = { "cl_debug_local_prediction_errors", "0" };
 cvar_t	cl_predict_beam = { "cl_predict_beam", "1" };
 cvar_t	cl_predict_projectiles = { "cl_predict_projectiles", "1" };
 cvar_t	cl_predict_explosions = { "cl_predict_explosions", "1" };
@@ -766,7 +766,7 @@ void CL_PredictMove (qbool physframe) {
 	else if (physframe || !cl_independentPhysics.value)
 	{
 		qbool smoothview_enabled = cl_predict_smoothview.value >= 0.1 && !cl.spectator;
-		qbool show_smoothview_errors = cl_predict_smoothview_show_errors.value > 0 && !cl.spectator;
+		qbool show_local_prediction_errors = cl_debug_local_prediction_errors.value > 0 && !cl.spectator;
 
 		oldphysent = pmove.numphysent;
 		CL_SetSolidPlayers (cl.playernum);
@@ -817,8 +817,8 @@ void CL_PredictMove (qbool physframe) {
 					VectorClear(cl.simerr_nudge);
 				}
 				else {
-					if (cl_predict_smoothview_show_errors.value > 0 && error >= cl_predict_smoothview_show_errors.value) {
-						Com_Printf("Prediction error: distance=%.2f\n",
+					if (cl_debug_local_prediction_errors.value > 0 && error >= cl_debug_local_prediction_errors.value) {
+						Com_Printf("Local prediction error: distance=%.2f\n",
 							error);
 					}
 					if (smoothview_enabled && CL_EZCSQC_Active())
@@ -850,7 +850,7 @@ void CL_PredictMove (qbool physframe) {
 
 		//
 		// error smoothing
-		if (smoothview_enabled || show_smoothview_errors)
+		if (smoothview_enabled || show_local_prediction_errors)
 		{
 			// update and smooth our position
 			if (CL_EZCSQC_Active()) {
@@ -952,7 +952,7 @@ void CL_InitPrediction(void)
 	Cvar_Register(&cl_predict_weaponsound);
 	Cvar_Register(&cl_predict_legacy);
 	Cvar_Register(&cl_predict_smoothview);
-	Cvar_Register(&cl_predict_smoothview_show_errors);
+	Cvar_Register(&cl_debug_local_prediction_errors);
 	Cvar_Register(&cl_predict_beam);
 	Cvar_Register(&cl_predict_projectiles);
 	Cvar_Register(&cl_predict_explosions);
