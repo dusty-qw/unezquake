@@ -820,17 +820,23 @@ static int V_CurrentWeaponModel(void)
 	int bestgun;
 	int realw = cl.stats[STAT_WEAPON];
 	int real_weaponframe = view_message.weaponframe;
+	int active_weaponframe = real_weaponframe;
 #ifdef FTE_PEXT_CSQC
 	int ez_model, ez_frame;
 	qbool ez_viewweapon = CL_EZCSQC_UpdateViewWeapon(&ez_model, &ez_frame);
 
 	if (ez_viewweapon) {
 		view_message.weaponframe = ez_frame;
+		active_weaponframe = ez_frame;
 	}
 #endif
+	if (!CL_EZCSQC_Active() && !pmove_nopred_weapon && cls.mvdprotocolextensions1 & MVD_PEXT1_WEAPONPREDICTION) {
+		active_weaponframe = cl.simwepframe;
+	}
 
 	// A preselected weapon changes only the idle viewmodel; the server still owns the active weapon.
-	if (ShowPreselectedWeap() && r_viewpreselgun.integer && !real_weaponframe) {
+	// Predicted frames also count as active, so preselect cannot override firing animations.
+	if (ShowPreselectedWeap() && r_viewpreselgun.integer && !active_weaponframe) {
 		bestgun = IN_BestWeaponReal(true);
 		if (bestgun == 1) {
 			return cl_modelindices[mi_vaxe];
