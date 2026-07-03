@@ -33,7 +33,6 @@ void TP_ParsePlayerInfo(player_state_t *, player_state_t *, player_info_t *info)
 
 extern cvar_t cl_predict_players, cl_solid_players, cl_rocket2grenade;
 extern cvar_t cl_predict_half, cl_predict_scale, cl_predict_lerp;
-extern cvar_t cl_predict_scale_threshold;
 extern cvar_t cl_predict_show_errors;
 extern cvar_t cl_model_bobbing;		
 extern cvar_t cl_model_height;
@@ -43,6 +42,13 @@ extern cvar_t r_drawvweps;
 extern cvar_t cl_sproj_xerp;
 #endif
 extern  unsigned int     cl_dlight_active[MAX_DLIGHTS/32];       
+
+#define CL_PREDICT_SCALE_DEFAULT_THRESHOLD 320.0f
+
+static float CL_PredictScaleThreshold(void)
+{
+	return cl.maxspeed > 0.0f ? cl.maxspeed : CL_PREDICT_SCALE_DEFAULT_THRESHOLD;
+}
 
 static struct predicted_player {
 	int flags;
@@ -2629,11 +2635,9 @@ static void CL_LinkPlayers(void)
 		// Scale prediction based on velocity to reduce jitter at low speeds
 		if (cl_predict_scale.value) {
 			float speed = 0;
-			float scale_threshold = cl_predict_scale_threshold.value;
+			float scale_threshold = CL_PredictScaleThreshold();
 			float scale;
 			int k;
-			if (scale_threshold <= 0.0f)
-				scale_threshold = 1.0f;
 			for (k = 0; k < 3; k++)
 				speed += fabs(state->velocity[k]);
 			
@@ -2968,11 +2972,9 @@ void CL_SetUpPlayerPrediction(qbool dopred)
 			// Scale prediction based on velocity to reduce jitter at low speeds
 			if (cl_predict_scale.value) {
 				float speed = 0;
-				float scale_threshold = cl_predict_scale_threshold.value;
+				float scale_threshold = CL_PredictScaleThreshold();
 				float scale;
 				int k;
-				if (scale_threshold <= 0.0f)
-					scale_threshold = 1.0f;
 				for (k = 0; k < 3; k++)
 					speed += fabs(state->velocity[k]);
 				

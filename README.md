@@ -33,7 +33,6 @@ unezQuake now has full support for spray decals in game. Place a spray.png image
  * `cl_predict_lerp` - interpolate errors in player prediction
  * `cl_predict_show_errors` - Prints prediction errors for other players
  * `cl_predict_scale` - reduces player jitter while strafing when enabled (1 = on, 0 = off)
- * `cl_predict_scale_threshold` - sets the speed threshold (default 320) below which velocity scaling reduces prediction
 
 ### New Gameplay Features
 
