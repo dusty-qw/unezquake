@@ -1047,7 +1047,7 @@ static qbool Predraw_Projectile(ezcsqc_entity_t *self)
 	float dt;
 	int visual_effects;
 
-	if (!cl_predict_projectiles.integer && self->local_projectile) {
+	if (!CL_PredictProjectilesEnabled() && self->local_projectile) {
 		return false;
 	}
 
@@ -1179,7 +1179,7 @@ static qbool WeaponPred_SpawnProjectile(usercmd_t *u, player_state_t *ps, ezcsqc
 	ezcsqc_entity_t *ent;
 	int modelindex = anim->projectile_model;
 
-	if (!cl_predict_projectiles.integer) {
+	if (!CL_PredictProjectilesEnabled()) {
 		return true;
 	}
 	if (!modelindex || modelindex >= MAX_MODELS || !cl.model_precache[modelindex]) {
@@ -1537,13 +1537,23 @@ static void WeaponPred_PlayEffects(usercmd_t *u, player_state_t *ps, ezcsqc_weap
 	}
 
 	if ((current_effect_flags & EZCSQC_EFFECT_PROJECTILE) && (anim->flags & WEPPREDANIM_PROJECTILE)) {
-		// Projectile effects create only the local visual bridge; KTX still owns authority.
-		if (cl_ezcsqc_debug.integer > 1) {
-			Com_Printf("EZCSQC predicted projectile effect frame=%d model=%d client_time=%.3f\n",
-				current_predframe, anim->projectile_model, ws->client_time);
-		}
-		if (WeaponPred_SpawnProjectile(u, ps, ws, anim)) {
+		if (!CL_PredictProjectilesEnabled()) {
+			if (cl_ezcsqc_debug.integer > 1) {
+				Com_Printf("EZCSQC projectile suppressed: cl_predict_projectiles=%d sv_antilag=%s frame=%d model=%d\n",
+					cl_predict_projectiles.integer, Info_ValueForKey(cl.serverinfo, "sv_antilag"),
+					current_predframe, anim->projectile_model);
+			}
 			last_projectile_effectframe = max(last_projectile_effectframe, current_predframe);
+		}
+		else {
+			// Projectile effects create only the local visual bridge; KTX still owns authority.
+			if (cl_ezcsqc_debug.integer > 1) {
+				Com_Printf("EZCSQC predicted projectile effect frame=%d model=%d client_time=%.3f\n",
+					current_predframe, anim->projectile_model, ws->client_time);
+			}
+			if (WeaponPred_SpawnProjectile(u, ps, ws, anim)) {
+				last_projectile_effectframe = max(last_projectile_effectframe, current_predframe);
+			}
 		}
 	}
 	if ((current_effect_flags & EZCSQC_EFFECT_PROJECTILE) && (anim->flags & WEPPREDANIM_LGBEAM)) {

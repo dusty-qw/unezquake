@@ -36,6 +36,21 @@ cvar_t	cl_predict_explosions = { "cl_predict_explosions", "1" };
 cvar_t	cl_predict_sound = { "cl_predict_sound", "1" };
 cvar_t	cl_predict_buffer = { "cl_predict_buffer", "1" };
 
+qbool CL_PredictProjectilesEnabled(void)
+{
+	if (cl_predict_projectiles.integer <= 0) {
+		return false;
+	}
+
+	// Mode 2 is an explicit override for testing or servers without sv_antilag serverinfo.
+	if (cl_predict_projectiles.integer >= 2) {
+		return true;
+	}
+
+	// Mode 1 predicts projectiles only when KTX server projectile catch-up is active.
+	return Q_atoi(Info_ValueForKey(cl.serverinfo, "sv_antilag")) == 1;
+}
+
 extern cvar_t cl_independentPhysics;
 
 #ifdef JSS_CAM
@@ -643,7 +658,7 @@ void CL_PlayEvents(void)
 			}
 			else
 			{
-				if (!cl_predict_projectiles.integer)
+				if (!CL_PredictProjectilesEnabled())
 					continue;
 
 				fproj_t *newmis;

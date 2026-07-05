@@ -256,6 +256,9 @@ fproj_t *CL_AllocFakeProjectile(void)
 #define WEAPONPRED_MAXLATENCY 0.1
 fproj_t *CL_CreateFakeNail(void)
 {
+	if (!CL_PredictProjectilesEnabled())
+		return NULL;
+
 	if (pmove.client_ping == 0)
 		return NULL;//&cl_fakeprojectiles[0];
 
@@ -272,6 +275,9 @@ fproj_t *CL_CreateFakeNail(void)
 
 fproj_t *CL_CreateFakeSuperNail(void)
 {
+	if (!CL_PredictProjectilesEnabled())
+		return NULL;
+
 	if (pmove.client_ping == 0)
 		return NULL;//&cl_fakeprojectiles[0];
 
@@ -362,6 +368,9 @@ void Fproj_Physics_Bounce(fproj_t *proj, float dt)
 
 fproj_t *CL_CreateFakeGrenade(void)
 {
+	if (!CL_PredictProjectilesEnabled())
+		return NULL;
+
 	if (pmove.client_ping == 0)
 		return NULL;//&cl_fakeprojectiles[0];
 
@@ -382,6 +391,9 @@ fproj_t *CL_CreateFakeGrenade(void)
 extern cvar_t cl_rocket2grenade;
 fproj_t *CL_CreateFakeRocket(void)
 {
+	if (!CL_PredictProjectilesEnabled())
+		return NULL;
+
 	if (pmove.client_ping == 0)
 		return NULL;//&cl_fakeprojectiles[0];
 

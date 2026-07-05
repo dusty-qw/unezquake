@@ -138,6 +138,7 @@ extern playermove_t pmove;
 #define PRDFL_COILGUN	2
 #define PRDFL_FORCEOFF	255
 
+qbool CL_PredictProjectilesEnabled(void);
 int PM_FilterWeaponSound(byte sound_num);
 
 int PM_PlayerMove (void);

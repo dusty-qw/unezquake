@@ -2541,7 +2541,21 @@
       "default": "1",
       "desc": "This variable controls if projectiles will be predicted, which can cause confusion if you die at the same time you shoot.",
       "group-id": "21",
-      "type": "boolean"
+      "type": "integer",
+      "values": [
+        {
+          "description": "Disable projectile prediction.",
+          "name": "0"
+        },
+        {
+          "description": "Predict projectiles only when server projectile compensation is active (sv_antilag 1).",
+          "name": "1"
+        },
+        {
+          "description": "Force projectile prediction on regardless of the server antilag mode.",
+          "name": "2"
+        }
+      ]
     },
     "cl_predict_explosions": {
       "default": "1",

@@ -1036,7 +1036,7 @@ prediction_event_fakeproj_t* PM_AddEvent_FakeProj(int type)
 			return NULL;
 	}
 	else {
-		if (!cl_predict_projectiles.integer)
+		if (!CL_PredictProjectilesEnabled())
 			return NULL;
 	}
 #endif
