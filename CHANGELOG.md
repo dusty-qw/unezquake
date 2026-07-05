@@ -1,5 +1,22 @@
 # unezQuake Changelog
 
+## Version 2.0.3 - 2026-06-25
+
+### New feature
+Support for vector-style, resolution-independent crosshairs (credit foogs). Relies on existing crosshair size, position, `crosshaircolor`, and `crosshairalpha` settings
+- `crosshairvec` - enables/disables the crosshair
+   - `_up`, `_down`, `_left`, `_right` - set the length of each crosshair arm
+   - `_gap` - set the empty space between the center and the arms
+   - `_thickness` - set the thickness of the arms and rings
+   - `_dot` - set the size of the center dot; `0` disables it
+   - `_ring`, `_innerring` - set the outer and inner ring sizes; `0` disables a ring
+   - `_outline_color "R G B A"` - set the outline color and opacity
+
+### Bug fixes
+- better align client behavior with KTX to prevent spawn prediction quirks
+- fixed water sounds when entering teleporters
+- fixed spray images corrupting after vid_restart
+
 ## Version 2.0.2 - 2026-06-21
 
 - More bug fixes around weapon switching
