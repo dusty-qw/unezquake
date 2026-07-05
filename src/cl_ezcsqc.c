@@ -1263,8 +1263,6 @@ static qbool WeaponPred_SpawnProjectile(usercmd_t *u, player_state_t *ps, ezcsqc
 	return true;
 }
 
-static qbool WeaponPred_SoundMaskEnabled(unsigned short mask);
-
 static qbool WeaponPred_PlayLGBeam(usercmd_t *u, player_state_t *ps)
 {
 	vec3_t start, end, forward;
@@ -1466,23 +1464,17 @@ static qbool WeaponPred_DefinitionReady(int weapon_index)
 	return true;
 }
 
-static qbool WeaponPred_SoundMaskEnabled(unsigned short mask)
+static qbool WeaponPred_SoundEnabled(void)
 {
-	int value = cl_predict_weaponsound.integer;
-
-	if (!value) {
-		return false;
-	}
-
-	return value == 1 || !(value & mask);
+	return CL_PredictWeaponSoundEnabled();
 }
 
-static void WeaponPred_PlaySoundIndex(int sound, unsigned short mask, int chan, ezcsqc_weapon_state_t *ws)
+static void WeaponPred_PlaySoundIndex(int sound, int chan, ezcsqc_weapon_state_t *ws)
 {
-	if (WeaponPred_SoundMaskEnabled(mask) && sound > 0 && sound < MAX_SOUNDS && cl.sound_precache[sound]) {
+	if (WeaponPred_SoundEnabled() && sound > 0 && sound < MAX_SOUNDS && cl.sound_precache[sound]) {
 		if (cl_ezcsqc_debug.integer > 1) {
-			Com_Printf("EZCSQC predicted sound frame=%d sound=%d mask=%x client_time=%.3f\n",
-				current_predframe, sound, mask, ws->client_time);
+			Com_Printf("EZCSQC predicted sound frame=%d sound=%d client_time=%.3f\n",
+				current_predframe, sound, ws->client_time);
 		}
 		S_StartSound(cl.playernum + 1, chan, cl.sound_precache[sound], pmove.origin, 1, 0);
 	}
@@ -1515,17 +1507,17 @@ static void WeaponPred_PlayEffects(usercmd_t *u, player_state_t *ps, ezcsqc_weap
 		}
 		// The cvar can enable all sounds or mask off specific predicted sound classes.
 		if (!lg_sound_throttled) {
-			WeaponPred_PlaySoundIndex(anim->sound, anim->soundmask, chan, ws);
+			WeaponPred_PlaySoundIndex(anim->sound, chan, ws);
 			if (WEPPREDANIM_HAS(anim->flags, WEPPREDANIM_SOUND2)) {
 				// LG restarts lstart rapidly, but lhit still follows the native loop cadence.
 				if ((anim->flags & WEPPREDANIM_LGBEAM) && !WEPPREDANIM_HAS(anim->flags, WEPPREDANIM_LTIME)) {
 					if (ws->client_time >= lg_twidth) {
-						WeaponPred_PlaySoundIndex(anim->sound2, anim->soundmask2, 1, ws);
+						WeaponPred_PlaySoundIndex(anim->sound2, 1, ws);
 						lg_twidth = ws->client_time + 0.6f;
 					}
 				}
 				else {
-					WeaponPred_PlaySoundIndex(anim->sound2, anim->soundmask2, 1, ws);
+					WeaponPred_PlaySoundIndex(anim->sound2, 1, ws);
 				}
 			}
 		}
@@ -2266,7 +2258,7 @@ qbool CL_EZCSQC_Event_Sound(int entnum, int channel, int soundnumber, float vol,
 	// Return true to tell normal sound parsing that prediction already played it.
 	for (snd = predictionsoundlist; snd; snd = snd->next) {
 		// SOUNDAUTO predictions use channel 0, but server echoes may arrive on a weapon channel.
-		if ((snd->chan == channel || snd->chan == 0) && !(cl_predict_weaponsound.integer & snd->mask) &&
+		if ((snd->chan == channel || snd->chan == 0) && CL_PredictWeaponSoundEnabled() &&
 			(snd->index == soundnumber ||
 			 (server_sfx && snd->index > 0 && snd->index < MAX_SOUNDS &&
 			  cl.sound_precache[snd->index] && !strcmp(cl.sound_precache[snd->index]->name, server_sfx->name)))) {

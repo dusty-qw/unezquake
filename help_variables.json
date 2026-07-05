@@ -2561,6 +2561,7 @@
       "default": "1",
       "desc": "This variable controls client prediction of local own-rocket explosion effects, audio, and movement kick.",
       "group-id": "21",
+      "remarks": "Depends on cl_predict_projectiles to be enabled for full functionality.",
       "type": "boolean"
     },
     "cl_predict_smoothview": {
@@ -2581,49 +2582,21 @@
     },
     "cl_predict_weaponsound": {
       "default": "1",
-      "desc": "This variable controls if (or which) weapon sounds will be predicted.\nFor choosing specific weapons to disable, add up all desired binary flags.",
+      "desc": "This variable controls when weapon sounds will be predicted.",
       "group-id": "21",
       "type": "integer",
       "values": [
         {
-          "description": "disable all weapon sound prediction",
+          "description": "Disable weapon sound prediction.",
           "name": "0"
         },
         {
-          "description": "enable all weapon sound prediction",
+          "description": "(default) Predict weapon sounds when sv_antilag is 1.",
           "name": "1"
         },
         {
-          "description": "disable for AXE",
+          "description": "Force weapon sound prediction on regardless of sv_antilag mode.",
           "name": "2"
-        },
-        {
-          "description": "disable for SG",
-          "name": "4"
-        },
-        {
-          "description": "disable for SSG",
-          "name": "8"
-        },
-        {
-          "description": "disable for NG",
-          "name": "16"
-        },
-        {
-          "description": "disable for SNG",
-          "name": "32"
-        },
-        {
-          "description": "disable for GL",
-          "name": "64"
-        },
-        {
-          "description": "disable for RL",
-          "name": "128"
-        },
-        {
-          "description": "disable for LG",
-          "name": "256"
         }
       ]
     },

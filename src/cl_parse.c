@@ -2048,37 +2048,8 @@ void CL_ParseStartSoundPacket(void)
 	{
 		if (!CL_EZCSQC_Active() && !pmove_nopred_weapon && cls.mvdprotocolextensions1 & MVD_PEXT1_WEAPONPREDICTION && cl_predict_weaponsound.integer != 0)
 		{
-			if (channel == 1)
-			{
-				int predict_sound;
-				predict_sound = true;
-
-				if (cl_predict_weaponsound.integer == 0)
-				{
-					predict_sound = false;
-				}
-				else if (cl_predict_weaponsound.integer > 1)
-				{
-					predict_sound = PM_FilterWeaponSound(sound_num);
-				}
-				else if (sound_num > 0 && sound_num < MAX_SOUNDS && !strcmp(cl.sound_name[sound_num], "player/axhit2.wav"))
-				{
-					predict_sound = false;
-				}
-
-				if (predict_sound)
-					return;
-			}
-
-			//  yuck! nasty hacks to ignore certain channel sounds we don't want
-			if (channel == 0)
-			{
-				if (!(cl_predict_weaponsound.integer & 256))
-				{
-					if (sound_num > 0 && sound_num < MAX_SOUNDS && !strcmp(cl.sound_name[sound_num], "weapons/lstart.wav"))
-						return;
-				}
-			}
+			if ((channel == 0 || channel == 1) && PM_FilterWeaponSound(sound_num))
+				return;
 		}
 
 		if (cl_predict_sound.integer && !cl_nopred.integer)

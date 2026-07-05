@@ -74,12 +74,9 @@ void PM_SoundEffect(sfx_t *sample, int chan)
 	p_event_sound = s_event;
 }
 
-void PM_SoundEffect_Weapon(sfx_t *sample, int chan, int weap)
+void PM_SoundEffect_Weapon(sfx_t *sample, int chan)
 {
-	if (cl_predict_weaponsound.integer == 0)
-		return;
-
-	if (cl_predict_weaponsound.integer & weap)
+	if (!CL_PredictWeaponSoundEnabled())
 		return;
 
 	PM_SoundEffect(sample, chan);
@@ -1061,36 +1058,24 @@ int PM_FilterWeaponSound(byte sound_num)
 
 	sound_name = cl.sound_name[sound_num];
 
-	if (cl_predict_weaponsound.integer & 2)
-		if (strcmp(sound_name, "weapons/ax1.wav") == 0)
-			return false;
-	if (cl_predict_weaponsound.integer & 4)
-		if (strcmp(sound_name, "weapons/guncock.wav") == 0)
-			return false;
-	if (cl_predict_weaponsound.integer & 8)
-		if (strcmp(sound_name, "weapons/shotgn2.wav") == 0)
-			return false;
-	if (cl_predict_weaponsound.integer & 16)
-		if (strcmp(sound_name, "weapons/rocket1i.wav") == 0)
-			return false;
-	if (cl_predict_weaponsound.integer & 32)
-		if (strcmp(sound_name, "weapons/spike2.wav") == 0)
-			return false;
-	if (cl_predict_weaponsound.integer & 64)
-		if (strcmp(sound_name, "weapons/grenade.wav") == 0)
-			return false;
-	if (cl_predict_weaponsound.integer & 128)
-		if (strcmp(sound_name, "weapons/sgun1.wav") == 0)
-			return false;
-	if (cl_predict_weaponsound.integer & 256)
-	{
-		if (strcmp(sound_name, "weapons/lstart.wav") == 0)
-			return false;
-		if (strcmp(sound_name, "weapons/lhit.wav") == 0)
-			return false;
-	}
+	if (strcmp(sound_name, "weapons/ax1.wav") == 0)
+		return CL_PredictWeaponSoundEnabled();
+	if (strcmp(sound_name, "weapons/guncock.wav") == 0)
+		return CL_PredictWeaponSoundEnabled();
+	if (strcmp(sound_name, "weapons/shotgn2.wav") == 0)
+		return CL_PredictWeaponSoundEnabled();
+	if (strcmp(sound_name, "weapons/rocket1i.wav") == 0)
+		return CL_PredictWeaponSoundEnabled();
+	if (strcmp(sound_name, "weapons/spike2.wav") == 0)
+		return CL_PredictWeaponSoundEnabled();
+	if (strcmp(sound_name, "weapons/grenade.wav") == 0)
+		return CL_PredictWeaponSoundEnabled();
+	if (strcmp(sound_name, "weapons/sgun1.wav") == 0)
+		return CL_PredictWeaponSoundEnabled();
+	if (strcmp(sound_name, "weapons/lstart.wav") == 0 || strcmp(sound_name, "weapons/lhit.wav") == 0)
+		return CL_PredictWeaponSoundEnabled();
 
-	return true;
+	return false;
 }
 
 void W_SetCurrentAmmo(void)
@@ -1569,7 +1554,7 @@ void W_FireAxe(void)
 	trace_t walltrace = PM_TraceLine(start, end);
 
 	if (walltrace.fraction < 1 && walltrace.e.entnum == 0)
-		PM_SoundEffect_Weapon(cl_sfx_axhit1, 1, 2);
+		PM_SoundEffect_Weapon(cl_sfx_axhit1, 1);
 	*/
 }
 
@@ -1579,13 +1564,13 @@ void launch_spike(float off)
 	if (pmove.weapon == IT_SUPER_NAILGUN)
 	{
 		newmis = PM_AddEvent_FakeProj(IT_SUPER_NAILGUN);
-		PM_SoundEffect_Weapon(cl_sfx_sng, 1, 32);
+		PM_SoundEffect_Weapon(cl_sfx_sng, 1);
 		off = 0;
 	}
 	else
 	{
 		newmis = PM_AddEvent_FakeProj(IT_NAILGUN);
-		PM_SoundEffect_Weapon(cl_sfx_ng, 1, 16);
+		PM_SoundEffect_Weapon(cl_sfx_ng, 1);
 	}
 
 	if (newmis)
@@ -1824,7 +1809,7 @@ void W_Attack(void)
 	{
 	case IT_AXE: {
 		pmove.attack_finished = pmove.client_time + 0.5;
-		PM_SoundEffect_Weapon(cl_sfx_ax1, 1, 2);
+		PM_SoundEffect_Weapon(cl_sfx_ax1, 1);
 
 		int temp = (((int)(pmove.client_time * 931.75) << 11) + ((int)(pmove.client_time) >> 6)) % 1000;
 		float r = abs(temp) / 1000.0;
@@ -1854,13 +1839,13 @@ void W_Attack(void)
 				pmove.attack_finished = pmove.client_time + 0.7;
 			else
 				pmove.attack_finished = pmove.client_time + 0.5;
-			PM_SoundEffect_Weapon(cl_sfx_coil, 1, 4);
+			PM_SoundEffect_Weapon(cl_sfx_coil, 1);
 		}
 		else
 		{
 			pmove.current_ammo = pmove.ammo_shells -= 1;
 			pmove.attack_finished = pmove.client_time + 0.5;
-			PM_SoundEffect_Weapon(cl_sfx_sg, 1, 4);
+			PM_SoundEffect_Weapon(cl_sfx_sg, 1);
 		}
 
 		pmove.client_thinkindex = 1;
@@ -1868,7 +1853,7 @@ void W_Attack(void)
 	} break;
 	case IT_SUPER_SHOTGUN: {
 		pmove.attack_finished = pmove.client_time + 0.7;
-		PM_SoundEffect_Weapon(cl_sfx_ssg, 1, 8);
+		PM_SoundEffect_Weapon(cl_sfx_ssg, 1);
 		pmove.current_ammo = pmove.ammo_shells -= 1;
 		pmove.client_thinkindex = 1;
 		anim_shotgun();
@@ -1882,7 +1867,7 @@ void W_Attack(void)
 	case IT_GRENADE_LAUNCHER: {
 		pmove.attack_finished = pmove.client_time + 0.6;
 		pmove.current_ammo = pmove.ammo_rockets -= 1;
-		PM_SoundEffect_Weapon(cl_sfx_gl, 1, 64);
+		PM_SoundEffect_Weapon(cl_sfx_gl, 1);
 		prediction_event_fakeproj_t *newmis = PM_AddEvent_FakeProj(IT_GRENADE_LAUNCHER);
 		if (newmis)
 		{
@@ -1905,7 +1890,7 @@ void W_Attack(void)
 	case IT_ROCKET_LAUNCHER: {
 		pmove.attack_finished = pmove.client_time + 0.8;
 		pmove.current_ammo = pmove.ammo_rockets -= 1;
-		PM_SoundEffect_Weapon(cl_sfx_rl, 1, 128);
+		PM_SoundEffect_Weapon(cl_sfx_rl, 1);
 
 		prediction_event_fakeproj_t *newmis = PM_AddEvent_FakeProj(IT_ROCKET_LAUNCHER);
 		if (newmis)
@@ -1935,7 +1920,7 @@ void W_Attack(void)
 		anim_rocket();
 	} break;
 	case IT_LIGHTNING: {
-		PM_SoundEffect_Weapon(cl_sfx_lg, 0, 256);
+		PM_SoundEffect_Weapon(cl_sfx_lg, 0);
 		anim_lightning();
 	} break;
 	case IT_HOOK: {

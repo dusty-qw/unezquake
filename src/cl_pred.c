@@ -51,6 +51,25 @@ qbool CL_PredictProjectilesEnabled(void)
 	return Q_atoi(Info_ValueForKey(cl.serverinfo, "sv_antilag")) == 1;
 }
 
+qbool CL_PredictWeaponSoundEnabled(void)
+{
+	int mode = cl_predict_weaponsound.integer;
+	int sv_antilag;
+
+	if (mode <= 0) {
+		return false;
+	}
+
+	// Mode 2 is the explicit override for testing or servers without sv_antilag serverinfo.
+	if (mode >= 2) {
+		return true;
+	}
+
+	// Mode 1 follows KTX projectile/weapon compensation and only predicts under sv_antilag 1.
+	sv_antilag = Q_atoi(Info_ValueForKey(cl.serverinfo, "sv_antilag"));
+	return sv_antilag == 1;
+}
+
 extern cvar_t cl_independentPhysics;
 
 #ifdef JSS_CAM
@@ -634,7 +653,7 @@ void CL_PlayEvents(void)
 				{
 					pmove.t_width = pmove.client_time + (0.6);
 
-					if (!((cl_predict_weaponsound.integer == 0) || (cl_predict_weaponsound.integer & 256)))
+					if (CL_PredictWeaponSoundEnabled())
 					{
 						S_StartSound(cl.playernum + 1, 1, cl_sfx_lghit, pmove.origin, 1, 0);
 					}
