@@ -806,11 +806,6 @@ typedef struct {
 	int         weapon_order_sequence_set;
 	qbool       weapon_order_use_clientside;
 
-	// anti-rollover weapon firing
-	int         ar_weapon_orders[MAX_ANTIROLLOVER_LEVELS][MAXWEAPONS];
-	int         ar_keycodes[MAX_ANTIROLLOVER_LEVELS];
-	int         ar_count;
-
 	// When teamlock 1 is specified, lock in the selected team and don't change again
 	char        teamlock1_teamname[16];
 
