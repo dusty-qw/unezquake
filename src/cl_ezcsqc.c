@@ -88,6 +88,9 @@ static float respawn_attack_guard_until;
 #define EZCSQC_EFFECT_SOUND		(1 << 0)
 #define EZCSQC_EFFECT_PROJECTILE	(1 << 1)
 #define EZCSQC_PROJECTILE_REWIND_HORIZON	0.080
+#define EZCSQC_GRENADE_HANDOFF_DIFF_LIMIT	128.0f
+#define EZCSQC_PROJECTILE_HANDOFF_PERP_LIMIT	8.0f
+#define EZCSQC_PROJECTILE_HANDOFF_PHASE_LIMIT	256.0f
 
 static qbool Predraw_Projectile(ezcsqc_entity_t *self);
 static void CL_EZCSQC_ProjectileBounce(ezcsqc_entity_t *proj, float dt, qbool update_angles);
@@ -637,7 +640,7 @@ static qbool CL_EZCSQC_AdoptOwnerLinearProjectile(ezcsqc_entity_t *local, ezcsqc
 	centity_t *cent = (auth.entnum > 0 && auth.entnum < CL_MAX_EDICTS) ? &cl_entities[auth.entnum] : &local->cent;
 	vec3_t smooth_origin;
 
-	if (server->ownernum != cl.playernum + 1 || perpendicular >= 8) {
+	if (server->ownernum != cl.playernum + 1 || perpendicular >= EZCSQC_PROJECTILE_HANDOFF_PERP_LIMIT) {
 		return false;
 	}
 
@@ -778,9 +781,16 @@ static qbool CL_EZCSQC_RemoveMatchedLocalProjectile(ezcsqc_entity_t *server)
 		VectorSubtract(diff, diff_parallel, diff_perp);
 		perpendicular = VectorLength(diff_perp);
 
+		if (local->projectile_type == 1) {
+			if (VectorLength(diff) > EZCSQC_GRENADE_HANDOFF_DIFF_LIMIT) {
+				continue;
+			}
+		}
 		// Accept larger owner rocket/nail phase gaps only when they are nearly collinear.
-		if (VectorLength(diff) > 64) {
-			if (server->ownernum != cl.playernum + 1 || local->projectile_type == 1 || perpendicular >= 8 || fabs(parallel) > 128) {
+		else if (VectorLength(diff) > 64) {
+			if (server->ownernum != cl.playernum + 1 ||
+				perpendicular >= EZCSQC_PROJECTILE_HANDOFF_PERP_LIMIT ||
+				fabs(parallel) > EZCSQC_PROJECTILE_HANDOFF_PHASE_LIMIT) {
 				continue;
 			}
 		}
