@@ -3585,10 +3585,20 @@ void CL_ParseStufftext (void)
 		char tmp[128];
 		char data[1024] = "cmd pext";
 		int ext;
+#ifdef PROTOCOL_VERSION_MVD1
+		unsigned int supported_mvdpext1 = CL_SupportedMVDExtensions1();
+#endif
 		qbool ezcsqc_selected = false;
 
 #ifdef MVD_PEXT1_EZCSQC
-		ezcsqc_selected = (cls.mvdprotocolextensions1 & MVD_PEXT1_EZCSQC) != 0;
+		/*
+		 * cmd pext can be used before the challenge path has populated the
+		 * selected extension mask. In that case, advertise the EZCSQC contract
+		 * we support instead of falling back to legacy weapon prediction.
+		 */
+		ezcsqc_selected = cls.mvdprotocolextensions1 ?
+			((cls.mvdprotocolextensions1 & MVD_PEXT1_EZCSQC) != 0) :
+			((supported_mvdpext1 & MVD_PEXT1_EZCSQC) != 0);
 #endif
 
 #ifdef PROTOCOL_VERSION_FTE
@@ -3614,9 +3624,18 @@ void CL_ParseStufftext (void)
 #endif // PROTOCOL_VERSION_FTE2 
 
 #ifdef PROTOCOL_VERSION_MVD1
-		ext = cls.mvdprotocolextensions1 ? cls.mvdprotocolextensions1 : CL_SupportedMVDExtensions1();
+		ext = cls.mvdprotocolextensions1 ? cls.mvdprotocolextensions1 : supported_mvdpext1;
 #ifdef MVD_PEXT1_EZCSQC
-		if (!ezcsqc_selected) {
+		if (ezcsqc_selected) {
+			ext |= MVD_PEXT1_EZCSQC;
+#ifdef MVD_PEXT1_WEAPONPREDICTION
+			ext &= ~MVD_PEXT1_WEAPONPREDICTION;
+#endif
+#ifdef MVD_PEXT1_SIMPLEPROJECTILE
+			ext &= ~MVD_PEXT1_SIMPLEPROJECTILE;
+#endif
+		}
+		else {
 			ext &= ~MVD_PEXT1_EZCSQC;
 #ifdef MVD_PEXT1_WEAPONPREDICTION
 			if (cl_pext_weaponprediction.value) {
