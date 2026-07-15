@@ -66,8 +66,15 @@
     "description": "When active the player will run."
   },
   "+spray": {
-    "description": "Shows a live spray preview while the key is held. The spray is placed when the matching -spray command is issued.",
-    "remarks": "The preview opacity is controlled by cl_spray_preview_alpha."
+    "arguments": [
+      {
+        "description": "Optional spray image filename. A single numeric filename of 32 or higher cannot be used with +spray because button binds append key codes in that range.",
+        "name": "image"
+      }
+    ],
+    "description": "Shows a live spray preview while the key is held. The spray is placed upon release.",
+    "remarks": "The preview opacity is controlled by cl_spray_preview_alpha.",
+    "syntax": "[image]"
   },
   "+strafe": {
     "description": "When active, \"+left\" and \"+right\" function like \"+moveleft\" and \"+moveright\", strafing in that direction."
@@ -1528,7 +1535,7 @@
   "spray": {
     "arguments": [
       {
-        "description": "Optional spray image filename. If provided, cl_spray_image is set before placing the spray.",
+        "description": "Optional spray image filename to be used instead of cl_spray_image.",
         "name": "image"
       }
     ],
