@@ -88,7 +88,8 @@ typedef struct cl_spray_s {
 	qbool active;
 
 	// Captured at placement time so changing cl_spray_image only affects future
-	// sprays and previews, not decals that are already on the map.
+	// sprays and previews, not decals/uploads that are already in progress.
+	char image_path[MAX_QPATH];
 	texture_ref texture;
 	int texture_index;
 	int upload_id;
@@ -183,6 +184,7 @@ static int cl_spray_texture_count;
 static int cl_spray_next;
 static int cl_spray_upload_next_id = 1;
 static qbool cl_spray_preview_active;
+static char cl_spray_preview_image_path[MAX_QPATH];
 static model_t *cl_spray_worldmodel;
 static qbool cl_spray_warning;
 static sfx_t *cl_spray_sfx;
@@ -590,6 +592,8 @@ static void CL_SprayClearPlaced(qbool clear_server_images)
 		CL_SprayClearServerImageCache();
 	}
 	CL_SprayCancelUpload();
+	cl_spray_preview_active = false;
+	cl_spray_preview_image_path[0] = '\0';
 	cl_spray_next = 0;
 	cl_spray_warning = false;
 	cl_spray_worldmodel = cl.worldmodel;
@@ -620,9 +624,9 @@ static void CL_SprayNormalizeImageDirectory(char *path, size_t path_size)
 	strlcpy(path, directory, path_size);
 }
 
-static qbool CL_SprayImagePath(char *path, size_t path_size)
+static qbool CL_SprayImagePathForName(const char *image_name, char *path, size_t path_size)
 {
-	const char *filename = COM_SkipPath(cl_spray_image.string);
+	const char *filename = COM_SkipPath(image_name);
 	char directory[MAX_QPATH];
 	int written;
 
@@ -640,6 +644,11 @@ static qbool CL_SprayImagePath(char *path, size_t path_size)
 	}
 
 	return written > 0 && (size_t)written < path_size;
+}
+
+static qbool CL_SprayImagePath(char *path, size_t path_size)
+{
+	return CL_SprayImagePathForName(cl_spray_image.string, path, path_size);
 }
 
 // Look up a spray image path, adding it to the cache on first use. Cache keys
@@ -719,27 +728,6 @@ static texture_ref CL_SprayTextureForPath(const char *filename, int *texture_ind
 		}
 		return texture;
 	}
-}
-
-// Look up the current cvar image, adding it to the cache on first use.
-static texture_ref CL_SprayTextureForRenderer(int *texture_index, int *width, int *height, qbool quiet)
-{
-	char filename[MAX_QPATH];
-
-	if (!CL_SprayImagePath(filename, sizeof(filename))) {
-		if (texture_index) {
-			*texture_index = 0;
-		}
-		if (width) {
-			*width = 0;
-		}
-		if (height) {
-			*height = 0;
-		}
-		return null_texture_reference;
-	}
-
-	return CL_SprayTextureForPath(filename, texture_index, width, height, quiet);
 }
 
 typedef struct cl_spray_preload_s {
@@ -915,8 +903,8 @@ void CL_SpraysInvalidateRendererTextures(void)
 	}
 }
 
-// Find the named local texture entry after CL_SprayTextureForRenderer has
-// created it. This is used to attach the freshly computed upload hash.
+// Find a named local texture entry after CL_SprayTextureForPath has created it.
+// This is used to attach or reuse the freshly computed upload hash.
 static cl_spray_texture_t *CL_SprayTextureCacheForName(const char *filename)
 {
 	int i;
@@ -1290,7 +1278,7 @@ static qbool CL_SprayCanUse(qbool quiet)
 	return true;
 }
 
-static qbool CL_SprayCreateAtCrosshair(cl_spray_t *spray, qbool quiet)
+static qbool CL_SprayCreateAtCrosshair(cl_spray_t *spray, const char *image_path, qbool quiet)
 {
 	int texture_index;
 	texture_ref texture;
@@ -1308,7 +1296,11 @@ static qbool CL_SprayCreateAtCrosshair(cl_spray_t *spray, qbool quiet)
 		return false;
 	}
 
-	texture = CL_SprayTextureForRenderer(&texture_index, &image_width, &image_height, quiet);
+	if (!image_path || !image_path[0]) {
+		return false;
+	}
+
+	texture = CL_SprayTextureForPath(image_path, &texture_index, &image_width, &image_height, quiet);
 	if (!R_TextureReferenceIsValid(texture)) {
 		return false;
 	}
@@ -1354,15 +1346,13 @@ static qbool CL_SprayCreateAtCrosshair(cl_spray_t *spray, qbool quiet)
 	}
 
 	spray->active = true;
+	strlcpy(spray->image_path, image_path, sizeof(spray->image_path));
 	spray->texture = texture;
 	spray->texture_index = texture_index;
 	{
-		char filename[MAX_QPATH];
 		cl_spray_texture_t *cached = NULL;
 
-		if (CL_SprayImagePath(filename, sizeof(filename))) {
-			cached = CL_SprayTextureCacheForName(filename);
-		}
+		cached = CL_SprayTextureCacheForName(image_path);
 		spray->hash = cached && cached->have_hash ? cached->hash : 0;
 	}
 
@@ -1496,7 +1486,7 @@ static void CL_SprayClearServerId(int id)
 static void CL_SprayQueueUpload(int placed_index)
 {
 	int width, height, byte_count;
-	char filename[MAX_QPATH];
+	const char *filename;
 	byte *pixels;
 	cl_spray_t *spray;
 
@@ -1524,7 +1514,8 @@ static void CL_SprayQueueUpload(int placed_index)
 		return;
 	}
 
-	if (!CL_SprayImagePath(filename, sizeof(filename))) {
+	filename = spray->image_path;
+	if (!filename[0]) {
 		memset(spray, 0, sizeof(*spray));
 		return;
 	}
@@ -1600,25 +1591,63 @@ static void CL_SprayQueueUpload(int placed_index)
 	cl_spray_upload.alpha = spray->alpha;
 }
 
+static qbool CL_SprayArgIsGeneratedKeyCode(const char *arg)
+{
+	const char *c;
+
+	if (!arg[0]) {
+		return false;
+	}
+
+	for (c = arg; *c; ++c) {
+		if (*c < '0' || *c > '9') {
+			return false;
+		}
+	}
+
+	return Q_atoi(arg) >= 32;
+}
+
+static qbool CL_SprayCommandImagePath(qbool button_command, char *path, size_t path_size)
+{
+	int image_arg = 1;
+	int last_arg = Cmd_Argc() - 1;
+
+	if (last_arg < image_arg) {
+		return CL_SprayImagePath(path, path_size);
+	}
+
+	// Key binds append a key code to button commands, e.g. "+spray logo 103".
+	// A bare "+spray" bind therefore arrives as "+spray 103"; do not treat
+	// that generated key code as an image name.
+	if (button_command && CL_SprayArgIsGeneratedKeyCode(Cmd_Argv(last_arg))) {
+		--last_arg;
+	}
+
+	if (last_arg >= image_arg) {
+		return CL_SprayImagePathForName(Cmd_Argv(image_arg), path, path_size);
+	}
+
+	return CL_SprayImagePath(path, path_size);
+}
+
 // One-shot command: optionally change image, then immediately place a decal.
 static void CL_Spray_f(void)
 {
 	cl_spray_t spray;
 	int placed_index;
+	char image_path[MAX_QPATH];
 
 	if (!CL_SprayCanUse(false)) {
 		return;
 	}
 
-	if (Cmd_Argc() > 1) {
-		char filename[MAX_QPATH];
-
-		strlcpy(filename, COM_SkipPath(Cmd_Argv(1)), sizeof(filename));
-		Cvar_Set(&cl_spray_image, filename);
+	if (!CL_SprayCommandImagePath(false, image_path, sizeof(image_path))) {
+		return;
 	}
 
 	memset(&spray, 0, sizeof(spray));
-	if (CL_SprayCreateAtCrosshair(&spray, false)) {
+	if (CL_SprayCreateAtCrosshair(&spray, image_path, false)) {
 		placed_index = CL_SprayCommit(&spray);
 		CL_SprayQueueUpload(placed_index);
 	}
@@ -1631,10 +1660,20 @@ static void CL_SprayDown_f(void)
 
 	if (!CL_SprayCanUse(false)) {
 		cl_spray_preview_active = false;
+		cl_spray_preview_image_path[0] = '\0';
 		return;
 	}
 
-	cl_spray_preview_active = R_TextureReferenceIsValid(CL_SprayTextureForRenderer(&texture_index, NULL, NULL, false));
+	if (!CL_SprayCommandImagePath(true, cl_spray_preview_image_path, sizeof(cl_spray_preview_image_path))) {
+		cl_spray_preview_active = false;
+		cl_spray_preview_image_path[0] = '\0';
+		return;
+	}
+
+	cl_spray_preview_active = R_TextureReferenceIsValid(CL_SprayTextureForPath(cl_spray_preview_image_path, &texture_index, NULL, NULL, false));
+	if (!cl_spray_preview_active) {
+		cl_spray_preview_image_path[0] = '\0';
+	}
 }
 
 // Recompute placement and commit spray on release
@@ -1644,15 +1683,17 @@ static void CL_SprayUp_f(void)
 	int placed_index;
 
 	if (!cl_spray_preview_active) {
+		cl_spray_preview_image_path[0] = '\0';
 		return;
 	}
 
 	memset(&spray, 0, sizeof(spray));
-	if (CL_SprayCreateAtCrosshair(&spray, false)) {
+	if (CL_SprayCreateAtCrosshair(&spray, cl_spray_preview_image_path, false)) {
 		placed_index = CL_SprayCommit(&spray);
 		CL_SprayQueueUpload(placed_index);
 	}
 	cl_spray_preview_active = false;
+	cl_spray_preview_image_path[0] = '\0';
 }
 
 // Append a spray quad to the shared 3D sprite batch. The batch is configured
@@ -2206,7 +2247,7 @@ void CL_SpraysAddToScene(void)
 
 	memset(&preview, 0, sizeof(preview));
 	if (cl_spray_preview_active) {
-		any_active |= CL_SprayCreateAtCrosshair(&preview, true);
+		any_active |= CL_SprayCreateAtCrosshair(&preview, cl_spray_preview_image_path, true);
 
 		// Preview is relative to the final spray opacity: 0.125 means "show
 		// one-eighth of the opacity that would be committed."
