@@ -2,6 +2,11 @@ cmake_minimum_required(VERSION 3.22)
 
 project(unezquake C)
 
+# Discord Rich Presence (src/discord) is vendored upstream C++ code.
+enable_language(CXX)
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     enable_language(OBJC)
 endif()
@@ -65,19 +70,19 @@ if(CMAKE_C_COMPILER_ID STREQUAL "MSVC")
     endif()
 else()
     add_compile_options(
-            -std=gnu89
+            $<$<COMPILE_LANGUAGE:C>:-std=gnu89>
 
             -Wall
-            -Wno-pointer-to-int-cast
-            -Wno-int-to-pointer-cast
+            $<$<COMPILE_LANGUAGE:C>:-Wno-pointer-to-int-cast>
+            $<$<COMPILE_LANGUAGE:C>:-Wno-int-to-pointer-cast>
             -Wno-strict-aliasing
             -Wno-deprecated-declarations
 
             -fvisibility=hidden
 
             -Werror=format
-            -Werror=strict-prototypes
-            -Werror=old-style-definition
+            $<$<COMPILE_LANGUAGE:C>:-Werror=strict-prototypes>
+            $<$<COMPILE_LANGUAGE:C>:-Werror=old-style-definition>
 
             $<$<CONFIG:Release>:-Werror=unused-function>
             $<$<CONFIG:Release>:-Werror=unused-variable>
@@ -85,7 +90,7 @@ else()
 
     check_c_compiler_flag("-Wstrlcpy-strlcat-size" HAS_STRLCPY_STRLCAT_SIZE)
     if(HAS_STRLCPY_STRLCAT_SIZE)
-        add_compile_options("-Werror=strlcpy-strlcat-size")
+        add_compile_options($<$<COMPILE_LANGUAGE:C>:-Werror=strlcpy-strlcat-size>)
     endif()
     check_c_compiler_flag("-Wformat-truncation" HAS_FORMAT_TRUNCATION)
     if(HAS_FORMAT_TRUNCATION)
@@ -102,12 +107,12 @@ else()
     # While not gnu89, it's in practice allowed by all supported compilers
     check_c_compiler_flag("-Wtypedef-redefinition" HAS_TYPE_REDEFINITION)
     if(HAS_TYPE_REDEFINITION)
-        add_compile_options("-Wno-typedef-redefinition")
+        add_compile_options($<$<COMPILE_LANGUAGE:C>:-Wno-typedef-redefinition>)
     endif()
     # Should mostly be fixed in mvdsv, and next sync can remove this
     check_c_compiler_flag("-Wshorten-64-to-32" HAS_SHORTEN_64_TO_32)
     if(HAS_TYPE_REDEFINITION)
-        add_compile_options("-Wno-shorten-64-to-32")
+        add_compile_options($<$<COMPILE_LANGUAGE:C>:-Wno-shorten-64-to-32>)
     endif()
 endif()
 
@@ -223,6 +228,33 @@ set(qwprot_headers
         ${QWPROT_SOURCE_DIR}/protocol.h
 )
 source_group(TREE ${QWPROT_SOURCE_DIR} PREFIX "Header Files/qwprot" FILES ${qwprot_headers})
+
+set(DISCORD_DIR ${SOURCE_DIR}/discord)
+set(DISCORD_INCLUDE_DIR ${DISCORD_DIR})
+
+set(discord_headers
+        ${DISCORD_DIR}/discord_register.h
+        ${DISCORD_DIR}/discord_rpc.h
+        ${DISCORD_DIR}/rpc_connection.h
+        ${DISCORD_DIR}/serialization.h
+        ${DISCORD_DIR}/connection.h
+        ${DISCORD_DIR}/backoff.h
+        ${DISCORD_DIR}/msg_queue.h
+)
+set(discord
+        ${DISCORD_DIR}/discord_rpc.cpp
+        ${DISCORD_DIR}/rpc_connection.cpp
+        ${DISCORD_DIR}/serialization.cpp
+)
+if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    list(APPEND discord ${DISCORD_DIR}/connection_win.cpp ${DISCORD_DIR}/discord_register_win.cpp)
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+    list(APPEND discord ${DISCORD_DIR}/connection_unix.cpp ${DISCORD_DIR}/discord_register_osx.m)
+else()
+    list(APPEND discord ${DISCORD_DIR}/connection_unix.cpp ${DISCORD_DIR}/discord_register_linux.cpp)
+endif()
+list(APPEND discord ${discord_headers})
+source_group(TREE ${DISCORD_DIR} PREFIX "Source Files/discord" FILES ${discord})
 
 set(server_headers
         ${SOURCE_DIR}/g_public.h
@@ -676,6 +708,7 @@ set(client
         ${SOURCE_DIR}/cl_nqdemo.c
         ${SOURCE_DIR}/cl_parse.c
         ${SOURCE_DIR}/cl_pred.c
+        ${SOURCE_DIR}/cl_prescence.c
         ${SOURCE_DIR}/cl_screen.c
         ${SOURCE_DIR}/cl_screenshot.c
         ${SOURCE_DIR}/cl_skygroups.c
@@ -834,6 +867,7 @@ add_executable(unezquake ${TARGET_TYPE}
         ${common_hud}
         ${server}
         ${client}
+        ${discord}
 
         ${common_opengl}
         ${common_renderer}
@@ -849,6 +883,7 @@ add_executable(unezquake ${TARGET_TYPE}
 target_include_directories(unezquake PRIVATE
         ${SOURCE_DIR}/qwprot/src
         ${EZQUAKE_MINIZIP_INCLUDE_DIR}
+        ${DISCORD_INCLUDE_DIR}
 )
 
 target_compile_definitions(unezquake PRIVATE
@@ -866,6 +901,10 @@ target_compile_definitions(unezquake PRIVATE
 
         $<$<BOOL:${RENDERER_MODERN_OPENGL}>:RENDERER_OPTION_MODERN_OPENGL>
         $<$<BOOL:${RENDERER_CLASSIC_OPENGL}>:RENDERER_OPTION_CLASSIC_OPENGL>
+
+        $<$<PLATFORM_ID:Windows>:DISCORD_WINDOWS>
+        $<$<PLATFORM_ID:Darwin>:DISCORD_OSX>
+        $<$<PLATFORM_ID:Linux>:DISCORD_LINUX>
 
         WITH_PNG
         WITH_JPEG
@@ -907,6 +946,9 @@ target_link_libraries(unezquake PRIVATE
 
         OpenGL::GL
         Threads::Threads
+
+        $<$<PLATFORM_ID:Windows>:psapi>
+        $<$<PLATFORM_ID:Windows>:advapi32>
 
         ${FRAMEWORK_APPKIT}
         ${FRAMEWORK_FOUNDATION}

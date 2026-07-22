@@ -975,6 +975,11 @@ void CL_MakeActive(void);
 
 extern char emodel_name[], pmodel_name[];
 
+// cl_prescence.c
+void CL_InitDiscord (void);
+void CL_ShutdownDiscord (void);
+void CL_UpdatePresence (void);
+
 // cl_cmd
 typedef struct {
 	qbool forward, back, left, right, jump, attack, up, down;
