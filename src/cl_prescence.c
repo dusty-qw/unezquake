@@ -10,6 +10,10 @@
 
 #define DISCORD_APPLICATION_ID "1529499621968052466"
 
+// Rich Presence art asset key for the app logo, uploaded under
+// Discord Developer Portal -> Rich Presence -> Art Assets.
+#define DISCORD_LOGO_IMAGE_KEY "unezquake"
+
 // How often we recheck whether the presence needs updating; Discord itself
 // throttles actual presence pushes to about once every 15 seconds.
 #define DISCORD_UPDATE_INTERVAL_MS 1000
@@ -182,7 +186,7 @@ static void CL_BuildPresence(presence_t *presence)
 		strlcpy(mapshot, mapname, sizeof(mapshot));
 		Q_strlwr(mapshot);
 
-		strlcpy(presence->largeImageKey, mapshot, sizeof(presence->largeImageKey));
+		strlcpy(presence->largeImageKey, mapshot[0] ? mapshot : DISCORD_LOGO_IMAGE_KEY, sizeof(presence->largeImageKey));
 		strlcpy(presence->largeImageText, hostname[0] ? hostname : "Unknown server", sizeof(presence->largeImageText));
 		strlcpy(presence->smallImageKey, CL_PresenceStatusKey(), sizeof(presence->smallImageKey));
 		strlcpy(presence->smallImageText, CL_PresenceStatusText(), sizeof(presence->smallImageText));
@@ -213,9 +217,11 @@ static void CL_BuildPresence(presence_t *presence)
 
 		presence->startTimestamp = cl_presence_state.match_start;
 	} else if (cls.state != ca_disconnected) {
+		strlcpy(presence->largeImageKey, DISCORD_LOGO_IMAGE_KEY, sizeof(presence->largeImageKey));
 		strlcpy(presence->state, "Connecting to a server", sizeof(presence->state));
 		strlcpy(presence->details, "Connecting", sizeof(presence->details));
 	} else {
+		strlcpy(presence->largeImageKey, DISCORD_LOGO_IMAGE_KEY, sizeof(presence->largeImageKey));
 		strlcpy(presence->state, "In the menus", sizeof(presence->state));
 		strlcpy(presence->details, "Main Menu", sizeof(presence->details));
 	}
