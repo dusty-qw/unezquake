@@ -96,22 +96,7 @@ typedef struct prediction_event_sound_s
 } prediction_event_sound_t;
 
 
-typedef struct prediction_event_fakeproj_s
-{
-	int			frame_num;
-
-	int			type;
-	vec3_t		origin;
-	vec3_t		angles;
-	vec3_t		velocity;
-
-	vec3_t		avelocity;
-
-	struct prediction_event_fakeproj_s *next;
-} prediction_event_fakeproj_t;
-
 // events in prediction that we play back slightly delayed depending on cl_predict_buffer
-extern prediction_event_fakeproj_t	*p_event_fakeproj;
 extern prediction_event_sound_t		*p_event_sound;
 extern int							cl_last_predicted_movement_sound_frame;
 extern int							cl_last_predicted_movement_sound_chan;
@@ -821,13 +806,6 @@ typedef struct {
 	// antilag debug playback
 	antilag_pos_t antilag_positions[MAX_CLIENTS];
 	antilag_stats_t antilag_stats[MAX_CLIENTS];
-
-#ifdef MVD_PEXT1_SIMPLEPROJECTILE
-	#define LATESTFRAMENUMS 32
-	int csqc_latestframeposition;
-	int csqc_latestsendnums[LATESTFRAMENUMS];
-	int csqc_latestframenums[LATESTFRAMENUMS];
-#endif
 
 	// demoinfo (stats file embedded in demo)
 	int         demoinfo_blocknumber;

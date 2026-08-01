@@ -140,10 +140,8 @@ extern playermove_t pmove;
 
 qbool CL_PredictProjectilesEnabled(void);
 qbool CL_PredictWeaponSoundEnabled(void);
-int PM_FilterWeaponSound(byte sound_num);
 
 int PM_PlayerMove (void);
-void PM_PlayerWeapon (void);
 
 int PM_PointContents (vec3_t point);
 int PM_PointContents_AllBSPs (vec3_t p);

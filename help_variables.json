@@ -2517,7 +2517,7 @@
     },
     "cl_predict_beam": {
       "default": "1",
-      "desc": "This variable controls if shaft beam will be predicted, which can misbehave in water.",
+      "desc": "This variable controls EZCSQC shaft beam prediction, which can misbehave in water.",
       "group-id": "21",
       "type": "boolean"
     },
@@ -2539,7 +2539,7 @@
     },
     "cl_predict_projectiles": {
       "default": "1",
-      "desc": "This variable controls if projectiles will be predicted, which can cause confusion if you die at the same time you shoot.",
+      "desc": "This variable controls EZCSQC projectile prediction, which can cause confusion if you die at the same time you shoot.",
       "group-id": "21",
       "type": "integer",
       "values": [
@@ -2552,7 +2552,7 @@
           "name": "1"
         },
         {
-          "description": "Force projectile prediction on regardless of the server antilag mode.",
+          "description": "Force EZCSQC projectile prediction on regardless of the server antilag mode.",
           "name": "2"
         }
       ]
@@ -2582,7 +2582,7 @@
     },
     "cl_predict_weaponsound": {
       "default": "1",
-      "desc": "This variable controls when weapon sounds will be predicted.",
+      "desc": "This variable controls when EZCSQC weapon sounds will be predicted.",
       "group-id": "21",
       "type": "integer",
       "values": [

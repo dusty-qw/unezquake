@@ -2046,12 +2046,6 @@ void CL_ParseStartSoundPacket(void)
 	// Skip weapon sounds if we're predicting them
 	if (ent == cl.playernum + 1)
 	{
-		if (!CL_EZCSQC_Active() && !pmove_nopred_weapon && cls.mvdprotocolextensions1 & MVD_PEXT1_WEAPONPREDICTION && cl_predict_weaponsound.integer != 0)
-		{
-			if ((channel == 0 || channel == 1) && PM_FilterWeaponSound(sound_num))
-				return;
-		}
-
 		if (cl_predict_sound.integer && !cl_nopred.integer)
 		{
 			if (CL_IsPredictedMovementSound(sound_num))
@@ -3575,12 +3569,6 @@ void CL_ParseStufftext (void)
 #ifdef PROTOCOL_VERSION_MVD1
 		extern unsigned int CL_SupportedMVDExtensions1(void);
 #endif
-#ifdef MVD_PEXT1_WEAPONPREDICTION
-		extern cvar_t cl_pext_weaponprediction;
-#endif
-#ifdef MVD_PEXT1_SIMPLEPROJECTILE
-		extern cvar_t cl_pext_simpleprojectiles;
-#endif
 
 		char tmp[128];
 		char data[1024] = "cmd pext";
@@ -3628,26 +3616,16 @@ void CL_ParseStufftext (void)
 #ifdef MVD_PEXT1_EZCSQC
 		if (ezcsqc_selected) {
 			ext |= MVD_PEXT1_EZCSQC;
-#ifdef MVD_PEXT1_WEAPONPREDICTION
-			ext &= ~MVD_PEXT1_WEAPONPREDICTION;
-#endif
 #ifdef MVD_PEXT1_SIMPLEPROJECTILE
 			ext &= ~MVD_PEXT1_SIMPLEPROJECTILE;
 #endif
 		}
 		else {
 			ext &= ~MVD_PEXT1_EZCSQC;
-#ifdef MVD_PEXT1_WEAPONPREDICTION
-			if (cl_pext_weaponprediction.value) {
-				ext |= MVD_PEXT1_WEAPONPREDICTION;
-			}
+		}
 #endif
 #ifdef MVD_PEXT1_SIMPLEPROJECTILE
-			if (cl_pext_simpleprojectiles.value) {
-				ext |= MVD_PEXT1_SIMPLEPROJECTILE;
-			}
-#endif
-		}
+		ext &= ~MVD_PEXT1_SIMPLEPROJECTILE;
 #endif
 		snprintf(tmp, sizeof(tmp), " 0x%x 0x%x", PROTOCOL_VERSION_MVD1, ext);
 		Com_Printf_State(PRINT_DBG, "PEXT: 0x%x is mvdsv protocol ver and 0x%x is mvdprotocolextensions1\n", PROTOCOL_VERSION_MVD1, ext);

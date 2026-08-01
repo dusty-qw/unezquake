@@ -19,30 +19,8 @@ typedef struct explosion_s
 	model_t *model;
 } explosion_t;
 
-#define	MAX_FAKEPROJ 96
-typedef struct
-{
-	int modelindex, dl_key;
-	int type, effects, flags, partcount, index;
-	float starttime, endtime, parttime;
-	vec3_t start, vel, avel, angs, org, partorg;
-	centity_t cent;
-	centity_trail_t trails[4];
-#ifdef MVD_PEXT1_SIMPLEPROJECTILE
-	int entnum;
-	int	owner;
-#endif
-} fproj_t;
-
-void Fproj_Physics_Bounce(fproj_t *proj, float dt);
-void CL_MatchFakeProjectile(centity_t *cent);
 void CL_CreateBeam(int type, int ent, vec3_t start, vec3_t end);
 void CL_ClearBeam(int ent);
-fproj_t *CL_AllocFakeProjectile(void);
-fproj_t *CL_CreateFakeNail(void);
-fproj_t *CL_CreateFakeSuperNail(void);
-fproj_t *CL_CreateFakeGrenade(void);
-fproj_t *CL_CreateFakeRocket(void);
 
 #define MAX_PREDEXPLOSIONS 16
 typedef struct
@@ -55,22 +33,6 @@ typedef struct
 } predexplosion_t;
 void CL_CheckPredictedExplosions(player_state_t *from, player_state_t *to);
 void CL_PredictRocketExplosion(vec3_t te_origin, vec3_t kick_origin, double prediction_time);
-
-#ifdef MVD_PEXT1_SIMPLEPROJECTILE
-typedef struct
-{
-	int active;
-
-	int fproj_number;
-	int owner;
-	vec3_t origin;
-	vec3_t velocity;
-	vec3_t angles;
-	int modelindex;
-	float time_offset;
-
-} cs_sprojectile_t;
-#endif
 
 //r_part_trails.c
 extern void R_MissileTrail(centity_t *cent, int trail_num);

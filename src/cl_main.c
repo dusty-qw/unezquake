@@ -120,13 +120,6 @@ cvar_t  cl_pext_lagteleport = { "cl_pext_lagteleport", "1" }; // server-side adj
 #ifdef MVD_PEXT1_SERVERSIDEWEAPON
 cvar_t  cl_pext_serversideweapon = { "cl_pext_serversideweapon", "0", 0, onchange_pext_serversideweapon }; // server-side weapon selection
 #endif
-#ifdef MVD_PEXT1_WEAPONPREDICTION
-cvar_t  cl_pext_weaponprediction = { "cl_pext_weaponprediction", "1" }; // send data for client-side weapon prediction
-#endif
-#ifdef MVD_PEXT1_SIMPLEPROJECTILE
-cvar_t  cl_pext_simpleprojectiles = { "cl_pext_simpleprojectiles", "1" }; // send simple stateless projectiles
-cvar_t  cl_sproj_xerp = { "cl_sproj_xerp", "0" }; // extrapolate projectiles based on ping
-#endif
 #ifdef FTE_PEXT_CSQC
 cvar_t  cl_pext_ezcsqc = { "cl_pext_ezcsqc", "1" }; // native CSQC/EZCSQC weapon and projectile prediction
 cvar_t  cl_ezcsqc_debug = { "cl_ezcsqc_debug", "0" }; // print native CSQC/EZCSQC parser diagnostics
@@ -582,26 +575,6 @@ unsigned int CL_SupportedMVDExtensions1(void)
 	}
 #endif
 
-#ifdef MVD_PEXT1_WEAPONPREDICTION
-	if (cl_pext_weaponprediction.value
-#ifdef MVD_PEXT1_EZCSQC
-		&& !cl_pext_ezcsqc.value
-#endif
-	) {
-		extensions_supported |= MVD_PEXT1_WEAPONPREDICTION;
-	}
-#endif
-
-#ifdef MVD_PEXT1_SIMPLEPROJECTILE
-	if (cl_pext_simpleprojectiles.value
-#ifdef MVD_PEXT1_EZCSQC
-		&& !cl_pext_ezcsqc.value
-#endif
-	) {
-		extensions_supported |= MVD_PEXT1_SIMPLEPROJECTILE;
-	}
-#endif
-
 #ifdef MVD_PEXT1_EZCSQC
 	if (cl_pext_ezcsqc.value) {
 		extensions_supported |= MVD_PEXT1_EZCSQC;
@@ -636,9 +609,6 @@ static unsigned int CL_SelectMVDExtensions1(unsigned int server_ftepext, unsigne
 
 	if (CL_ServerCanUseEZCSQC(server_ftepext, server_mvdpext1)) {
 		selected |= MVD_PEXT1_EZCSQC;
-#ifdef MVD_PEXT1_WEAPONPREDICTION
-		selected &= ~MVD_PEXT1_WEAPONPREDICTION;
-#endif
 #ifdef MVD_PEXT1_SIMPLEPROJECTILE
 		selected &= ~MVD_PEXT1_SIMPLEPROJECTILE;
 #endif
@@ -647,15 +617,8 @@ static unsigned int CL_SelectMVDExtensions1(unsigned int server_ftepext, unsigne
 
 	selected &= ~MVD_PEXT1_EZCSQC;
 
-#ifdef MVD_PEXT1_WEAPONPREDICTION
-	if (cl_pext_weaponprediction.value && (server_mvdpext1 & MVD_PEXT1_WEAPONPREDICTION)) {
-		selected |= MVD_PEXT1_WEAPONPREDICTION;
-	}
-#endif
 #ifdef MVD_PEXT1_SIMPLEPROJECTILE
-	if (cl_pext_simpleprojectiles.value && (server_mvdpext1 & MVD_PEXT1_SIMPLEPROJECTILE)) {
-		selected |= MVD_PEXT1_SIMPLEPROJECTILE;
-	}
+	selected &= ~MVD_PEXT1_SIMPLEPROJECTILE;
 #endif
 
 	return selected;
@@ -2056,13 +2019,6 @@ static void CL_InitLocal(void)
 #endif
 #ifdef MVD_PEXT1_SERVERSIDEWEAPON
 	Cvar_Register(&cl_pext_serversideweapon);
-#endif
-#ifdef MVD_PEXT1_WEAPONPREDICTION
-	Cvar_Register(&cl_pext_weaponprediction);
-#endif
-#ifdef MVD_PEXT1_SIMPLEPROJECTILE
-	Cvar_Register(&cl_pext_simpleprojectiles);
-	Cvar_Register(&cl_sproj_xerp);
 #endif
 #ifdef FTE_PEXT_CSQC
 	Cvar_Register(&cl_pext_ezcsqc);

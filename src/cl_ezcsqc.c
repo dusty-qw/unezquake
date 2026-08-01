@@ -1073,7 +1073,7 @@ static qbool Predraw_Projectile(ezcsqc_entity_t *self)
 		/*
 		 * Local projectiles exist only until the server-authored CSQC entity is
 		 * visible. This mirrors legacy antilag's "predict until server arrives"
-		 * behavior without routing through the old fproj_t renderer.
+		 * behavior without using the removed legacy fake-projectile renderer.
 		 */
 		if (projectile_time < self->starttime) {
 			return false;
