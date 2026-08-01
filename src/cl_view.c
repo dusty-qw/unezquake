@@ -830,10 +830,6 @@ static int V_CurrentWeaponModel(void)
 		active_weaponframe = ez_frame;
 	}
 #endif
-	if (!CL_EZCSQC_Active() && !pmove_nopred_weapon && cls.mvdprotocolextensions1 & MVD_PEXT1_WEAPONPREDICTION) {
-		active_weaponframe = cl.simwepframe;
-	}
-
 	// A preselected weapon changes only the idle viewmodel; the server still owns the active weapon.
 	// Predicted frames also count as active, so preselect cannot override firing animations.
 	if (ShowPreselectedWeap() && r_viewpreselgun.integer && !active_weaponframe) {
@@ -880,12 +876,6 @@ static int V_CurrentWeaponModel(void)
 		}
 	}
 	else {
-		if (!CL_EZCSQC_Active() && !pmove_nopred_weapon && cls.mvdprotocolextensions1 & MVD_PEXT1_WEAPONPREDICTION) {
-			if (cl.simwep == 1)
-				return cl_modelindices[mi_vaxe];
-			else if (cl.simwep > 1 && cl.simwep <= 9)
-				return cl_modelindices[mi_weapon1 - 1 + cl.simwep];
-		}
 		return cl.stats[STAT_WEAPON];
 	}
 }
@@ -944,9 +934,6 @@ static void V_AddViewWeapon(float bob)
 		else if (scr_viewsize.value == 80)
 			cent->current.origin[2] += 0.5;
 	}
-
-	if (!CL_EZCSQC_Active() && !pmove_nopred_weapon && cls.mvdprotocolextensions1 & MVD_PEXT1_WEAPONPREDICTION)
-		view_message.weaponframe = cl.simwepframe;
 
 	if (cent->current.modelindex != gunmodel) {
 		cent->frametime = -1;

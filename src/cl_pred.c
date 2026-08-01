@@ -82,7 +82,6 @@ qbool clpred_newpos = false;
 #endif
 
 
-prediction_event_fakeproj_t		*p_event_fakeproj;
 prediction_event_sound_t		*p_event_sound;
 int		cl_last_predicted_movement_sound_frame = -1;
 int		cl_last_predicted_movement_sound_chan = -1;
@@ -304,10 +303,7 @@ void CL_PredictUsercmd (player_state_t *from, player_state_t *to, usercmd_t *u, 
 
 	if (local)
 	{
-		if (!CL_EZCSQC_Active() && !pmove_nopred_weapon && cls.mvdprotocolextensions1 & MVD_PEXT1_WEAPONPREDICTION)
-			PM_PlayerWeapon();
-		else
-			pmove.impulse = 0;
+		pmove.impulse = 0;
 
 		if (CL_EZCSQC_Active()) {
 			to->state_time = from->state_time + u->msec * 0.001;
@@ -615,7 +611,6 @@ void CL_PlayEvents(void)
 	int threshold = bound(min(cl.validsequence + 2, cls.netchan.outgoing_sequence - 1), cls.netchan.outgoing_sequence - (cl_predict_buffer.integer + 1), cls.netchan.outgoing_sequence - 1);
 	qbool play_buffered_events = pmove.effect_frame < threshold;
 
-	player_state_t *new_state = &cl.frames[(cls.netchan.outgoing_sequence - 1)& UPDATE_MASK].playerstate[cl.playernum];
 	player_state_t *state = &cl.frames[(threshold) & UPDATE_MASK].playerstate[cl.playernum];
 
 	prediction_event_sound_t *s_event;
@@ -632,98 +627,6 @@ void CL_PlayEvents(void)
 				continue;
 			}
 			S_StartSound(cl.playernum + 1, s_event->chan, s_event->sample, pmove.origin, s_event->vol, 0);
-		}
-	}
-
-	prediction_event_fakeproj_t *p_event;
-	for(p_event = p_event_fakeproj; p_event != NULL; p_event = p_event->next)
-	{
-		if (CL_EZCSQC_Active()) {
-			continue;
-		}
-
-		if (p_event->frame_num > pmove.effect_frame && p_event->frame_num <= threshold)
-		{
-			player_state_t *this_state = &cl.frames[(p_event->frame_num) & UPDATE_MASK].playerstate[cl.playernum];
-			float ms_diff = max((new_state->state_time - this_state->state_time), 0);
-
-			if (p_event->type == IT_LIGHTNING)
-			{
-				if (pmove.client_time >= pmove.t_width)
-				{
-					pmove.t_width = pmove.client_time + (0.6);
-
-					if (CL_PredictWeaponSoundEnabled())
-					{
-						S_StartSound(cl.playernum + 1, 1, cl_sfx_lghit, pmove.origin, 1, 0);
-					}
-				}
-
-
-				if (!cl_predict_beam.integer)
-					continue;
-
-
-				vec3_t start, end, forward;
-				VectorCopy(p_event->origin, start);
-				VectorCopy(start, end);
-
-				AngleVectors(p_event->angles, forward, NULL, NULL);
-				VectorScale(forward, 600, forward);
-				VectorAdd(end, forward, end);
-
-				trace_t hittrace = PM_TraceLine(start, end);
-				CL_CreateBeam(2, cl.playernum + 1, start, hittrace.endpos);
-			}
-			else
-			{
-				if (!CL_PredictProjectilesEnabled())
-					continue;
-
-				fproj_t *newmis;
-				switch (p_event->type)
-				{
-				case IT_NAILGUN:
-					newmis = CL_CreateFakeNail();
-					break;
-				case IT_SUPER_NAILGUN:
-					newmis = CL_CreateFakeSuperNail();
-					break;
-				case IT_GRENADE_LAUNCHER:
-					newmis = CL_CreateFakeGrenade();
-					break;
-				default:
-					newmis = CL_CreateFakeRocket();
-					break;
-				}
-
-				if (newmis == NULL)
-					continue;
-
-
-
-				VectorCopy(p_event->angles, newmis->angs);
-				VectorCopy(p_event->origin, newmis->org);
-				VectorCopy(p_event->origin, newmis->start);
-				VectorCopy(p_event->velocity, newmis->vel);
-				VectorCopy(p_event->avelocity, newmis->avel);
-				VectorMA(p_event->origin, 0.05, p_event->velocity, newmis->partorg);
-
-				newmis->parttime -= max(ms_diff + 0.013, 0);
-				newmis->starttime -= max(ms_diff + 0.025, 0);
-				newmis->endtime -= max(ms_diff - 0.013, 0);
-
-				if (p_event->type == IT_GRENADE_LAUNCHER)
-				{
-					//newmis->starttime -= ms_diff;
-					Fproj_Physics_Bounce(newmis, 0.02);
-					Fproj_Physics_Bounce(newmis, max(ms_diff - 0.013, 0));
-				}
-				else
-				{
-					VectorMA(newmis->org, ms_diff, newmis->vel, newmis->org);
-				}
-			}
 		}
 	}
 
@@ -816,15 +719,6 @@ void CL_PredictMove (qbool physframe) {
 			p_event_sound = NULL;// s_event->next;
 			free(s_event);
 		}
-
-		while (p_event_fakeproj != NULL)
-		{
-			prediction_event_fakeproj_t *p_event = p_event_fakeproj;
-			p_event_fakeproj = NULL;// p_event->next;
-			free(p_event);
-		}
-		//*/
-
 
 		// run frames
 		for (i = 1; i < UPDATE_BACKUP - 1 && cl.validsequence + i < cls.netchan.outgoing_sequence; i++) {
