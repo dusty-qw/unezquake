@@ -2085,7 +2085,7 @@ static void CL_InitLocal(void)
 
  	Info_SetValueForStarKey (cls.userinfo, "*client", st, MAX_INFO_STRING);
 
-	snprintf(st, sizeof(st), "ezQuake v%s %s", VERSION_NUMBER, VERSION);
+	snprintf(st, sizeof(st), "unezQuake v%s %s", VERSION_NUMBER, VERSION);
 	Info_SetValueForStarKey(cls.userinfo, "*ver", st, MAX_INFO_STRING);
 
 	if (COM_CheckParm(cmdline_param_client_noindphys))
