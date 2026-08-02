@@ -89,6 +89,10 @@ static cvar_t crosshairvec_thickness = {"crosshairvec_thickness", "0.125",  0, O
 static cvar_t crosshairvec_dot       = {"crosshairvec_dot",       "0",      0, OnChange_crosshairvec};
 static cvar_t crosshairvec_ring      = {"crosshairvec_ring",      "0.75",   0, OnChange_crosshairvec};
 static cvar_t crosshairvec_innerring = {"crosshairvec_innerring", "0",      0, OnChange_crosshairvec};
+static cvar_t crosshairvec_rotate        = {"crosshairvec_rotate",        "0",   0, OnChange_crosshairvec}; // degrees clockwise; rotates the lines (+ -> x)
+static cvar_t crosshairvec_segments      = {"crosshairvec_segments",      "0",   0, OnChange_crosshairvec}; // cut both rings into N arc segments (0 = full rings)
+static cvar_t crosshairvec_segmentgap    = {"crosshairvec_segmentgap",    "0.4", 0, OnChange_crosshairvec}; // empty fraction of each segment's slot
+static cvar_t crosshairvec_segmentrotate = {"crosshairvec_segmentrotate", "0",   0, OnChange_crosshairvec}; // degrees clockwise; rotates the brackets
 static cvar_t crosshairvec_outline   = {"crosshairvec_outline",   "0.0625", 0, OnChange_crosshairvec};
 static cvar_t crosshairvec_outline_color = {"crosshairvec_outline_color", "0 0 0 255", CVAR_COLOR}; // RGBA, applied at draw (no rebuild)
 
@@ -196,18 +200,23 @@ static float ParametricRectCoverage(float px, float py, float rx0, float ry0, fl
 	return (ox > 1.0f ? 1.0f : ox) * (oy > 1.0f ? 1.0f : oy);
 }
 
+// The crosshair's one anti-aliasing primitive: turn a signed distance in texels (negative inside the
+// shape) into 0..1 coverage with a 1px ramp centred on the edge. Every primitive below -- rings, the
+// rotated lines, the dot and the arc-segment caps -- runs its edge through this, so the edge softness
+// is identical everywhere and lives in exactly one place.
+static float ParametricEdge(float sd)
+{
+	return bound(0.0f, 0.5f - sd, 1.0f);
+}
+
 // Coverage of a stroked circle (annulus) for a pixel whose centre is `dist` texels
-// from the crosshair centre. `radius` is the circle radius, `halfwidth` half the
-// stroke width. A 1px signed-distance ramp anti-aliases the curve.
+// from the crosshair centre. `radius` is the circle radius, `halfwidth` half the stroke width.
 static float ParametricRingCoverage(float dist, float radius, float halfwidth)
 {
-	float sd;
-
 	if (radius <= 0.0f) {
 		return 0.0f;
 	}
-	sd = fabsf(dist - radius) - halfwidth; // < 0 inside the stroke band
-	return bound(0.0f, 0.5f - sd, 1.0f);
+	return ParametricEdge(fabsf(dist - radius) - halfwidth); // sd < 0 inside the stroke band
 }
 
 // Geometry of the custom crosshair, in texels (filled once, sampled per pixel).
@@ -218,32 +227,108 @@ typedef struct {
 	float up, down, left, right;  // per-line tip radius (== inner means that line is off)
 	float ring1, ring2;           // ring radii (0 = off)
 	float dotr;                   // centre dot radius (0 = off)
+	float ct, st;                 // cos/sin of the line rotation (1, 0 when unrotated)
+	qbool line_sdf;               // lines are rotated -> use the SDF box path instead of analytic rects
+	int   segs;                   // arc segments per ring (0 = full rings)
+	float seg_period;             // angular period of one segment slot, 2*pi/segs (radians)
+	float seg_half;               // lit half-span of each segment (radians)
+	float seg_phase;              // bracket rotation (radians), applied as a phase offset on the angle
 } parametric_geom_t;
+
+// Coverage of an axis-aligned box, evaluated in the crosshair's (already rotated) local frame, with
+// the same 1px ramp as the rings. Used for the lines when crosshairvec_rotate is in effect: a rigid
+// rotation preserves distance, so the box signed distance at the rotated sample point is the exact
+// world signed distance and the anti-aliasing stays one pixel wide at any angle (the analytic
+// ParametricRectCoverage above is only correct for axis-aligned lines). (bx,by) is the box centre and
+// (hx,hy) its half-extents, both relative to the crosshair centre.
+static float ParametricBoxCoverage(float lx, float ly, float bx, float by, float hx, float hy)
+{
+	float qx = fabsf(lx - bx) - hx;
+	float qy = fabsf(ly - by) - hy;
+	float ox = max(qx, 0.0f);
+	float oy = max(qy, 0.0f);
+	float sd = sqrtf(ox * ox + oy * oy) + min(max(qx, qy), 0.0f); // < 0 inside the box
+	return ParametricEdge(sd);
+}
+
+// Coverage of one crosshair line. The line is described once, as the axis-aligned rectangle
+// (rx0,ry0)-(rx1,ry1): an unrotated crosshair samples it with the exact analytic box-area coverage
+// (byte-identical to the original), and a rotated one re-derives the same rectangle as an SDF box in
+// the rotated local frame (lx,ly). Describing the rectangle in a single place keeps the rotated and
+// unrotated line geometry from drifting apart.
+static float ParametricLineCoverage(const parametric_geom_t* gm, float fx, float fy, float lx, float ly,
+                                    float rx0, float ry0, float rx1, float ry1)
+{
+	if (!gm->line_sdf) {
+		return ParametricRectCoverage(fx, fy, rx0, ry0, rx1, ry1);
+	}
+	return ParametricBoxCoverage(lx, ly,
+		0.5f * (rx0 + rx1) - gm->cx, 0.5f * (ry0 + ry1) - gm->cy,  // box centre, relative to the crosshair centre
+		0.5f * (rx1 - rx0), 0.5f * (ry1 - ry0));                   // half-extents
+}
+
+// Angular mask that turns a full ring into `gm->segs` evenly spaced arc segments (brackets). The
+// anti-aliasing is done in arc-length (texel) space so the segment ends stay one pixel wide at any
+// radius; the lit span is widened by `grow` texels per side so the outline pass caps the bracket ends.
+// Returns 1 (a solid ring) when segments are off, the ring is sub-pixel, or a segment is too short to
+// resolve two clean edges -- so a full ring stays byte-identical to before. `phi` is the pixel angle
+// atan2f(dy,dx); the bracket rotation is applied here as a phase offset, independent of the line rotation.
+static float ParametricArcMask(const parametric_geom_t* gm, float phi, float radius, float grow)
+{
+	float a, seghalf;
+
+	if (gm->segs <= 0 || radius < 0.5f) {
+		return 1.0f;
+	}
+	if (2.0f * gm->seg_half * radius < 2.0f) {                          // too small to resolve two clean edges -> solid ring
+		return 1.0f;                                                    // test the un-grown span so fill and outline agree
+	}
+	seghalf = gm->seg_half + grow / radius;                            // outline pass extends the caps by `grow` texels
+	phi    -= gm->seg_phase;                                            // bracket rotation = phase offset on the angle
+	a       = phi - gm->seg_period * floorf(phi / gm->seg_period + 0.5f); // signed angular distance to the nearest segment centre
+	return ParametricEdge((fabsf(a) - seghalf) * radius);              // 1px ramp; sd = arc-length distance outside the lit span
+}
 
 // Union coverage of every primitive at one pixel, each grown outward by `grow` texels.
 // grow=0 yields the shape; grow=outline yields the dilated shape used for the outline.
-static float ParametricCoverage(const parametric_geom_t* gm, float fx, float fy, float dist, float grow)
+static float ParametricCoverage(const parametric_geom_t* gm, float fx, float fy, float dx, float dy, float dist, float grow)
 {
 	float h   = gm->hw + grow;
 	float in  = gm->inner - grow;
 	float cov = 0.0f;
 
-	if (gm->up > gm->inner) {     // each line is drawn only if it has length
-		cov = max(cov, ParametricRectCoverage(fx, fy, gm->cx - h, gm->cy - (gm->up + grow), gm->cx + h, gm->cy - in));
+	float lx  = 0.0f, ly = 0.0f;
+	float phi = 0.0f;
+
+	if (gm->line_sdf) {           // sample point in the line-rotated local frame (only when rotation is on)
+		lx =  dx * gm->ct + dy * gm->st;
+		ly = -dx * gm->st + dy * gm->ct;
+	}
+	// Each line is drawn only if it has length. ParametricLineCoverage picks the exact analytic rect
+	// (unrotated, byte-identical to before) or the SDF box (rotated) from the one rectangle given here.
+	if (gm->up > gm->inner) {
+		cov = max(cov, ParametricLineCoverage(gm, fx, fy, lx, ly, gm->cx - h, gm->cy - (gm->up + grow), gm->cx + h, gm->cy - in));
 	}
 	if (gm->down > gm->inner) {
-		cov = max(cov, ParametricRectCoverage(fx, fy, gm->cx - h, gm->cy + in, gm->cx + h, gm->cy + (gm->down + grow)));
+		cov = max(cov, ParametricLineCoverage(gm, fx, fy, lx, ly, gm->cx - h, gm->cy + in, gm->cx + h, gm->cy + (gm->down + grow)));
 	}
 	if (gm->left > gm->inner) {
-		cov = max(cov, ParametricRectCoverage(fx, fy, gm->cx - (gm->left + grow), gm->cy - h, gm->cx - in, gm->cy + h));
+		cov = max(cov, ParametricLineCoverage(gm, fx, fy, lx, ly, gm->cx - (gm->left + grow), gm->cy - h, gm->cx - in, gm->cy + h));
 	}
 	if (gm->right > gm->inner) {
-		cov = max(cov, ParametricRectCoverage(fx, fy, gm->cx + in, gm->cy - h, gm->cx + (gm->right + grow), gm->cy + h));
+		cov = max(cov, ParametricLineCoverage(gm, fx, fy, lx, ly, gm->cx + in, gm->cy - h, gm->cx + (gm->right + grow), gm->cy + h));
 	}
-	cov = max(cov, ParametricRingCoverage(dist, gm->ring1, h));                                             // outer ring
-	cov = max(cov, ParametricRingCoverage(dist, gm->ring2, h));                                             // inner ring
+
+	// Rings, optionally cut into arc segments. ParametricArcMask returns exactly 1 when segments are off,
+	// so these two lines are the full-ring case too (x * 1 is exact, so the default stays byte-identical).
+	if (gm->segs > 0) {
+		phi = atan2f(dy, dx);     // pixel angle, computed once and shared by both rings (same dx,dy)
+	}
+	cov = max(cov, ParametricRingCoverage(dist, gm->ring1, h) * ParametricArcMask(gm, phi, gm->ring1, grow));
+	cov = max(cov, ParametricRingCoverage(dist, gm->ring2, h) * ParametricArcMask(gm, phi, gm->ring2, grow));
+
 	if (gm->dotr > 0.0f) {
-		cov = max(cov, bound(0.0f, 0.5f - (dist - (gm->dotr + grow)), 1.0f));                               // centre dot
+		cov = max(cov, ParametricEdge(dist - (gm->dotr + grow)));  // centre dot
 	}
 	return cov;
 }
@@ -283,6 +368,27 @@ static void BuildParametricCrosshair(int size)
 	gm.ring2 = min(r2 * R, R - gm.hw - 1.0f);       // inner ring radius
 	ow       = bound(0.0f, crosshairvec_outline.value, 0.5f) * R; // outline width (texels)
 
+	{
+		// Rotation and ring segmentation. Both are baked into the texture (shape params, rebuilt on
+		// change), so they cost nothing per frame. theta rotates the lines; the bracket rotation is a
+		// separate phase. At the defaults (rotate 0, segments 0) line_sdf is false and segs is 0, so the
+		// analytic line path and full-ring path run unchanged and the mask is byte-identical to before.
+		float theta = DEG2RAD(fmodf(crosshairvec_rotate.value, 360.0f));
+		int   nseg  = (int)bound(0.0f, crosshairvec_segments.value, 64.0f);
+		float sgap  = bound(0.0f, crosshairvec_segmentgap.value, 0.95f);
+
+		gm.ct         = cosf(theta);
+		gm.st         = sinf(theta);
+		// Any rotation switches the lines to the SDF path; rotate 0 keeps the exact analytic coverage, so
+		// the default is unchanged and only a rotated crosshair pays the sub-pixel SDF-vs-analytic
+		// difference at the line ends (the rings and dot are circular, so they are unaffected either way).
+		gm.line_sdf   = (theta != 0.0f);                                            // y-down: +theta is clockwise
+		gm.segs       = nseg;
+		gm.seg_period = nseg ? (2.0f * (float)M_PI / (float)nseg) : 0.0f;
+		gm.seg_half   = nseg ? (0.5f * gm.seg_period * (1.0f - sgap)) : 0.0f;
+		gm.seg_phase  = DEG2RAD(fmodf(crosshairvec_segmentrotate.value, 360.0f));   // rotates the brackets, independent of the lines
+	}
+
 	if (ow > 0.0f) {                              // no outline mask when there's no outline to draw
 		outbuf = (byte*)Q_malloc(size * size * 4);
 	}
@@ -292,7 +398,7 @@ static void BuildParametricCrosshair(int size)
 			float fx = (float)x, fy = (float)y;
 			float dx = (fx + 0.5f) - gm.cx, dy = (fy + 0.5f) - gm.cy;
 			float dist = sqrtf(dx * dx + dy * dy);
-			float fill = ParametricCoverage(&gm, fx, fy, dist, 0.0f);
+			float fill = ParametricCoverage(&gm, fx, fy, dx, dy, dist, 0.0f);
 			int   o    = (y * size + x) * 4;
 
 			// white premultiplied fill mask (rgb == alpha == coverage); tinted by crosshaircolor at draw.
@@ -301,7 +407,7 @@ static void BuildParametricCrosshair(int size)
 			if (outbuf) {
 				// outline = the dilated shape minus the fill (the rim only), so it never shows
 				// through a translucent fill. Tinted by crosshairvec_outline_color at draw.
-				float line   = ParametricCoverage(&gm, fx, fy, dist, ow);
+				float line   = ParametricCoverage(&gm, fx, fy, dx, dy, dist, ow);
 				float border = line * (1.0f - fill);
 				outbuf[o + 0] = outbuf[o + 1] = outbuf[o + 2] = outbuf[o + 3] = (byte)(bound(0.0f, border, 1.0f) * 255.0f + 0.5f);
 			}
@@ -772,6 +878,10 @@ void Draw_Init (void)
 		Cvar_Register(&crosshairvec_dot);
 		Cvar_Register(&crosshairvec_ring);
 		Cvar_Register(&crosshairvec_innerring);
+		Cvar_Register(&crosshairvec_rotate);
+		Cvar_Register(&crosshairvec_segments);
+		Cvar_Register(&crosshairvec_segmentgap);
+		Cvar_Register(&crosshairvec_segmentrotate);
 		Cvar_Register(&crosshairvec_outline);
 		Cvar_Register(&crosshairvec_outline_color);
 
