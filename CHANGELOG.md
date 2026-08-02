@@ -1,5 +1,32 @@
 # unezQuake Changelog
 
+## Version 2.0.5 - 2026-08-02
+
+### New Features
+- Added rich Discord presence (credit bance)
+- Added ring segments to crosshairvec crosshairs (credit foogs)
+- `+spray` now accepts an optional filename (ex. `+spray someimage`)
+- Legacy weapon prediction functionality has been completely removed
+
+### Bug fixes
+- `+fire_ar` state is preserved across client clears similar to +attack and +fire
+- advertise EZCSQC in fallback negotiation to prevent setup failure
+
+## Version 2.0.4 - 2026-07-05
+
+### New Features
+- Experimental prediction support for sv_antilag 2. You can now force prediction on using the new cvar values below. This isn't recommended on higher pings (> 65 ms) but can feel pretty nice in the 13-52 ms range.
+   - `cl_predict_projectiles 2`
+   - `cl_predict_weaponsound 2` - The sound mask stuff was removed because I don't think anyone used it (if you did, let me know)
+
+**NOTE: This still depends on CSQC-capable KTX/MVDSV servers running sv_antilag 2 (such as from my repos)**
+
+### Bug fixes
+- Predicted weapon frames won't be overridden by preselect
+- Smoothview won't smooth across spawns, teleports, pos_move, etc.
+- Increase limits for projectile handoff to accommodate higher pings
+- Fix precaching of incorrect sounds
+
 ## Version 2.0.3 - 2026-06-25
 
 ### New feature
