@@ -695,7 +695,7 @@ static void Cvar_CvarEdit_f(void)
 
 	snprintf(final_string, sizeof(final_string), "/%s \"%s\"", Cmd_Argv(1), s);
 	Key_ClearTyping();
-	memcpy(key_lines[edit_line] + 1, str2wcs(final_string), strlen(final_string) * sizeof(wchar));
+	memcpy(key_lines[edit_line] + 1, str2wcs(final_string), (strlen(final_string) + 1) * sizeof(wchar));
 	Q_free(s);
 }
 
