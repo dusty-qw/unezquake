@@ -1256,26 +1256,6 @@
       "remarks": "Specified in ms. Maximum delay is 1000ms. Mouse wheel events are also delayed.",
       "type": "float"
     },
-    "cl_delay_packet": {
-      "default": "0",
-      "desc": "Client will delay incoming and outgoing packets, allowing user to increase his ping in the game.",
-      "group-id": "21",
-      "remarks": "Specified in ms. If delay is 20ms, incoming packets will be delayed by 10ms, outgoing packets too. It's preferred to use the least value that gives the desired ping.",
-      "type": "integer"
-    },
-    "cl_delay_packet_deviation": {
-      "default": "0",
-      "desc": "Allows random deviation to be added to /cl_delay_packet delay.",
-      "group-id": "21",
-      "remarks": "Specified in ms.  Makes /cl_delay_packet better simulate high-ping connections.",
-      "type": "integer"
-    },
-    "cl_delay_packet_target": {
-      "default": "0",
-      "desc": "Targets a particular ping, rather than specifying the additional delay.\nAdds half the ping to the outgoing packet and the remainder to incoming.",
-      "group-id": "21",
-      "type": "integer"
-    },
     "cl_demoPingInterval": {
       "default": "5",
       "desc": "How often to request ping updates when recording demos.\nThis variable doesn't affect ping updates when the scoreboard is shown (they are always one update per 2 seconds).",
@@ -2380,6 +2360,19 @@
       "remarks": "This can increase your ping (only) when you are a spectator.",
       "type": "integer"
     },
+    "cl_ping": {
+      "default": "0",
+      "desc": "Targets a particular ping.\nSplits the required artificial delay between outgoing and incoming packets.",
+      "group-id": "21",
+      "type": "integer"
+    },
+    "cl_ping_dev": {
+      "default": "0",
+      "desc": "Allows random deviation to be added to cl_ping delay.",
+      "group-id": "21",
+      "remarks": "Specified in ms.  Makes cl_ping better simulate unstable high-ping connections.",
+      "type": "integer"
+    },
     "cl_pitchspeed": {
       "default": "150",
       "desc": "This variable determines how fast you you turn up/down when using \"+lookup\" and \"+lookdown\".",
@@ -2955,7 +2948,7 @@
       "default": "1",
       "desc": "Determines if internal server should process packets as soon as received from client.",
       "group-id": "43",
-      "remarks": "Should only affect playing on local server, when cl_delay_packet is enabled.\nRecommend to disable for older mods which fake players (frogbots) and leave enabled for KTX.",
+      "remarks": "Should only affect playing on local server, when cl_ping is enabled.\nRecommend to disable for older mods which fake players (frogbots) and leave enabled for KTX.",
       "type": "boolean"
     },
     "cl_textencoding": {

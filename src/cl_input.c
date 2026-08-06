@@ -1313,6 +1313,7 @@ void CL_SendCmd(void)
 	i = cls.netchan.outgoing_sequence & UPDATE_MASK;
 	cmd = &cl.frames[i].cmd;
 	cl.frames[i].senttime = cls.realtime;
+	cl.frames[i].packetdelay = 0;
 	cl.frames[i].receivedtime = -1;		// we haven't gotten a reply yet
 
 	// update network stats table
