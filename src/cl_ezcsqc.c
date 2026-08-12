@@ -1282,6 +1282,10 @@ static qbool WeaponPred_PlayLGBeam(usercmd_t *u, player_state_t *ps)
 		return true;
 	}
 
+	if (cl.waterlevel >= 2) {
+		return true;
+	}
+
 	VectorCopy(ps->origin, start);
 	start[2] += 16;
 	VectorCopy(start, end);

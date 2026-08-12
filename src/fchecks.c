@@ -44,7 +44,6 @@ cvar_t allow_f_system  = {"allow_f_system",  "1"};
 extern cvar_t enemyforceskins;
 extern cvar_t cl_independentPhysics;
 extern cvar_t allow_scripts;
-extern cvar_t cl_delay_packet;
 extern cvar_t r_fullbrightSkins;
 extern cvar_t cl_fakeshaft;
 extern cvar_t cl_socd;

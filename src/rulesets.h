@@ -82,7 +82,7 @@ void Rulesets_OnChange_indphys (cvar_t *var, char *value, qbool *cancel);
 void Rulesets_OnChange_r_fullbrightSkins (cvar_t *var, char *value, qbool *cancel);
 void Rulesets_OnChange_allow_scripts (cvar_t *var, char *value, qbool *cancel);
 void Rulesets_OnChange_cl_fakeshaft (cvar_t *var, char *value, qbool *cancel);
-void Rulesets_OnChange_cl_delay_packet(cvar_t *var, char *value, qbool *cancel);
+void Rulesets_OnChange_cl_ping(cvar_t *var, char *value, qbool *cancel);
 void Rulesets_OnChange_cl_iDrive(cvar_t *var, char *value, qbool *cancel);
 void Rulesets_OnChange_cl_autohop(cvar_t *var, char *value, qbool *cancel);
 void Rulesets_OnChange_cl_hud(cvar_t *var, char *value, qbool *cancel);

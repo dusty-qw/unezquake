@@ -346,7 +346,7 @@ void Rulesets_OnChange_allow_scripts (cvar_t *var, char *value, qbool *cancel)
 	}
 }
 
-void Rulesets_OnChange_cl_delay_packet(cvar_t *var, char *value, qbool *cancel)
+void Rulesets_OnChange_cl_ping(cvar_t *var, char *value, qbool *cancel)
 {
 	int ival = Q_atoi(value);
 
@@ -355,19 +355,13 @@ void Rulesets_OnChange_cl_delay_packet(cvar_t *var, char *value, qbool *cancel)
 		return;
 	}
 
-	if (var == &cl_delay_packet && (ival < 0 || ival > CL_MAX_PACKET_DELAY * 2)) {
-		Com_Printf("%s must be between 0 and %d\n", var->name, CL_MAX_PACKET_DELAY * 2);
-		*cancel = true;
-		return;
-	}
-
-	if (var == &cl_delay_packet_dev && (ival < 0 || ival > CL_MAX_PACKET_DELAY_DEVIATION)) {
+	if (var == &cl_ping_dev && (ival < 0 || ival > CL_MAX_PACKET_DELAY_DEVIATION)) {
 		Com_Printf("%s must be between 0 and %d\n", var->name, CL_MAX_PACKET_DELAY_DEVIATION);
 		*cancel = true;
 		return;
 	}
 
-	if (var == &cl_delay_packet_target && (ival < 0 || ival > CL_MAX_PACKET_DELAY_TARGET)) {
+	if (var == &cl_ping && (ival < 0 || ival > CL_MAX_PACKET_DELAY_TARGET)) {
 		Com_Printf("%s must be between 0 and %d\n", var->name, CL_MAX_PACKET_DELAY_TARGET);
 		*cancel = true;
 		return;
@@ -376,18 +370,14 @@ void Rulesets_OnChange_cl_delay_packet(cvar_t *var, char *value, qbool *cancel)
 	if (cls.state == ca_active) {
 		if ((cl.standby) || (cl.teamfortress)) {
 			char announce[128];
-			int delay_target_ms = (var == &cl_delay_packet_target ? ival : cl_delay_packet_target.integer);
-			int delay_deviation = (var == &cl_delay_packet_dev ? ival : cl_delay_packet_dev.integer);
-			int delay_constant = (var == &cl_delay_packet ? ival : cl_delay_packet.integer);
+			int delay_target_ms = (var == &cl_ping ? ival : cl_ping.integer);
+			int delay_deviation = (var == &cl_ping_dev ? ival : cl_ping_dev.integer);
 
 			if (delay_target_ms) {
-				snprintf(announce, sizeof(announce), "say delay packet: target ping %d ms (%dms dev)\n", delay_target_ms, delay_deviation);
-			}
-			else if (delay_constant) {
-				snprintf(announce, sizeof(announce), "say delay packet: adding %d ms (%dms dev)\n", delay_constant, delay_deviation);
+				snprintf(announce, sizeof(announce), "say target ping: %d ms (%dms dev)\n", delay_target_ms, delay_deviation);
 			}
 			else {
-				snprintf(announce, sizeof(announce), "say delay packet: off\n");
+				snprintf(announce, sizeof(announce), "say target ping: off\n");
 			}
 
 			// allow in standby or teamfortress. For teamfortress, more often than not
@@ -402,6 +392,17 @@ void Rulesets_OnChange_cl_delay_packet(cvar_t *var, char *value, qbool *cancel)
 	}
 	else {
 		// allow in not fully connected state
+	}
+
+	if (*cancel) {
+		return;
+	}
+
+	if (var == &cl_ping && !!cl_ping.integer != !!ival) {
+		if (!ival) {
+			CL_UnqueOutputPacket(true);
+		}
+		CL_ClearQueuedPackets();
 	}
 }
 
