@@ -14,11 +14,18 @@
     { "name": "libpng", "default-features": false },
     { "name": "libjpeg-turbo", "default-features": false },
     { "name": "freetype", "default-features": false, "features": ["zlib"] },
-    { "name": "speex", "default-features": false },
-    { "name": "speexdsp", "default-features": false },
     { "name": "libsndfile", "default-features": false, "features": ["external-libs"] },
     { "name": "alsa", "default-features": false, "platform": "linux" },
     { "name": "sdl2", "default-features": false, "platform": "windows, osx" },
     { "name": "sdl2", "default-features": false, "features": ["wayland", "x11", "alsa"], "platform": "linux" }
-  ]
+  ],
+  "features": {
+    "speex": {
+      "description": "Enable Speex voice chat support",
+      "dependencies": [
+        { "name": "speex", "default-features": false },
+        { "name": "speexdsp", "default-features": false }
+      ]
+    }
+  }
 }
