@@ -156,7 +156,7 @@ typedef enum
 
 #define	MAX_INFO_KEY 64
 //#define	MAX_INFO_STRING	1024
-#define	MAX_SERVERINFO_STRING 512
+#define	MAX_SERVERINFO_STRING 1024
 #define	MAX_LOCALINFO_STRING 32768
 
 #define	MAX_KEY_STRING      (MAX_INFO_KEY)     // mvdsv compatibility
@@ -467,4 +467,3 @@ unsigned char *Q_yelltext(unsigned char *str);
 int Q_namecmp(const char* s1, const char* s2);
 
 #endif /* !__COMMON_H__ */
-

@@ -1,5 +1,11 @@
 cmake_minimum_required(VERSION 3.22)
 
+option(ENABLE_SPEEX "Enable Speex voice chat support" OFF)
+
+if(ENABLE_SPEEX)
+    list(APPEND VCPKG_MANIFEST_FEATURES "speex")
+endif()
+
 project(unezquake C)
 
 # Discord Rich Presence (src/discord) is vendored upstream C++ code.
@@ -135,8 +141,10 @@ check_dependency(PCRE2    "libpcre2-8" "PCRE2"              "pcre2::pcre2-8-stat
 check_dependency(PNG      "libpng"     "PNG"                "PNG::PNG"                     REQUIRED)
 check_dependency(SDL2     "sdl2"       "SDL2"               "SDL2::SDL2-static"            REQUIRED)
 check_dependency(SndFile  "sndfile"    "SndFile"            "SndFile::sndfile"             REQUIRED)
-check_dependency(Speex    "speex"      "Speex"              "SPEEX::SPEEX"                 OPTIONAL)
-check_dependency(SpeexDSP "speexdsp"   "SpeexDSP"           "SPEEX::SPEEXDSP"              OPTIONAL)
+if(ENABLE_SPEEX)
+    check_dependency(Speex    "speex"    "Speex"    "SPEEX::SPEEX"    REQUIRED)
+    check_dependency(SpeexDSP "speexdsp" "SpeexDSP" "SPEEX::SPEEXDSP" REQUIRED)
+endif()
 check_dependency(cURL     "libcurl"    "CURL"               "CURL::libcurl"                REQUIRED CONFIG)
 check_dependency(zlib     "zlib"       "ZLIB"               "ZLIB::ZLIB"                   REQUIRED)
 
@@ -914,7 +922,7 @@ target_compile_definitions(unezquake PRIVATE
         $<$<BOOL:${HAVE_FREETYPE}>:EZ_FREETYPE_SUPPORT>
         $<$<BOOL:${HAVE_FREETYPE}>:EZ_FREETYPE_SUPPORT_STATIC>
 
-        $<$<AND:$<BOOL:${HAVE_SPEEX}>,$<BOOL:${HAVE_SPEEXDSP}>>:WITH_SPEEX>
+        $<$<BOOL:${ENABLE_SPEEX}>:WITH_SPEEX>
 
         PCRE2_CODE_UNIT_WIDTH=8
 )
@@ -941,8 +949,8 @@ target_link_libraries(unezquake PRIVATE
 
         $<$<BOOL:${HAVE_FREETYPE}>:Dep::FreeType>
 
-        $<$<AND:$<BOOL:${HAVE_SPEEX}>,$<BOOL:${HAVE_SPEEXDSP}>>:Dep::Speex>
-        $<$<AND:$<BOOL:${HAVE_SPEEX}>,$<BOOL:${HAVE_SPEEXDSP}>>:Dep::SpeexDSP>
+        $<$<BOOL:${ENABLE_SPEEX}>:Dep::Speex>
+        $<$<BOOL:${ENABLE_SPEEX}>:Dep::SpeexDSP>
 
         OpenGL::GL
         Threads::Threads

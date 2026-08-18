@@ -129,7 +129,8 @@ typedef struct tokenizecontext_s
 
 	// FIXME: MAX_COM_TOKEN not defined here, need redesign headers or something
 
-	char	argv_buf[/*MAX_COM_TOKEN*/ 1024]; // here we store data for *cmd_argv[]
+	// Must fit a full MAX_SERVERINFO_STRING argument plus the command name.
+	char	argv_buf[/*MAX_COM_TOKEN*/ 2048]; // here we store data for *cmd_argv[]
 
 	char	cmd_args[/*MAX_COM_TOKEN*/ 1024 * 2]; // here we store original of what we parse, from argv(1) to argv(argc() - 1)
 

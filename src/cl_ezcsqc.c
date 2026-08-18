@@ -84,6 +84,9 @@ static double setup_warning_time;
 static qbool setup_warning_printed;
 static float lg_twidth;
 static float respawn_attack_guard_until;
+static qbool playable_weapon_update_pending;
+static int playable_transition_sequence;
+static int weapon_generation;
 
 #define EZCSQC_EFFECT_SOUND		(1 << 0)
 #define EZCSQC_EFFECT_PROJECTILE	(1 << 1)
@@ -181,6 +184,9 @@ void CL_EZCSQC_InitializeEntities(void)
 	setup_warning_printed = false;
 	lg_twidth = 0;
 	respawn_attack_guard_until = 0;
+	playable_weapon_update_pending = false;
+	playable_transition_sequence = 0;
+	weapon_generation = -1;
 	projectile_ringbufferseek = 0;
 
 	// Mark every EZCSQC slot free; server entity mappings are rebuilt from CSQC updates.
@@ -1753,6 +1759,38 @@ static qbool WeaponPred_CanUseWeapon(weppreddef_t *wep, ezcsqc_weapon_state_t *w
 	}
 }
 
+static qbool WeaponPred_IsPlayablePMType(pmtype_t pm_type)
+{
+	return pm_type == PM_NORMAL || pm_type == PM_FLY;
+}
+
+static void WeaponPred_UpdatePlayableTransition(void)
+{
+	pmtype_t current_pm_type;
+	pmtype_t previous_pm_type;
+
+	if (cl.validsequence <= 0 || cl.oldvalidsequence <= 0) {
+		return;
+	}
+
+	current_pm_type = cl.frames[cl.validsequence & UPDATE_MASK].playerstate[cl.playernum].pm_type;
+	previous_pm_type = cl.frames[cl.oldvalidsequence & UPDATE_MASK].playerstate[cl.playernum].pm_type;
+
+	if (!WeaponPred_IsPlayablePMType(previous_pm_type) && WeaponPred_IsPlayablePMType(current_pm_type) &&
+		playable_transition_sequence != cl.validsequence) {
+		/*
+		 * Packet playerstate and the owner-only CSQC weapon baseline are not an
+		 * atomic update. Wait for the first post-transition weapon update before
+		 * replaying. Respawns are identified separately by the explicit generation
+		 * encoded with WEAPONINFO_INDEX; update completeness is not provenance.
+		 */
+		playable_transition_sequence = cl.validsequence;
+		playable_weapon_update_pending = true;
+		CL_ClearBeam(cl.playernum + 1);
+		lg_twidth = 0;
+	}
+}
+
 static weaponpred_switch_result_t WeaponPred_SwitchWeapon(int impulse, ezcsqc_weapon_state_t *ws)
 {
 	int i;
@@ -1919,6 +1957,12 @@ static void EntUpdate_WeaponInfo(ezcsqc_entity_t *self, qbool is_new)
 	int sendflags = MSG_ReadByte();
 	ezcsqc_weapon_state_t *ws_current = &ws_server[cl.validsequence & UPDATE_MASK];
 	qbool was_viewweapon = (ezcsqc.weapon_prediction && viewweapon == self);
+	qbool completes_playable_transition;
+	qbool generation_changed = false;
+
+	WeaponPred_UpdatePlayableTransition();
+	completes_playable_transition = playable_weapon_update_pending &&
+		cl.validsequence >= playable_transition_sequence;
 
 	/*
 	 * mvdsv writes CSQC entities after packetentities, so CL_ParsePacketEntities()
@@ -1929,9 +1973,16 @@ static void EntUpdate_WeaponInfo(ezcsqc_entity_t *self, qbool is_new)
 	*ws_current = ws_server[cl.oldvalidsequence & UPDATE_MASK];
 
 	if (sendflags & WEAPONINFO_INDEX) {
+		int encoded_weapon_index;
+		int received_generation;
+
 		// Weapon index updates bind the server weapon to a previously sent definition.
 		ws_current->impulse = MSG_ReadByte();
-		ws_current->weapon_index = MSG_ReadByte();
+		encoded_weapon_index = MSG_ReadByte();
+		received_generation = encoded_weapon_index >> WEAPONINFO_GENERATION_SHIFT;
+		ws_current->weapon_index = encoded_weapon_index & WEAPONINFO_WEAPON_MASK;
+		generation_changed = weapon_generation >= 0 && received_generation != weapon_generation;
+		weapon_generation = received_generation;
 	}
 	if (sendflags & WEAPONINFO_AMMO_SHELLS) {
 		ws_current->ammo_shells = MSG_ReadByte();
@@ -1966,9 +2017,14 @@ static void EntUpdate_WeaponInfo(ezcsqc_entity_t *self, qbool is_new)
 		// KTX reuses axe think indices 2-4 for both viewmodel frame groups.
 		ws_current->client_thinkindex += 4;
 	}
-	if (was_viewweapon && sendflags == WEAPONINFO_ALL) {
-		// KTX sends a full weapon baseline on respawn before its 50 ms attack guard.
+	if (generation_changed) {
+		// A generation change explicitly identifies KTX's post-respawn weapon state.
 		respawn_attack_guard_until = ws_current->client_time + 0.05f;
+		CL_ClearBeam(cl.playernum + 1);
+		lg_twidth = 0;
+	}
+	if (completes_playable_transition) {
+		playable_weapon_update_pending = false;
 	}
 
 	/*
@@ -2216,7 +2272,7 @@ void CL_EZCSQC_ParseSetup(void)
 	}
 
 	setup_ready = true;
-	CL_SendClientCommand(true, "ezcsqc_ready");
+	CL_SendClientCommand(true, "ezcsqc_ready 2");
 }
 
 static qbool CL_EZCSQC_CanSuppressPredictedWeaponSound(void)
@@ -2226,6 +2282,10 @@ static qbool CL_EZCSQC_CanSuppressPredictedWeaponSound(void)
 
 	// Without a confirmed frame, there is no local prediction state to compare against.
 	if (cl.validsequence <= 0) {
+		return false;
+	}
+	WeaponPred_UpdatePlayableTransition();
+	if (playable_weapon_update_pending) {
 		return false;
 	}
 
@@ -2336,8 +2396,14 @@ qbool CL_EZCSQC_UpdateViewWeapon(int *modelindex, int *weaponframe)
 {
 	pmtype_t pm_type = cl.frames[cl.validsequence & UPDATE_MASK].playerstate[cl.playernum].pm_type;
 
+	WeaponPred_UpdatePlayableTransition();
+
 	if (!ezcsqc.weapon_prediction) {
 		CL_EZCSQC_DebugViewWeaponSkip("no weapon prediction entity");
+		return false;
+	}
+	if (playable_weapon_update_pending) {
+		CL_EZCSQC_DebugViewWeaponSkip("waiting for post-transition weapon state");
 		return false;
 	}
 	if (cl_nopred_weapon.integer) {

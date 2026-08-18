@@ -48,6 +48,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define WEAPONINFO_ALL			(WEAPONINFO_INDEX | WEAPONINFO_AMMO_SHELLS | WEAPONINFO_AMMO_NAILS | \
 					 WEAPONINFO_AMMO_ROCKETS | WEAPONINFO_AMMO_CELLS | WEAPONINFO_ATTACK | \
 					 WEAPONINFO_TIMING | WEAPONINFO_PRED_PING)
+/* Version 2 packs a nonzero respawn generation above the four-bit weapon index. */
+#define WEAPONINFO_WEAPON_MASK		0x0f
+#define WEAPONINFO_GENERATION_SHIFT	4
 
 #define PROJECTILE_ORIGIN		(1 << 0)
 #define PROJECTILE_MODEL		(1 << 1)
