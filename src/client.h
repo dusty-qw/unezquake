@@ -954,10 +954,12 @@ void CL_MakeActive(void);
 
 extern char emodel_name[], pmodel_name[];
 
+#ifdef WITH_DISCORD
 // cl_prescence.c
 void CL_InitDiscord (void);
 void CL_ShutdownDiscord (void);
 void CL_UpdatePresence (void);
+#endif
 
 // cl_cmd
 typedef struct {
