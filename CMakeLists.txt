@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 
 option(ENABLE_SPEEX "Enable Speex voice chat support" OFF)
+option(ENABLE_DISCORD "Enable Discord Rich Presence support" ON)
 
 if(ENABLE_SPEEX)
     list(APPEND VCPKG_MANIFEST_FEATURES "speex")
@@ -8,10 +9,12 @@ endif()
 
 project(unezquake C)
 
-# Discord Rich Presence (src/discord) is vendored upstream C++ code.
-enable_language(CXX)
-set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+if(ENABLE_DISCORD)
+    # Discord Rich Presence (src/discord) is vendored upstream C++ code.
+    enable_language(CXX)
+    set(CMAKE_CXX_STANDARD 14)
+    set(CMAKE_CXX_STANDARD_REQUIRED ON)
+endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     enable_language(OBJC)
@@ -237,32 +240,34 @@ set(qwprot_headers
 )
 source_group(TREE ${QWPROT_SOURCE_DIR} PREFIX "Header Files/qwprot" FILES ${qwprot_headers})
 
-set(DISCORD_DIR ${SOURCE_DIR}/discord)
-set(DISCORD_INCLUDE_DIR ${DISCORD_DIR})
+if(ENABLE_DISCORD)
+    set(DISCORD_DIR ${SOURCE_DIR}/discord)
+    set(DISCORD_INCLUDE_DIR ${DISCORD_DIR})
 
-set(discord_headers
-        ${DISCORD_DIR}/discord_register.h
-        ${DISCORD_DIR}/discord_rpc.h
-        ${DISCORD_DIR}/rpc_connection.h
-        ${DISCORD_DIR}/serialization.h
-        ${DISCORD_DIR}/connection.h
-        ${DISCORD_DIR}/backoff.h
-        ${DISCORD_DIR}/msg_queue.h
-)
-set(discord
-        ${DISCORD_DIR}/discord_rpc.cpp
-        ${DISCORD_DIR}/rpc_connection.cpp
-        ${DISCORD_DIR}/serialization.cpp
-)
-if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
-    list(APPEND discord ${DISCORD_DIR}/connection_win.cpp ${DISCORD_DIR}/discord_register_win.cpp)
-elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-    list(APPEND discord ${DISCORD_DIR}/connection_unix.cpp ${DISCORD_DIR}/discord_register_osx.m)
-else()
-    list(APPEND discord ${DISCORD_DIR}/connection_unix.cpp ${DISCORD_DIR}/discord_register_linux.cpp)
+    set(discord_headers
+            ${DISCORD_DIR}/discord_register.h
+            ${DISCORD_DIR}/discord_rpc.h
+            ${DISCORD_DIR}/rpc_connection.h
+            ${DISCORD_DIR}/serialization.h
+            ${DISCORD_DIR}/connection.h
+            ${DISCORD_DIR}/backoff.h
+            ${DISCORD_DIR}/msg_queue.h
+    )
+    set(discord
+            ${DISCORD_DIR}/discord_rpc.cpp
+            ${DISCORD_DIR}/rpc_connection.cpp
+            ${DISCORD_DIR}/serialization.cpp
+    )
+    if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+        list(APPEND discord ${DISCORD_DIR}/connection_win.cpp ${DISCORD_DIR}/discord_register_win.cpp)
+    elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+        list(APPEND discord ${DISCORD_DIR}/connection_unix.cpp ${DISCORD_DIR}/discord_register_osx.m)
+    else()
+        list(APPEND discord ${DISCORD_DIR}/connection_unix.cpp ${DISCORD_DIR}/discord_register_linux.cpp)
+    endif()
+    list(APPEND discord ${discord_headers})
+    source_group(TREE ${DISCORD_DIR} PREFIX "Source Files/discord" FILES ${discord})
 endif()
-list(APPEND discord ${discord_headers})
-source_group(TREE ${DISCORD_DIR} PREFIX "Source Files/discord" FILES ${discord})
 
 set(server_headers
         ${SOURCE_DIR}/g_public.h
@@ -716,7 +721,6 @@ set(client
         ${SOURCE_DIR}/cl_nqdemo.c
         ${SOURCE_DIR}/cl_parse.c
         ${SOURCE_DIR}/cl_pred.c
-        ${SOURCE_DIR}/cl_prescence.c
         ${SOURCE_DIR}/cl_screen.c
         ${SOURCE_DIR}/cl_screenshot.c
         ${SOURCE_DIR}/cl_skygroups.c
@@ -794,6 +798,9 @@ set(client
         ${SOURCE_DIR}/xsd_document.c
         ${client_headers}
 )
+if(ENABLE_DISCORD)
+    list(APPEND client ${SOURCE_DIR}/cl_prescence.c)
+endif()
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     list(APPEND client ${SOURCE_DIR}/movie_avi.c)
 endif()
@@ -891,7 +898,7 @@ add_executable(unezquake ${TARGET_TYPE}
 target_include_directories(unezquake PRIVATE
         ${SOURCE_DIR}/qwprot/src
         ${EZQUAKE_MINIZIP_INCLUDE_DIR}
-        ${DISCORD_INCLUDE_DIR}
+        $<$<BOOL:${ENABLE_DISCORD}>:${DISCORD_INCLUDE_DIR}>
 )
 
 target_compile_definitions(unezquake PRIVATE
@@ -910,9 +917,10 @@ target_compile_definitions(unezquake PRIVATE
         $<$<BOOL:${RENDERER_MODERN_OPENGL}>:RENDERER_OPTION_MODERN_OPENGL>
         $<$<BOOL:${RENDERER_CLASSIC_OPENGL}>:RENDERER_OPTION_CLASSIC_OPENGL>
 
-        $<$<PLATFORM_ID:Windows>:DISCORD_WINDOWS>
-        $<$<PLATFORM_ID:Darwin>:DISCORD_OSX>
-        $<$<PLATFORM_ID:Linux>:DISCORD_LINUX>
+        $<$<BOOL:${ENABLE_DISCORD}>:WITH_DISCORD>
+        $<$<AND:$<BOOL:${ENABLE_DISCORD}>,$<PLATFORM_ID:Windows>>:DISCORD_WINDOWS>
+        $<$<AND:$<BOOL:${ENABLE_DISCORD}>,$<PLATFORM_ID:Darwin>>:DISCORD_OSX>
+        $<$<AND:$<BOOL:${ENABLE_DISCORD}>,$<PLATFORM_ID:Linux>>:DISCORD_LINUX>
 
         WITH_PNG
         WITH_JPEG
@@ -955,8 +963,8 @@ target_link_libraries(unezquake PRIVATE
         OpenGL::GL
         Threads::Threads
 
-        $<$<PLATFORM_ID:Windows>:psapi>
-        $<$<PLATFORM_ID:Windows>:advapi32>
+        $<$<AND:$<BOOL:${ENABLE_DISCORD}>,$<PLATFORM_ID:Windows>>:psapi>
+        $<$<AND:$<BOOL:${ENABLE_DISCORD}>,$<PLATFORM_ID:Windows>>:advapi32>
 
         ${FRAMEWORK_APPKIT}
         ${FRAMEWORK_FOUNDATION}

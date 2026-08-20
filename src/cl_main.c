@@ -2269,7 +2269,9 @@ void CL_Init (void)
 
 	Sys_InitIPC();
 
+#ifdef WITH_DISCORD
 	CL_InitDiscord();
+#endif
 }
 
 //============================================================================
@@ -2868,7 +2870,9 @@ void CL_Frame(double time)
 
 	Sys_ReadIPC();
 
+#ifdef WITH_DISCORD
 	CL_UpdatePresence();
+#endif
 
 	CL_QTVPoll();
 #ifdef WITH_IRC
@@ -2892,7 +2896,9 @@ void CL_Frame(double time)
 
 void CL_Shutdown (void)
 {
+#ifdef WITH_DISCORD
 	CL_ShutdownDiscord();
+#endif
 	CL_Disconnect();
 	SList_Shutdown();
 	CDAudio_Shutdown();
