@@ -296,6 +296,8 @@ void SB_PingTree_DumpPath(const netadr_t *addr);
 void SB_Proxy_QueryForPingList(const netadr_t *address, proxy_ping_report_callback callback);
 void SB_PingTree_ConnectBestPath(const netadr_t *addr);
 int SB_PingTree_GetPathLen(const netadr_t *addr);
+qbool SB_PingTree_GetProxyString(const netadr_t *addr, char *out, size_t outsz,
+                                  int *out_total_ping_ms);
 void SB_Proxylist_Unserialize_f(void);
 
 #define SB_TRIGGER_REFRESHDONE        1
