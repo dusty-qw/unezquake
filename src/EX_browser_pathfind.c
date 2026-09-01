@@ -926,6 +926,171 @@ qbool SB_PingTree_GetProxyString(const netadr_t *addr, char *out, size_t outsz,
 	return (out[0] != '\0');
 }
 
+/*
+ * Return the best route for every viable first hop.  This keeps route
+ * discovery in sb_findroutes: connectbr is only a user-facing selector and
+ * connectnext advances through this cached ranking without probing again.
+ *
+ * One reverse Dijkstra from the destination gives the cheapest continuation
+ * from every proxy.  Combining that with each measured local->proxy edge
+ * produces independent alternatives without maintaining a second graph.
+ */
+int SB_PingTree_GetRoutes(const netadr_t *addr, sb_route_t *routes, int max_routes)
+{
+	nodeid_t target;
+	int *heads, *rev_next, *rev_source, *dist, *next_hop;
+	qbool *visited;
+	int reverse_count = 0;
+	int i, source, count = 0;
+
+	if (!routes || max_routes <= 0 || !SB_PingTree_Built() || building_pingtree)
+		return 0;
+	if (max_routes > SB_ROUTE_MAX_ALTERNATIVES)
+		max_routes = SB_ROUTE_MAX_ALTERNATIVES;
+
+	target = SB_PingTree_FindIp(SB_Netaddr2Ipaddr(addr));
+	if (target == INVALID_NODE)
+		return 0;
+
+	heads = (int *)Q_malloc(sizeof(int) * ping_nodes_count);
+	rev_next = (int *)Q_malloc(sizeof(int) * ping_neighbours_count);
+	rev_source = (int *)Q_malloc(sizeof(int) * ping_neighbours_count);
+	dist = (int *)Q_malloc(sizeof(int) * ping_nodes_count);
+	next_hop = (int *)Q_malloc(sizeof(int) * ping_nodes_count);
+	visited = (qbool *)Q_malloc(sizeof(qbool) * ping_nodes_count);
+	if (!heads || !rev_next || !rev_source || !dist || !next_hop || !visited)
+		goto cleanup;
+
+	for (i = 0; i < ping_nodes_count; i++) {
+		heads[i] = -1;
+		dist[i] = INT_MAX;
+		next_hop[i] = INVALID_NODE;
+		visited[i] = false;
+	}
+
+	for (source = 0; source < ping_nodes_count; source++) {
+		if (ping_nodes[source].nlist_start == INVALID_NODE)
+			continue;
+		for (i = ping_nodes[source].nlist_start; i < ping_nodes[source].nlist_end; i++) {
+			nodeid_t destination = ping_neighbours[i].id;
+			rev_source[reverse_count] = source;
+			rev_next[reverse_count] = heads[destination];
+			heads[destination] = reverse_count++;
+		}
+	}
+
+	dist[target] = 0;
+	for (;;) {
+		nodeid_t current = INVALID_NODE;
+		int best = INT_MAX;
+		for (i = 0; i < ping_nodes_count; i++) {
+			if (!visited[i] && dist[i] < best) {
+				best = dist[i];
+				current = i;
+			}
+		}
+		if (current == INVALID_NODE)
+			break;
+		visited[current] = true;
+		for (i = heads[current]; i >= 0; i = rev_next[i]) {
+			nodeid_t predecessor = rev_source[i];
+			int edge_index;
+			if (predecessor == startnode_id)
+				continue;
+			for (edge_index = ping_nodes[predecessor].nlist_start;
+			     edge_index < ping_nodes[predecessor].nlist_end; edge_index++) {
+				if (ping_neighbours[edge_index].id == current) {
+					int alternative = dist[current] + ping_neighbours[edge_index].dist;
+					if (alternative < dist[predecessor]) {
+						dist[predecessor] = alternative;
+						next_hop[predecessor] = current;
+					}
+					break;
+				}
+			}
+		}
+	}
+
+	if (ping_nodes[startnode_id].nlist_start != INVALID_NODE) {
+		for (i = ping_nodes[startnode_id].nlist_start;
+		     i < ping_nodes[startnode_id].nlist_end; i++) {
+			nodeid_t first = ping_neighbours[i].id;
+			sb_route_t candidate;
+			nodeid_t current;
+			int duplicate = false;
+			int safety = 0;
+
+			memset(&candidate, 0, sizeof(candidate));
+			if (first == target) {
+				candidate.total_cost_ms = ping_neighbours[i].dist;
+			}
+			else {
+				if (!ping_nodes[first].proxport || dist[first] == INT_MAX)
+					continue;
+				candidate.total_cost_ms = ping_neighbours[i].dist + dist[first];
+				current = first;
+				while (current != target && current != INVALID_NODE && safety++ < MAX_NONLEAVES) {
+					byte *ip = ping_nodes[current].ipaddr.data;
+					char proxy[48];
+					if (!ping_nodes[current].proxport) {
+						candidate.proxylist[0] = '\0';
+						break;
+					}
+					snprintf(proxy, sizeof(proxy), "%d.%d.%d.%d:%d",
+					         ip[0], ip[1], ip[2], ip[3], ntohs(ping_nodes[current].proxport));
+					if (candidate.proxylist[0])
+						strlcat(candidate.proxylist, "@", sizeof(candidate.proxylist));
+					strlcat(candidate.proxylist, proxy, sizeof(candidate.proxylist));
+					candidate.hops++;
+					current = next_hop[current];
+				}
+				if (current != target || !candidate.proxylist[0])
+					continue;
+			}
+
+			for (source = 0; source < count; source++) {
+				if (!strcmp(routes[source].proxylist, candidate.proxylist)) {
+					duplicate = true;
+					break;
+				}
+			}
+			if (!duplicate) {
+				if (count < max_routes) {
+					routes[count++] = candidate;
+				}
+				else {
+					int worst = 0;
+					for (source = 1; source < count; source++)
+						if (routes[source].total_cost_ms > routes[worst].total_cost_ms)
+							worst = source;
+					if (candidate.total_cost_ms < routes[worst].total_cost_ms)
+						routes[worst] = candidate;
+				}
+			}
+		}
+	}
+
+	/* The candidate count is small; insertion sort keeps this C89-friendly. */
+	for (i = 1; i < count; i++) {
+		sb_route_t value = routes[i];
+		int pos = i;
+		while (pos > 0 && routes[pos - 1].total_cost_ms > value.total_cost_ms) {
+			routes[pos] = routes[pos - 1];
+			pos--;
+		}
+		routes[pos] = value;
+	}
+
+cleanup:
+	Q_free(heads);
+	Q_free(rev_next);
+	Q_free(rev_source);
+	Q_free(dist);
+	Q_free(next_hop);
+	Q_free(visited);
+	return count;
+}
+
 /// Connects to given QW server using the best available route
 void SB_PingTree_ConnectBestPath(const netadr_t *addr)
 {
