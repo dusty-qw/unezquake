@@ -33,13 +33,13 @@ static netadr_t br_target_addr;
 static qbool br_active;
 static qbool br_pending;
 
-static const char *CL_BR_RouteColor(int cost_ms)
+static const char *CL_BR_RouteColor(int cost_ms, int best_cost_ms)
 {
-	if (cost_ms <= 80)
+	if (best_cost_ms <= 0 || cost_ms <= best_cost_ms)
 		return "&c0f0";
-	if (cost_ms <= 140)
+	if ((long long)cost_ms * 100 <= (long long)best_cost_ms * 115)
 		return "&caf0";
-	if (cost_ms <= 220)
+	if ((long long)cost_ms * 100 <= (long long)best_cost_ms * 135)
 		return "&cff0";
 	return "&cf00";
 }
@@ -94,11 +94,11 @@ static void CL_BR_BuildRankingAndConnect(void)
 	Com_Printf("\n&cf80connectbr: top %d routes from sb_findroutes&r\n", show);
 	for (i = 0; i < show; i++) {
 		if (br_routes[i].proxylist[0])
-			Com_Printf("  %s#%d&r  %dms  %d hop%s  %s\n", CL_BR_RouteColor(br_routes[i].total_cost_ms), i + 1,
+			Com_Printf("  %s#%d&r  %dms  %d hop%s  %s\n", CL_BR_RouteColor(br_routes[i].total_cost_ms, br_routes[0].total_cost_ms), i + 1,
 			           br_routes[i].total_cost_ms, br_routes[i].hops,
 			           br_routes[i].hops == 1 ? "" : "s", br_routes[i].proxylist);
 		else
-			Com_Printf("  %s#%d&r  %dms  direct\n", CL_BR_RouteColor(br_routes[i].total_cost_ms), i + 1,
+			Com_Printf("  %s#%d&r  %dms  direct\n", CL_BR_RouteColor(br_routes[i].total_cost_ms, br_routes[0].total_cost_ms), i + 1,
 			           br_routes[i].total_cost_ms);
 	}
 
