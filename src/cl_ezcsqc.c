@@ -2181,7 +2181,8 @@ static void EntUpdate_LegacyProjectile(ezcsqc_entity_t *self, qbool is_new)
 		self->angles[0] = MSG_ReadAngle(); self->angles[1] = MSG_ReadAngle(); self->angles[2] = MSG_ReadAngle();
 	}
 	if (sendflags & 8) {
-		self->ownernum = MSG_ReadByte();
+		/* Legacy QC ReadEntityNum() is a short, not a byte. */
+		self->ownernum = MSG_ReadShort();
 		(void)MSG_ReadByte(); /* legacy quantized antilag time */
 	}
 	if (is_new) {
