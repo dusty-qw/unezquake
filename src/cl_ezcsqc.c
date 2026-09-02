@@ -2164,6 +2164,50 @@ static void EntUpdate_Projectile(ezcsqc_entity_t *self, qbool is_new)
 	}
 }
 
+/* Consume the pre-native KTX projectile payload (NENT_PROJECTILE=10). */
+static void EntUpdate_LegacyProjectile(ezcsqc_entity_t *self, qbool is_new)
+{
+	int sendflags = MSG_ReadByte();
+	if (sendflags & 1) {
+		self->s_origin[0] = MSG_ReadCoord(); self->s_origin[1] = MSG_ReadCoord(); self->s_origin[2] = MSG_ReadCoord();
+		self->s_velocity[0] = MSG_ReadCoord(); self->s_velocity[1] = MSG_ReadCoord(); self->s_velocity[2] = MSG_ReadCoord();
+		self->s_time = MSG_ReadFloat();
+	}
+	if (sendflags & 2) {
+		self->modelindex = MSG_ReadShort();
+		self->effects = MSG_ReadShort();
+	}
+	if (sendflags & 4) {
+		self->angles[0] = MSG_ReadAngle(); self->angles[1] = MSG_ReadAngle(); self->angles[2] = MSG_ReadAngle();
+	}
+	if (sendflags & 8) {
+		self->ownernum = MSG_ReadByte();
+		(void)MSG_ReadByte(); /* legacy quantized antilag time */
+	}
+	if (is_new) {
+		self->drawmask = DRAWMASK_PROJECTILE;
+		self->predraw = Predraw_Projectile;
+		VectorCopy(self->s_origin, self->trail_origin);
+		VectorCopy(self->s_origin, self->oldorigin);
+	}
+}
+
+/* Consume the pre-native KTX weapon prediction payload (NENT_WEAPONPRED=20).
+ * The modern client deliberately does not enable prediction from this schema;
+ * this routine only keeps the network stream aligned for legacy servers. */
+static void EntUpdate_LegacyWeaponPred(void)
+{
+	int sendflags = MSG_ReadByte();
+	if (sendflags & 1) { (void)MSG_ReadByte(); (void)MSG_ReadShort(); }
+	if (sendflags & 2) (void)MSG_ReadByte();
+	if (sendflags & 4) (void)MSG_ReadByte();
+	if (sendflags & 8) (void)MSG_ReadByte();
+	if (sendflags & 16) (void)MSG_ReadByte();
+	if (sendflags & 32) { (void)MSG_ReadFloat(); (void)MSG_ReadFloat(); (void)MSG_ReadByte(); }
+	if (sendflags & 64) { (void)MSG_ReadFloat(); (void)MSG_ReadByte(); }
+	if (sendflags & 128) { (void)MSG_ReadByte(); (void)MSG_ReadByte(); }
+}
+
 static void CL_EZCSQC_Ent_Update(ezcsqc_entity_t *self, qbool is_new)
 {
 	int type = MSG_ReadByte();
@@ -2176,6 +2220,12 @@ static void CL_EZCSQC_Ent_Update(ezcsqc_entity_t *self, qbool is_new)
 
 	// Dispatch by the first byte of each entity payload.
 	switch (type) {
+	case EZCSQC_LEGACY_PROJECTILE:
+		EntUpdate_LegacyProjectile(self, is_new);
+		break;
+	case EZCSQC_LEGACY_WEAPONPRED:
+		EntUpdate_LegacyWeaponPred();
+		break;
 	case EZCSQC_PROJECTILE:
 		EntUpdate_Projectile(self, is_new);
 		break;
