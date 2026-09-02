@@ -36,12 +36,12 @@ static qbool br_pending;
 static const char *CL_BR_RouteColor(int cost_ms)
 {
 	if (cost_ms <= 80)
-		return "&c80ff80";
+		return "&c0f0";
 	if (cost_ms <= 140)
-		return "&cffef80";
+		return "&caf0";
 	if (cost_ms <= 220)
-		return "&cffff80";
-	return "&cff8080";
+		return "&cff0";
+	return "&cf00";
 }
 
 static void CL_BR_ApplyRoute(int index)
