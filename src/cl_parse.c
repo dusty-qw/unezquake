@@ -3632,6 +3632,20 @@ void CL_ParseStufftext (void)
 		strlcat(data, tmp, sizeof(data));
 #endif
 
+#if defined(FTE_PEXT_CSQC) && defined(MVD_PEXT1_EZCSQC)
+	/*
+	 * In fallback negotiation the server learns the selected extensions from
+	 * our "cmd pext" reply instead of the challenge path. Keep the local
+	 * protocol state in sync with the EZCSQC contract we just advertised;
+	 * otherwise the server can legitimately send svc_fte_csqcentities while
+	 * CL_ParseServerMessage still believes native EZCSQC was not negotiated.
+	 */
+	if (ezcsqc_selected) {
+		cls.fteprotocolextensions |= FTE_PEXT_CSQC;
+		cls.mvdprotocolextensions1 |= MVD_PEXT1_EZCSQC;
+	}
+#endif
+
 		strlcat(data, "\n", sizeof(data));
 		Cbuf_AddTextEx(&cbuf_svc, data);
 	}
