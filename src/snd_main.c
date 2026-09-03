@@ -376,6 +376,7 @@ void S_Shutdown (void)
 #ifdef FTE_PEXT2_VOICECHAT
 	S_Capture_Shutdown();
 #endif
+	S_GSM_Shutdown();
 	S_SDL_Shutdown();
 
 	if (known_sfx != NULL) {
@@ -463,6 +464,7 @@ static void S_Register_RegularCvarsAndCommands(void)
 #ifdef FTE_PEXT2_VOICECHAT
 	S_Voip_RegisterCvars ();
 #endif
+	S_GSM_RegisterCvars();
 }
 
 static void S_Register_LatchCvars(void)
@@ -851,6 +853,8 @@ void S_Update (vec3_t origin, vec3_t forward, vec3_t right, vec3_t up)
 	if (!snd_initialized || !snd_started || !shw)
 		return;
 
+	S_GSM_Update();
+
 	S_LockMixer();
 
 	VectorCopy(origin, listener_origin);
@@ -1114,7 +1118,7 @@ typedef struct
 
 static void S_RawClearStream(streaming_t *s);
 
-#define MAX_RAW_SOURCES (MAX_CLIENTS + 1 + RAW_SOURCE_DEMO_VOICE_COUNT)
+#define MAX_RAW_SOURCES (MAX_CLIENTS + 2 + RAW_SOURCE_DEMO_VOICE_COUNT)
 
 streaming_t s_streamers[MAX_RAW_SOURCES] = {{0}};
 
@@ -1209,7 +1213,8 @@ void S_RawAudio(int sourceid, byte *data, unsigned int speed, unsigned int sampl
 	S_LockMixer();
 
 	raw_flags = ((sourceid >= 0 && sourceid <= RAW_SOURCE_QIZMO_VOICE) ||
-		(sourceid >= RAW_SOURCE_DEMO_VOICE_BASE && sourceid <= RAW_SOURCE_DEMO_VOICE_MAX)) ? CHANNEL_FLAG_VOICE : 0;
+		(sourceid >= RAW_SOURCE_DEMO_VOICE_BASE && sourceid <= RAW_SOURCE_DEMO_VOICE_MAX) ||
+		sourceid == RAW_SOURCE_GSM_TCP) ? CHANNEL_FLAG_VOICE : 0;
 	raw_volume = (raw_flags & CHANNEL_FLAG_VOICE) ? 1 : s_raw_volume.value;
 
 	// search for free slot or re-use previous one with the same sourceid.

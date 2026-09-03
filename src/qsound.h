@@ -107,6 +107,7 @@ sfxcache_t *S_LoadSound (sfx_t *s);
 #define RAW_SOURCE_DEMO_VOICE_COUNT 12
 #define RAW_SOURCE_DEMO_VOICE_BASE (RAW_SOURCE_QIZMO_VOICE + 1)
 #define RAW_SOURCE_DEMO_VOICE_MAX (RAW_SOURCE_DEMO_VOICE_BASE + RAW_SOURCE_DEMO_VOICE_COUNT - 1)
+#define RAW_SOURCE_GSM_TCP (RAW_SOURCE_DEMO_VOICE_MAX + 1)
 void S_RawAudio(int sourceid, byte *data, unsigned int speed, unsigned int samples, unsigned int channelsnum, unsigned int width);
 void S_QizmoVoice_PlayFrame(int sequence, int voice_id, const byte *data, int bytes);
 
@@ -115,6 +116,10 @@ int SND_Rate(int rate);
 
 void SND_ResampleStream(void *in, int inrate, int inwidth, int inchannels, int insamps,
 						void *out, int outrate, int outwidth, int outchannels, int resampstyle);
+
+void S_GSM_RegisterCvars(void);
+void S_GSM_Update(void);
+void S_GSM_Shutdown(void);
 
 // ====================================================================
 // User-setable variables

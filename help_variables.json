@@ -18006,6 +18006,38 @@
       "remarks": "This is a suggestion only, the driver is free to choose a different value.\nSmaller buffer sizes generally result in lower latency, but higher CPU usage.",
       "type": "integer"
     },
+    "s_gsm_inputdevice": {
+      "default": "0",
+      "desc": "Selects the microphone used by the raw GSM TCP bridge. Device numbers are shown by s_audiodevicelist; 0 selects the system default.",
+      "group-id": "45",
+      "type": "integer"
+    },
+    "s_gsm_listen_port": {
+      "default": "0",
+      "desc": "Listens for a raw GSM 06.10 TCP audio stream on this port and mixes it into game playback. Set to 0 to disable receiving.",
+      "group-id": "45",
+      "remarks": "Only loopback, RFC1918 private IPv4, and IPv4 link-local peers are accepted. The stream is headerless 8 kHz mono GSM with 33-byte/20-ms frames, compatible with ffmpeg -f gsm output.",
+      "type": "integer"
+    },
+    "s_gsm_mic_volume": {
+      "default": "1",
+      "desc": "Gain applied to microphone samples before encoding them for the raw GSM TCP bridge.",
+      "group-id": "45",
+      "type": "float"
+    },
+    "s_gsm_receive_volume": {
+      "default": "1",
+      "desc": "Gain applied to audio received by the raw GSM TCP bridge before it is mixed with game playback.",
+      "group-id": "45",
+      "type": "float"
+    },
+    "s_gsm_send": {
+      "default": "",
+      "desc": "Connects to a numeric IPv4 address:port and continuously sends the selected microphone as a raw GSM 06.10 TCP stream. Set to an empty string to disable sending.",
+      "group-id": "45",
+      "remarks": "Only loopback, RFC1918 private IPv4, and IPv4 link-local destinations are allowed. Input devices are converted internally to GSM's fixed 8 kHz mono format.",
+      "type": "string"
+    },
     "s_khz": {
       "default": "11",
       "desc": "Sets the audio sampling rate.\nIn ezQuake, this introduces artifacts which give a \"crisper\"/\"grainy\" feel to some sounds, as the interpolation is not perfect. All the original sounds are 11k, except for shaft which is 22k and will sound different when setting s_khz over 11.",
