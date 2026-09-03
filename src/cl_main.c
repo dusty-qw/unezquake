@@ -978,10 +978,8 @@ void CL_Connect_f (void)
 }
 
 // CL_Connect_BestRoute_f / CL_Connect_Next_f moved to cl_connectbr.c: the
-// upstream one-shot ping-tree connect above is now Step 1 inside that
-// file's CL_BR_MeasureProc (still used as the first/fastest candidate
-// when available), extended with batched 1-2 hop pingstatus probing.
-// See cl_connectbr.c's header comment for the full design.
+// connectbr now presents the alternatives already measured by sb_findroutes;
+// connectnext cycles that cached ranking without starting another scan.
 
 void CL_TCPConnect_f (void)
 {

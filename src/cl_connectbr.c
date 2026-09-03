@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2024 unezQuake team
+Copyright (C) 2024-2026 ezQuake contributors
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -20,11 +20,11 @@ probing the worldwide proxy list a second time.
 
 extern cvar_t cl_proxyaddr;
 
-cvar_t cl_connectbr_verbose = {"cl_connectbr_verbose", "1", CVAR_ARCHIVE};
 cvar_t cl_connectbr_debug   = {"cl_connectbr_debug",   "0", CVAR_ARCHIVE};
 
 #define CONNECTBR_DISPLAY_ROUTES 5
 #define MAX_ADDRESS_LENGTH 128
+#define CONNECTBR_ROUTE_TTL 120.0
 
 static sb_route_t br_routes[SB_ROUTE_MAX_ALTERNATIVES];
 static int br_route_count;
@@ -32,6 +32,7 @@ static int br_current_route;
 static netadr_t br_target_addr;
 static qbool br_active;
 static qbool br_pending;
+static double br_routes_built_at;
 
 static const char *CL_BR_RouteColor(int cost_ms, int best_cost_ms)
 {
@@ -83,6 +84,7 @@ static void CL_BR_BuildRankingAndConnect(void)
 	                                       SB_ROUTE_MAX_ALTERNATIVES);
 	br_current_route = 0;
 	br_active = br_route_count > 0;
+	br_routes_built_at = br_active ? Sys_DoubleTime() : 0;
 
 	if (!br_route_count) {
 		Com_Printf("connectbr: sb_findroutes found no route to %s.\n",
@@ -152,6 +154,12 @@ void CL_Connect_BestRoute_f(void)
 		SB_PingTree_Build();
 		return;
 	}
+	if (SB_PingTree_Age() > CONNECTBR_ROUTE_TTL) {
+		br_pending = true;
+		Com_Printf("connectbr: cached measurements expired; refreshing sb_findroutes...\n");
+		SB_PingTree_Build();
+		return;
+	}
 
 	CL_BR_BuildRankingAndConnect();
 }
@@ -161,6 +169,14 @@ void CL_Connect_Next_f(void)
 	if (!br_active || !br_route_count) {
 		Com_Printf("connectnext: no cached connectbr ranking.\n");
 		Com_Printf("  Use 'connectbr <address>' first.\n");
+		return;
+	}
+	if (Sys_DoubleTime() - br_routes_built_at > CONNECTBR_ROUTE_TTL) {
+		Com_Printf("connectnext: cached routes expired; refreshing sb_findroutes...\n");
+		br_active = false;
+		br_route_count = 0;
+		br_pending = true;
+		SB_PingTree_Build();
 		return;
 	}
 
@@ -179,12 +195,15 @@ void CL_ConnectBR_Frame(void)
 {
 	if (br_pending && !SB_PingTree_IsBuilding() && SB_PingTree_Built())
 		CL_BR_BuildRankingAndConnect();
+	else if (br_pending && !SB_PingTree_IsBuilding() && !SB_PingTree_Built()) {
+		br_pending = false;
+		Com_Printf("connectbr: sb_findroutes could not build the route graph.\n");
+	}
 }
 
 void CL_ConnectBR_Init(void)
 {
 	Cvar_SetCurrentGroup(CVAR_GROUP_NETWORK);
-	Cvar_Register(&cl_connectbr_verbose);
 	Cvar_Register(&cl_connectbr_debug);
 	Cvar_ResetCurrentGroup();
 }

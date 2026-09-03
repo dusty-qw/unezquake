@@ -292,6 +292,7 @@ void SB_PingTree_Shutdown(void);
 qbool SB_PingTree_Built(void);
 void SB_PingTree_Build(void);
 qbool SB_PingTree_IsBuilding(void);
+double SB_PingTree_Age(void);
 void SB_PingTree_DumpPath(const netadr_t *addr);
 void SB_Proxy_QueryForPingList(const netadr_t *address, proxy_ping_report_callback callback);
 void SB_PingTree_ConnectBestPath(const netadr_t *addr);
