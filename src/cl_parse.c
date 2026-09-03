@@ -74,8 +74,15 @@ qbool Inlay_Handle_Message(char *s, int flags, int offset);
 
 static qbool CL_ServerSupportsEZCSQC(void)
 {
-#if defined(FTE_PEXT_CSQC) && defined(MVD_PEXT1_EZCSQC)
-	return cl_pext_ezcsqc.integer && (cls.mvdprotocolextensions1 & MVD_PEXT1_EZCSQC);
+#ifdef FTE_PEXT_CSQC
+	/*
+	 * Older EZCSQC-capable MVDSV/KTX builds predate MVD_PEXT1_EZCSQC and
+	 * negotiate only the FTE CSQC transport. This is especially common on the
+	 * cmd pext fallback used through qwfwd. The caller also verifies that
+	 * FTE_PEXT_CSQC was negotiated, so allow the native parser in that legacy
+	 * case instead of disconnecting on the first entity update.
+	 */
+	return cl_pext_ezcsqc.integer && (cls.fteprotocolextensions & FTE_PEXT_CSQC);
 #else
 	return false;
 #endif
@@ -3630,6 +3637,20 @@ void CL_ParseStufftext (void)
 		snprintf(tmp, sizeof(tmp), " 0x%x 0x%x", PROTOCOL_VERSION_MVD1, ext);
 		Com_Printf_State(PRINT_DBG, "PEXT: 0x%x is mvdsv protocol ver and 0x%x is mvdprotocolextensions1\n", PROTOCOL_VERSION_MVD1, ext);
 		strlcat(data, tmp, sizeof(data));
+#endif
+
+#if defined(FTE_PEXT_CSQC) && defined(MVD_PEXT1_EZCSQC)
+	/*
+	 * In fallback negotiation the server learns the selected extensions from
+	 * our "cmd pext" reply instead of the challenge path. Keep the local
+	 * protocol state in sync with the EZCSQC contract we just advertised;
+	 * otherwise the server can legitimately send svc_fte_csqcentities while
+	 * CL_ParseServerMessage still believes native EZCSQC was not negotiated.
+	 */
+	if (ezcsqc_selected) {
+		cls.fteprotocolextensions |= FTE_PEXT_CSQC;
+		cls.mvdprotocolextensions1 |= MVD_PEXT1_EZCSQC;
+	}
 #endif
 
 		strlcat(data, "\n", sizeof(data));
