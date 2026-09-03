@@ -2139,6 +2139,14 @@ void Key_EventEx (int key, wchar unichar, qbool down)
 		}
 	}
 
+	// Keep Shift+Escape as a layout-independent console fallback, like FTE.
+	if (key == K_ESCAPE && keydown[K_SHIFT])
+	{
+		if (down && key_dest != key_console)
+			Con_ToggleConsole_f();
+		return;
+	}
+
 	// Handle escape specialy, so the user can never unbind it.
 	if (key == K_ESCAPE)
 	{
