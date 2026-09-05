@@ -2081,6 +2081,8 @@ static void CL_InitLocal(void)
 	Cmd_AddCommand ("connect", CL_Connect_f);
 	Cmd_AddCommand ("connectbr", CL_Connect_BestRoute_f);
 	Cmd_AddCommand ("connectnext", CL_Connect_Next_f);
+	Cmd_AddCommand ("connectprevious", CL_Connect_Previous_f);
+	Cmd_AddCommand ("connectinfo", CL_Connect_Info_f);
 	CL_ConnectBR_Init();
 
 	Cmd_AddCommand ("qwurl", CL_QWURL_f);

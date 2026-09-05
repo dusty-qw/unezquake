@@ -16,5 +16,7 @@ void CL_ConnectBR_Init(void);          // register cvars — call from CL_InitLo
 void CL_ConnectBR_Frame(void);         // call every frame from main loop — call from CL_Frame
 void CL_Connect_BestRoute_f(void);     // connectbr command
 void CL_Connect_Next_f(void);          // connectnext command
+void CL_Connect_Previous_f(void);      // connectprevious command
+void CL_Connect_Info_f(void);          // connectinfo command
 
 #endif // __CL_CONNECTBR_H__

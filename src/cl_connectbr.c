@@ -10,8 +10,9 @@ cl_connectbr.c - User-facing route selection commands.
 
 Route discovery, measurements and graph calculation belong exclusively to
 sb_findroutes (EX_browser_pathfind.c). connectbr selects the best cached
-route and connectnext advances through the cached alternatives without
-probing the worldwide proxy list a second time.
+route; connectnext/connectprevious step through the cached alternatives
+without probing the worldwide proxy list a second time; connectinfo lists
+them without connecting.
 */
 
 #include "quakedef.h"
@@ -70,6 +71,8 @@ static void CL_BR_ApplyRoute(int index)
 		Com_Printf("  type &cf80connectnext&r to try route #%d\n", index + 2);
 	else
 		Com_Printf("  no more routes available.\n");
+	if (index > 0)
+		Com_Printf("  type &cf80connectprevious&r to go back to route #%d\n", index);
 
 	Cbuf_AddText(va("connect %s\n", NET_AdrToString(br_target_addr)));
 }
@@ -118,7 +121,8 @@ void CL_Connect_BestRoute_f(void)
 	if (Cmd_Argc() != 2) {
 		Com_Printf("Usage: connectbr <address>\n");
 		Com_Printf("  Uses the routes already measured by sb_findroutes.\n");
-		Com_Printf("  Use connectnext to try the next cached route.\n");
+		Com_Printf("  Use connectnext/connectprevious to try another cached route.\n");
+		Com_Printf("  Use connectinfo to list them without connecting.\n");
 		return;
 	}
 
@@ -182,13 +186,68 @@ void CL_Connect_Next_f(void)
 
 	if (br_current_route + 1 >= br_route_count) {
 		Com_Printf("connectnext: no more routes (tried all %d).\n", br_route_count);
-		br_active = false;
 		return;
 	}
 
 	br_current_route++;
 	Host_EndGame();
 	CL_BR_ApplyRoute(br_current_route);
+}
+
+void CL_Connect_Previous_f(void)
+{
+	if (!br_active || !br_route_count) {
+		Com_Printf("connectprevious: no cached connectbr ranking.\n");
+		Com_Printf("  Use 'connectbr <address>' first.\n");
+		return;
+	}
+	if (Sys_DoubleTime() - br_routes_built_at > CONNECTBR_ROUTE_TTL) {
+		Com_Printf("connectprevious: cached routes expired; refreshing sb_findroutes...\n");
+		br_active = false;
+		br_route_count = 0;
+		br_pending = true;
+		SB_PingTree_Build();
+		return;
+	}
+
+	if (br_current_route <= 0) {
+		Com_Printf("connectprevious: already at route #1, no earlier route.\n");
+		return;
+	}
+
+	br_current_route--;
+	Host_EndGame();
+	CL_BR_ApplyRoute(br_current_route);
+}
+
+void CL_Connect_Info_f(void)
+{
+	int i;
+	int show;
+
+	if (!br_active || !br_route_count) {
+		Com_Printf("connectinfo: no cached connectbr ranking.\n");
+		Com_Printf("  Use 'connectbr <address>' first.\n");
+		return;
+	}
+	if (Sys_DoubleTime() - br_routes_built_at > CONNECTBR_ROUTE_TTL) {
+		Com_Printf("connectinfo: cached routes expired; run connectbr again to refresh.\n");
+		return;
+	}
+
+	show = min(br_route_count, CONNECTBR_DISPLAY_ROUTES);
+	Com_Printf("\n&cf80connectinfo: top %d routes to %s&r\n", show, NET_AdrToString(br_target_addr));
+	for (i = 0; i < show; i++) {
+		const char *marker = (i == br_current_route) ? " &cff0<- current&r" : "";
+
+		if (br_routes[i].proxylist[0])
+			Com_Printf("  %s#%d&r  %dms  %d hop%s  %s%s\n", CL_BR_RouteColor(br_routes[i].total_cost_ms, br_routes[0].total_cost_ms), i + 1,
+			           br_routes[i].total_cost_ms, br_routes[i].hops,
+			           br_routes[i].hops == 1 ? "" : "s", br_routes[i].proxylist, marker);
+		else
+			Com_Printf("  %s#%d&r  %dms  direct%s\n", CL_BR_RouteColor(br_routes[i].total_cost_ms, br_routes[0].total_cost_ms), i + 1,
+			           br_routes[i].total_cost_ms, marker);
+	}
 }
 
 void CL_ConnectBR_Frame(void)
