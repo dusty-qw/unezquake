@@ -153,6 +153,7 @@ typedef struct
 
 	byte		vw_index;
 	byte		pm_type;
+	byte		waterlevel;
 	float		waterjumptime;
 	qbool		onground;
 	qbool		jump_held;

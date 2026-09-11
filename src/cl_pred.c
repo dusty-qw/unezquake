@@ -335,6 +335,7 @@ void CL_PredictUsercmd (player_state_t *from, player_state_t *to, usercmd_t *u, 
 		to->state_time = from->state_time + u->msec * 0.001;
 	}
 	to->pm_type = pmove.pm_type;
+	to->waterlevel = pmove.waterlevel;
 	to->jump_held = pmove.jump_held;
 	to->jump_msec = pmove.jump_msec;
 	pmove.jump_msec = 0;

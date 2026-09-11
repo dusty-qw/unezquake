@@ -1288,7 +1288,7 @@ static qbool WeaponPred_PlayLGBeam(usercmd_t *u, player_state_t *ps)
 		return true;
 	}
 
-	if (cl.waterlevel >= 2) {
+	if (ps->waterlevel >= 2) {
 		return true;
 	}
 
