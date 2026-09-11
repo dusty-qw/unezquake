@@ -140,6 +140,7 @@ extern playermove_t pmove;
 
 qbool CL_PredictProjectilesEnabled(void);
 qbool CL_PredictWeaponSoundEnabled(void);
+qbool CL_PredictWeaponAnimationEnabled(void);
 
 int PM_PlayerMove (void);
 

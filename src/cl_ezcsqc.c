@@ -2451,6 +2451,10 @@ qbool CL_EZCSQC_UpdateViewWeapon(int *modelindex, int *weaponframe)
 		CL_EZCSQC_DebugViewWeaponSkip("cl_nopred_weapon");
 		return false;
 	}
+	if (!CL_PredictWeaponAnimationEnabled()) {
+		CL_EZCSQC_DebugViewWeaponSkip("weapon animation prediction disabled");
+		return false;
+	}
 	if (!viewweapon) {
 		CL_EZCSQC_DebugViewWeaponSkip("missing viewweapon");
 		return false;

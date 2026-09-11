@@ -70,6 +70,11 @@ qbool CL_PredictWeaponSoundEnabled(void)
 	return sv_antilag == 1;
 }
 
+qbool CL_PredictWeaponAnimationEnabled(void)
+{
+	return CL_PredictProjectilesEnabled() || CL_PredictWeaponSoundEnabled();
+}
+
 extern cvar_t cl_independentPhysics;
 
 #ifdef JSS_CAM
