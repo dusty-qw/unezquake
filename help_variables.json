@@ -2516,7 +2516,7 @@
     },
     "cl_predict_legacy": {
       "default": "0",
-      "desc": "When using the native CSQC/EZCSQC prediction path, delay predicted weapon sounds and projectiles by the local latency that exceeds the server projectile rewind horizon. This mimics legacy antilag prediction timing for high-latency clients.",
+      "desc": "When using the native CSQC/EZCSQC prediction path with sv_antilag 1, delay predicted weapon effects only by the local latency that exceeds the matching server rewind horizon. Instant/hitscan effects use the hitscan horizon; projectile effects use the projectile horizon. This mimics legacy antilag prediction timing for high-latency clients.",
       "group-id": "21",
       "type": "boolean",
       "values": [
