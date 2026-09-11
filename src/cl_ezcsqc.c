@@ -83,6 +83,7 @@ static qbool setup_ready;
 static double setup_warning_time;
 static qbool setup_warning_printed;
 static float lg_twidth;
+static double predicted_lg_beam_echo_suppress_until;
 static float respawn_attack_guard_until;
 static qbool playable_weapon_update_pending;
 static int playable_transition_sequence;
@@ -183,6 +184,7 @@ void CL_EZCSQC_InitializeEntities(void)
 	current_predframe = 0;
 	setup_warning_time = 0;
 	setup_warning_printed = false;
+	predicted_lg_beam_echo_suppress_until = 0;
 	lg_twidth = 0;
 	respawn_attack_guard_until = 0;
 	playable_weapon_update_pending = false;
@@ -1285,7 +1287,7 @@ static qbool WeaponPred_PlayLGBeam(usercmd_t *u, player_state_t *ps)
 	vec3_t start, end, forward;
 	trace_t hittrace;
 
-	if (!cl_predict_beam.integer) {
+	if (!cl_predict_beam.integer || !CL_PredictWeaponAnimationEnabled()) {
 		return true;
 	}
 
@@ -1303,6 +1305,7 @@ static qbool WeaponPred_PlayLGBeam(usercmd_t *u, player_state_t *ps)
 
 	// Match the legacy predictor's local TE_LIGHTNING2 beam for own LG fire.
 	CL_CreateBeam(2, cl.playernum + 1, start, hittrace.endpos);
+	predicted_lg_beam_echo_suppress_until = cl.time + max(cls.latency + 0.25, 0.35);
 	return true;
 }
 
@@ -1493,6 +1496,21 @@ static qbool WeaponPred_EffectDelayElapsed(int frame_num, weppredanim_t *anim)
 	return WeaponPred_FrameDelayElapsed(frame_num, WeaponPred_LegacyEffectDelay(WeaponPred_AnimUsesProjectileHorizon(anim)));
 }
 
+static qbool WeaponPred_IsLightningStartupFrame(weppreddef_t *wep, weppredanim_t *anim)
+{
+	return wep->itemflag == IT_LIGHTNING &&
+		(anim->flags & (WEPPREDANIM_ATTACK | WEPPREDANIM_LGBEAM)) == (WEPPREDANIM_ATTACK | WEPPREDANIM_LGBEAM) &&
+		!(anim->flags & WEPPREDANIM_BRANCH);
+}
+
+static void WeaponPred_AdvanceLightningFrame(ezcsqc_weapon_state_t *ws)
+{
+	ws->frame++;
+	if (ws->frame >= 5) {
+		ws->frame = 1;
+	}
+}
+
 static qbool WeaponPred_StateDelayElapsed(int frame_num, ezcsqc_weapon_state_t *ws)
 {
 	weppreddef_t *wep = &wpredict_definitions[bound(0, ws->weapon_index, MAX_PREDWEPS - 1)];
@@ -1657,7 +1675,14 @@ static void WeaponPred_StartFrame(usercmd_t *u, player_state_t *ps, ezcsqc_weapo
 	// Entering a weapon state is when predicted sounds/projectiles should fire.
 	WeaponPred_PlayEffects(u, ps, ws, wep, anim);
 
-	if (anim->mdlframe >= 0) {
+	if (WeaponPred_IsLightningStartupFrame(wep, anim)) {
+		/*
+		 * KTX plays lstart and immediately enters player_light1(), which advances
+		 * v_light.mdl on the same attack instead of waiting for the next think.
+		 */
+		WeaponPred_AdvanceLightningFrame(ws);
+	}
+	else if (anim->mdlframe >= 0) {
 		ws->frame = anim->mdlframe;
 	}
 	else {
@@ -1800,6 +1825,15 @@ static qbool WeaponPred_IsPlayablePMType(pmtype_t pm_type)
 	return pm_type == PM_NORMAL || pm_type == PM_FLY;
 }
 
+static void WeaponPred_ClearPredictedLightningBeam(void)
+{
+	if (predicted_lg_beam_echo_suppress_until > 0) {
+		CL_ClearBeam(cl.playernum + 1);
+		predicted_lg_beam_echo_suppress_until = 0;
+	}
+	lg_twidth = 0;
+}
+
 static void WeaponPred_UpdatePlayableTransition(void)
 {
 	pmtype_t current_pm_type;
@@ -1822,8 +1856,7 @@ static void WeaponPred_UpdatePlayableTransition(void)
 		 */
 		playable_transition_sequence = cl.validsequence;
 		playable_weapon_update_pending = true;
-		CL_ClearBeam(cl.playernum + 1);
-		lg_twidth = 0;
+		WeaponPred_ClearPredictedLightningBeam();
 	}
 }
 
@@ -1851,10 +1884,10 @@ static weaponpred_switch_result_t WeaponPred_SwitchWeapon(int impulse, ezcsqc_we
 			return WEAPONPRED_SWITCH_APPLIED;
 		}
 
-		// A completed switch away from LG must retire its persistent local beam and sounds.
+		// The beam tempent expires naturally; clearing here can erase a one-cell
+		// tap before the renderer sees it when weaponhide switches immediately.
 		if (wpredict_definitions[bound(0, ws->weapon_index, MAX_PREDWEPS - 1)].itemflag == IT_LIGHTNING &&
 			wep->itemflag != IT_LIGHTNING) {
-			CL_ClearBeam(cl.playernum + 1);
 			lg_twidth = 0;
 		}
 
@@ -1877,6 +1910,7 @@ static void WeaponPred_Simulate(usercmd_t u, player_state_t ps, ezcsqc_weapon_st
 
 	// KTX can force prediction off while still letting time advance.
 	if (ws->client_predflags == PRDFL_FORCEOFF) {
+		WeaponPred_ClearPredictedLightningBeam();
 		ws->client_time += u.msec * 0.001f;
 		ws->impulse = 0;
 		ws->attack_finished = max(ws->attack_finished, ws->client_time + 0.05f);
@@ -1885,6 +1919,7 @@ static void WeaponPred_Simulate(usercmd_t u, player_state_t ps, ezcsqc_weapon_st
 
 	// Locked/non-playable movement states should not synthesize local attacks.
 	if (ps.pm_type == PM_DEAD || ps.pm_type == PM_NONE || ps.pm_type == PM_LOCK) {
+		WeaponPred_ClearPredictedLightningBeam();
 		ws->impulse = 0;
 		ws->attack_finished = ws->client_time + 0.05f;
 		return;
@@ -2052,8 +2087,7 @@ static void EntUpdate_WeaponInfo(ezcsqc_entity_t *self, qbool is_new)
 	if (generation_changed) {
 		// A generation change explicitly identifies KTX's post-respawn weapon state.
 		respawn_attack_guard_until = ws_current->client_time + 0.05f;
-		CL_ClearBeam(cl.playernum + 1);
-		lg_twidth = 0;
+		WeaponPred_ClearPredictedLightningBeam();
 	}
 	if (completes_playable_transition) {
 		playable_weapon_update_pending = false;
@@ -2324,12 +2358,14 @@ static qbool CL_EZCSQC_CanPredictWeaponEffects(void)
 	ps = &cl.frames[cl.validsequence & UPDATE_MASK].playerstate[cl.playernum];
 	// Dead/locked/non-playable states do not run local weapon prediction, so server effects are authoritative.
 	if (ps->pm_type == PM_DEAD || ps->pm_type == PM_NONE || ps->pm_type == PM_LOCK) {
+		WeaponPred_ClearPredictedLightningBeam();
 		return false;
 	}
 
 	ws = &ws_server[cl.validsequence & UPDATE_MASK];
 	// KTX uses PRDFL_FORCEOFF for states like wipeout round_pause where server weapon effects still play.
 	if (ws->client_predflags == PRDFL_FORCEOFF) {
+		WeaponPred_ClearPredictedLightningBeam();
 		return false;
 	}
 
@@ -2339,7 +2375,8 @@ static qbool CL_EZCSQC_CanPredictWeaponEffects(void)
 qbool CL_EZCSQC_PredictedBeamActive(void)
 {
 	return ezcsqc.weapon_prediction && !cl_nopred_weapon.integer && cl_predict_beam.integer &&
-		CL_EZCSQC_CanPredictWeaponEffects();
+		CL_EZCSQC_CanPredictWeaponEffects() && CL_PredictWeaponAnimationEnabled() &&
+		cl.time <= predicted_lg_beam_echo_suppress_until;
 }
 
 qbool CL_EZCSQC_PredictedWeaponSoundsActive(void)
@@ -2451,10 +2488,6 @@ qbool CL_EZCSQC_UpdateViewWeapon(int *modelindex, int *weaponframe)
 		CL_EZCSQC_DebugViewWeaponSkip("cl_nopred_weapon");
 		return false;
 	}
-	if (!CL_PredictWeaponAnimationEnabled()) {
-		CL_EZCSQC_DebugViewWeaponSkip("weapon animation prediction disabled");
-		return false;
-	}
 	if (!viewweapon) {
 		CL_EZCSQC_DebugViewWeaponSkip("missing viewweapon");
 		return false;
@@ -2469,6 +2502,7 @@ qbool CL_EZCSQC_UpdateViewWeapon(int *modelindex, int *weaponframe)
 	}
 	// Dead players and trackent observers use non-playable movement states.
 	if (pm_type != PM_NORMAL && pm_type != PM_FLY) {
+		WeaponPred_ClearPredictedLightningBeam();
 		CL_EZCSQC_DebugViewWeaponSkip("non-playable movement state");
 		return false;
 	}
@@ -2484,6 +2518,11 @@ qbool CL_EZCSQC_UpdateViewWeapon(int *modelindex, int *weaponframe)
 	// Freeze the last predicted weapon frame while paused; queued usercmds must not advance its FSM.
 	if (viewweapon->predraw && !ISPAUSED) {
 		viewweapon->predraw(viewweapon);
+	}
+
+	if (!CL_PredictWeaponAnimationEnabled()) {
+		CL_EZCSQC_DebugViewWeaponSkip("weapon animation prediction disabled");
+		return false;
 	}
 
 	// Missing model usually means weapon info arrived before the matching weapondef.
