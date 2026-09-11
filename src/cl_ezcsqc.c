@@ -2304,6 +2304,12 @@ static qbool CL_EZCSQC_CanSuppressPredictedWeaponSound(void)
 	return true;
 }
 
+qbool CL_EZCSQC_PredictedWeaponSoundsActive(void)
+{
+	return ezcsqc.weapon_prediction && !cl_nopred_weapon.integer && cl_predict_weaponsound.integer &&
+		CL_EZCSQC_CanSuppressPredictedWeaponSound() && CL_PredictWeaponSoundEnabled();
+}
+
 qbool CL_EZCSQC_Event_Sound(int entnum, int channel, int soundnumber, float vol, float attenuation, vec3_t pos, float pitchmod, float flags)
 {
 	weppredsound_t *snd;
@@ -2315,11 +2321,8 @@ qbool CL_EZCSQC_Event_Sound(int entnum, int channel, int soundnumber, float vol,
 	(void)pitchmod;
 	(void)flags;
 
-	if (!ezcsqc.weapon_prediction || cl_nopred_weapon.integer || !cl_predict_weaponsound.integer) {
-		return false;
-	}
 	// Suppress only sounds the client could have predicted; otherwise preserve the server sound.
-	if (!CL_EZCSQC_CanSuppressPredictedWeaponSound()) {
+	if (!CL_EZCSQC_PredictedWeaponSoundsActive()) {
 		return false;
 	}
 	if (soundnumber > 0 && soundnumber < MAX_SOUNDS) {
@@ -2332,7 +2335,7 @@ qbool CL_EZCSQC_Event_Sound(int entnum, int channel, int soundnumber, float vol,
 	// Return true to tell normal sound parsing that prediction already played it.
 	for (snd = predictionsoundlist; snd; snd = snd->next) {
 		// SOUNDAUTO predictions use channel 0, but server echoes may arrive on a weapon channel.
-		if ((snd->chan == channel || snd->chan == 0) && CL_PredictWeaponSoundEnabled() &&
+		if ((snd->chan == channel || snd->chan == 0) &&
 			(snd->index == soundnumber ||
 			 (server_sfx && snd->index > 0 && snd->index < MAX_SOUNDS &&
 			  cl.sound_precache[snd->index] && !strcmp(cl.sound_precache[snd->index]->name, server_sfx->name)))) {

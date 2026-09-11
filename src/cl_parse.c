@@ -2013,11 +2013,80 @@ static qbool CL_IsPredictedMovementSound(int sound_num)
 		!strcmp(sound_name, "misc/outwater.wav");
 }
 
+#define QW_SOUND_CHANNEL_COUNT 8
+
+// Resolve local fixed-channel operations as a group so suppressing a later
+// predicted echo cannot leave an earlier authoritative sound playing instead.
+typedef enum pending_local_sound_op_e {
+	PENDING_LOCAL_SOUND_NONE,
+	PENDING_LOCAL_SOUND_START,
+	PENDING_LOCAL_SOUND_STOP
+} pending_local_sound_op_t;
+
+typedef struct pending_local_sound_s {
+	pending_local_sound_op_t op;
+	int sound_num;
+	int volume;
+	float attenuation;
+	vec3_t pos;
+} pending_local_sound_t;
+
+static pending_local_sound_t cl_pending_local_sounds[QW_SOUND_CHANNEL_COUNT];
+
+static qbool CL_ReconcilePredictedSoundChannel(int channel)
+{
+	if (channel <= 0 || channel >= QW_SOUND_CHANNEL_COUNT || cls.mvdplayback || cl.spectator) {
+		return false;
+	}
+
+	if ((channel == 2 || channel == 4) && cl_predict_sound.integer && !cl_nopred.integer) {
+		return true;
+	}
+
+#ifdef FTE_PEXT_CSQC
+	return (cls.fteprotocolextensions & FTE_PEXT_CSQC) &&
+		CL_EZCSQC_PredictedWeaponSoundsActive();
+#else
+	return false;
+#endif
+}
+
+static void CL_ClearPendingLocalSounds(void)
+{
+	memset(cl_pending_local_sounds, 0, sizeof(cl_pending_local_sounds));
+}
+
+static void CL_FlushPendingLocalSounds(void)
+{
+	int channel;
+
+	for (channel = 1; channel < QW_SOUND_CHANNEL_COUNT; channel++) {
+		pending_local_sound_t *pending = &cl_pending_local_sounds[channel];
+
+		if (pending->op == PENDING_LOCAL_SOUND_NONE) {
+			continue;
+		}
+
+		if (pending->op == PENDING_LOCAL_SOUND_STOP) {
+			S_StopSound(cl.playernum + 1, channel);
+		}
+		else {
+			S_StartSound(cl.playernum + 1, channel, cl.sound_precache[pending->sound_num],
+				pending->pos, pending->volume / 255.0, pending->attenuation);
+		}
+	}
+
+	CL_ClearPendingLocalSounds();
+}
+
 void CL_ParseStartSoundPacket(void)
 {
     vec3_t pos;
     int channel, ent, sound_num, volume, i;
 	int tracknum;
+	qbool predicted_echo = false;
+	qbool local_sound;
+	pending_local_sound_t *pending;
     float attenuation;
 
     channel = MSG_ReadShort();
@@ -2033,27 +2102,34 @@ void CL_ParseStartSoundPacket(void)
 
 	ent = (channel >> 3) & 1023;
 	channel &= 7;
+	local_sound = ent == cl.playernum + 1;
 
 	if (ent > CL_MAX_EDICTS)
 		Host_Error ("CL_ParseStartSoundPacket: ent = %i", ent);
 
 #ifdef FTE_PEXT_CSQC
 	if ((cls.fteprotocolextensions & FTE_PEXT_CSQC) && CL_EZCSQC_Event_Sound(ent, channel, sound_num, volume/255.0, attenuation, pos, 1, 0)) {
-		return;
+		predicted_echo = true;
 	}
 #endif
 
-	// Skip weapon sounds if we're predicting them
-	if (ent == cl.playernum + 1)
+	// Suppress movement sounds already played by local prediction.
+	if (!predicted_echo && local_sound)
 	{
 		if (cl_predict_sound.integer && !cl_nopred.integer)
 		{
 			if (CL_IsPredictedMovementSound(sound_num))
-				return;
+				predicted_echo = true;
 
-			if (CL_ShouldSuppressSelfMovementImpactSound(cl.sound_precache[sound_num]))
-				return;
+			if (!predicted_echo && CL_ShouldSuppressSelfMovementImpactSound(cl.sound_precache[sound_num]))
+				predicted_echo = true;
 		}
+	}
+
+	if (predicted_echo) {
+		// A later authoritative sound on this channel confirms the prediction won the server-side ordering.
+		cl_pending_local_sounds[channel].op = PENDING_LOCAL_SOUND_NONE;
+		return;
 	}
 
 	// MVD Playback
@@ -2069,6 +2145,17 @@ void CL_ParseStartSoundPacket(void)
 
 	if (CL_Demo_SkipMessage(true))
 		return;
+
+	if (CL_ReconcilePredictedSoundChannel(channel) && local_sound) {
+		pending = &cl_pending_local_sounds[channel];
+		pending->op = PENDING_LOCAL_SOUND_START;
+		pending->sound_num = sound_num;
+		pending->volume = volume;
+		pending->attenuation = attenuation;
+		VectorCopy(pos, pending->pos);
+		TP_CheckPickupSound(cl.sound_name[sound_num], pos);
+		return;
+	}
 
     S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume/255.0, attenuation);
 
@@ -3960,6 +4047,7 @@ void CL_ParseServerMessage (void)
 
 	CL_ParseClientdata();
 	CL_ClearProjectiles();
+	CL_ClearPendingLocalSounds();
 
 	// Parse the message.
 	while (1) 
@@ -3977,6 +4065,7 @@ void CL_ParseServerMessage (void)
 		{
 			msg_readcount++;	// so the EOM showner has the right value
 			SHOWNET("END OF MESSAGE");
+			CL_FlushPendingLocalSounds();
 			break;
 		}
 
@@ -4170,7 +4259,11 @@ void CL_ParseServerMessage (void)
 					if (CL_Demo_SkipMessage (true))
 						break;
 
-					S_StopSound(i >> 3, i & 7);
+					if (CL_ReconcilePredictedSoundChannel(i & 7) &&
+						(i >> 3) == cl.playernum + 1)
+						cl_pending_local_sounds[i & 7].op = PENDING_LOCAL_SOUND_STOP;
+					else
+						S_StopSound(i >> 3, i & 7);
 					break;
 				}
 
