@@ -346,6 +346,13 @@ static void CL_ParseBeam(int type, vec3_t end)
 	end[1] = MSG_ReadCoord();
 	end[2] = MSG_ReadCoord();
 
+#ifdef FTE_PEXT_CSQC
+	// Weapon prediction already drew the local LG beam; discard its delayed server echo.
+	if (type == 2 && ent == cl.playernum + 1 && CL_EZCSQC_PredictedBeamActive()) {
+		return;
+	}
+#endif
+
 	CL_CreateBeam(type, ent, start, end);
 }
 

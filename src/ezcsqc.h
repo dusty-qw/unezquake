@@ -206,6 +206,7 @@ void CL_EZCSQC_ParseEntities(void);
 void CL_EZCSQC_ParseSetup(void);
 void CL_EZCSQC_InitializeEntities(void);
 qbool CL_EZCSQC_Active(void);
+qbool CL_EZCSQC_PredictedBeamActive(void);
 qbool CL_EZCSQC_PredictedWeaponSoundsActive(void);
 qbool CL_EZCSQC_Event_Sound(int entnum, int channel, int soundnumber, float vol, float attenuation, vec3_t pos, float pitchmod, float flags);
 qbool CL_EZCSQC_UpdateViewWeapon(int *modelindex, int *weaponframe);

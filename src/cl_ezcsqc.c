@@ -2275,7 +2275,7 @@ void CL_EZCSQC_ParseSetup(void)
 	CL_SendClientCommand(true, "ezcsqc_ready 2");
 }
 
-static qbool CL_EZCSQC_CanSuppressPredictedWeaponSound(void)
+static qbool CL_EZCSQC_CanPredictWeaponEffects(void)
 {
 	player_state_t *ps;
 	ezcsqc_weapon_state_t *ws;
@@ -2290,13 +2290,13 @@ static qbool CL_EZCSQC_CanSuppressPredictedWeaponSound(void)
 	}
 
 	ps = &cl.frames[cl.validsequence & UPDATE_MASK].playerstate[cl.playernum];
-	// Dead/locked/non-playable states do not run local weapon prediction, so server sounds are authoritative.
+	// Dead/locked/non-playable states do not run local weapon prediction, so server effects are authoritative.
 	if (ps->pm_type == PM_DEAD || ps->pm_type == PM_NONE || ps->pm_type == PM_LOCK) {
 		return false;
 	}
 
 	ws = &ws_server[cl.validsequence & UPDATE_MASK];
-	// KTX uses PRDFL_FORCEOFF for states like wipeout round_pause where real server weapon sounds still play.
+	// KTX uses PRDFL_FORCEOFF for states like wipeout round_pause where server weapon effects still play.
 	if (ws->client_predflags == PRDFL_FORCEOFF) {
 		return false;
 	}
@@ -2304,10 +2304,16 @@ static qbool CL_EZCSQC_CanSuppressPredictedWeaponSound(void)
 	return true;
 }
 
+qbool CL_EZCSQC_PredictedBeamActive(void)
+{
+	return ezcsqc.weapon_prediction && !cl_nopred_weapon.integer && cl_predict_beam.integer &&
+		CL_EZCSQC_CanPredictWeaponEffects();
+}
+
 qbool CL_EZCSQC_PredictedWeaponSoundsActive(void)
 {
 	return ezcsqc.weapon_prediction && !cl_nopred_weapon.integer && cl_predict_weaponsound.integer &&
-		CL_EZCSQC_CanSuppressPredictedWeaponSound() && CL_PredictWeaponSoundEnabled();
+		CL_EZCSQC_CanPredictWeaponEffects() && CL_PredictWeaponSoundEnabled();
 }
 
 qbool CL_EZCSQC_Event_Sound(int entnum, int channel, int soundnumber, float vol, float attenuation, vec3_t pos, float pitchmod, float flags)
