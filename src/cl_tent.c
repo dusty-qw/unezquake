@@ -49,6 +49,7 @@ predexplosion_t cl_predictedexplosions[MAX_PREDEXPLOSIONS];
 typedef struct predicted_te_explosion_s {
 	qbool active;
 	double time;
+	double expiretime;
 	vec3_t origin;
 } predicted_te_explosion_t;
 
@@ -732,6 +733,8 @@ static void CL_RecordPredictedRocketExplosion(vec3_t pos)
 
 	oldest->active = true;
 	oldest->time = cls.realtime;
+	// Match the late-projectile retention window, including delayed server impacts.
+	oldest->expiretime = cls.realtime + bound(0.5, cls.latency * 3 + 0.1, 2.0);
 	VectorCopy(pos, oldest->origin);
 }
 
@@ -754,10 +757,8 @@ static void CL_RecordPredictedRocketExplosionKick(vec3_t pos, double prediction_
 static qbool CL_MatchPredictedRocketExplosion(vec3_t pos)
 {
 	int i;
-
-	if (!cl_predict_explosions.integer) {
-		return false;
-	}
+	predicted_te_explosion_t *best = NULL;
+	float best_distance = 96;
 
 	for (i = 0; i < MAX_PREDEXPLOSIONS; i++) {
 		predicted_te_explosion_t *expl = &cl_predicted_te_explosions[i];
@@ -765,17 +766,21 @@ static qbool CL_MatchPredictedRocketExplosion(vec3_t pos)
 		if (!expl->active) {
 			continue;
 		}
-		if (cls.realtime - expl->time > 0.5) {
+		if (cls.realtime >= expl->expiretime) {
 			expl->active = false;
 			continue;
 		}
-		if (VectorDistance(expl->origin, pos) <= 96) {
-			expl->active = false;
-			return true;
+		if (VectorDistance(expl->origin, pos) <= best_distance) {
+			best = expl;
+			best_distance = VectorDistance(expl->origin, pos);
 		}
 	}
 
-	return false;
+	// Only recorded (already presented) effects can consume a server explosion.
+	if (best) {
+		best->active = false;
+	}
+	return best != NULL;
 }
 
 void CL_PredictRocketExplosion(vec3_t te_origin, vec3_t kick_origin, double prediction_time)

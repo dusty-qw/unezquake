@@ -100,6 +100,7 @@ typedef struct ezcsqc_entity_s {
 	double	s_time;
 
 	qbool	local_projectile;
+	qbool	projectile_ended;
 	int	projectile_type;
 	int	partcount;
 	int	drawcount;

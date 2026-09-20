@@ -121,6 +121,30 @@ static ezcsqc_entity_t *CL_EZCSQC_Ent_Spawn(void)
 	return &ezcsqc_entities[0];
 }
 
+static void CL_EZCSQC_DetachProjectileTrail(ezcsqc_entity_t *ent)
+{
+	if ((ent->drawmask & DRAWMASK_PROJECTILE) && !ent->local_projectile && ent->entnum > 0 && ent->entnum < CL_MAX_EDICTS) {
+		centity_t *cent = &cl_entities[ent->entnum];
+		int t;
+
+		cent->current.modelindex = 0;
+		cent->sequence = 0;
+		for (t = 0; t < sizeof(cent->trails) / sizeof(cent->trails[0]); t++) {
+			cent->trails[t].lasttime = 0;
+		}
+	}
+}
+
+static void CL_EZCSQC_EndProjectileVisual(ezcsqc_entity_t *ent)
+{
+	// Retain the trajectory for a late handoff, or the server mapping until removal.
+	ent->projectile_ended = true;
+	if (ent->local_projectile) {
+		ent->endtime = cl.time + bound(0.5, cls.latency * 3 + 0.1, 2.0);
+	}
+	CL_EZCSQC_DetachProjectileTrail(ent);
+}
+
 static void CL_EZCSQC_Ent_Remove(ezcsqc_entity_t *ent)
 {
 	if (!ent || ent->isfree) {
@@ -144,16 +168,7 @@ static void CL_EZCSQC_Ent_Remove(ezcsqc_entity_t *ent)
 	}
 
 	// Detach packet-style trail follow state for server projectiles that used cl_entities[].
-	if ((ent->drawmask & DRAWMASK_PROJECTILE) && !ent->local_projectile && ent->entnum > 0 && ent->entnum < CL_MAX_EDICTS) {
-		centity_t *cent = &cl_entities[ent->entnum];
-		int t;
-
-		cent->current.modelindex = 0;
-		cent->sequence = 0;
-		for (t = 0; t < sizeof(cent->trails) / sizeof(cent->trails[0]); t++) {
-			cent->trails[t].lasttime = 0;
-		}
-	}
+	CL_EZCSQC_DetachProjectileTrail(ent);
 
 	ent->drawmask = 0;
 	ent->predraw = NULL;
@@ -721,7 +736,10 @@ static qbool CL_EZCSQC_RemoveMatchedLocalProjectile(ezcsqc_entity_t *server)
 {
 	int i;
 	int server_visual_effects = CL_EZCSQC_ProjectileVisualEffects(server);
-	vec3_t server_origin;
+	vec3_t server_origin, best_origin;
+	ezcsqc_entity_t *best_local = NULL;
+	float best_error = 1e30f;
+	float best_parallel = 0, best_perpendicular = 0, best_speed = 0;
 
 	/*
 	 * When the authoritative KTX projectile arrives, find the matching predicted
@@ -751,17 +769,20 @@ static qbool CL_EZCSQC_RemoveMatchedLocalProjectile(ezcsqc_entity_t *server)
 		vec3_t local_origin;
 		vec3_t diff;
 		vec3_t diff_parallel, diff_perp, local_dir;
-		float local_speed, server_speed;
+		float local_speed;
 		float parallel = 0;
-		float perpendicular;
+		float perpendicular, distance;
 
 		if (local->isfree || !local->local_projectile || local->ownernum != server->ownernum) {
+			continue;
+		}
+		if (local->projectile_ended && server->ownernum != cl.playernum + 1) {
 			continue;
 		}
 		if (local->modelindex && server->modelindex && local->modelindex != server->modelindex) {
 			continue;
 		}
-		if (cl.time > local->endtime + 0.1f) {
+		if (local->projectile_ended ? cl.time >= local->endtime : cl.time > local->endtime + 0.1f) {
 			continue;
 		}
 
@@ -779,9 +800,9 @@ static qbool CL_EZCSQC_RemoveMatchedLocalProjectile(ezcsqc_entity_t *server)
 
 		// Split the mismatch into along-trajectory and sideways error for safer matching.
 		VectorSubtract(server_origin, local_origin, diff);
+		distance = VectorLength(diff);
 		VectorClear(diff_parallel);
 		local_speed = VectorLength(local->vel);
-		server_speed = VectorLength(server->s_velocity);
 		if (local_speed > 1) {
 			VectorScale(local->vel, 1.0f / local_speed, local_dir);
 			parallel = DotProduct(diff, local_dir);
@@ -790,18 +811,63 @@ static qbool CL_EZCSQC_RemoveMatchedLocalProjectile(ezcsqc_entity_t *server)
 		VectorSubtract(diff, diff_parallel, diff_perp);
 		perpendicular = VectorLength(diff_perp);
 
+		if (local->projectile_type != 1 && server->ownernum == cl.playernum + 1) {
+			vec3_t velocity_diff;
+
+			// Collinear shots travelling in different directions are not the same shot.
+			VectorSubtract(local->vel, server->s_velocity, velocity_diff);
+			if (local_speed <= 1 || VectorLength(velocity_diff) > max(32, local_speed * 0.05f)) {
+				continue;
+			}
+			// Completed shots require the same narrow trajectory corridor as adoption.
+			if (local->projectile_ended && perpendicular >= EZCSQC_PROJECTILE_HANDOFF_PERP_LIMIT) {
+				continue;
+			}
+		}
+
 		if (local->projectile_type == 1) {
-			if (VectorLength(diff) > EZCSQC_GRENADE_HANDOFF_DIFF_LIMIT) {
+			if (distance > EZCSQC_GRENADE_HANDOFF_DIFF_LIMIT) {
 				continue;
 			}
 		}
 		// Accept larger owner rocket/nail phase gaps only when they are nearly collinear.
-		else if (VectorLength(diff) > 64) {
+		else if (distance > 64) {
 			if (server->ownernum != cl.playernum + 1 ||
 				perpendicular >= EZCSQC_PROJECTILE_HANDOFF_PERP_LIMIT ||
 				fabs(parallel) > EZCSQC_PROJECTILE_HANDOFF_PHASE_LIMIT) {
 				continue;
 			}
+		}
+
+		// Compare live and completed predictions together; array order is not shot order.
+		if (distance < best_error ||
+			(distance == best_error && best_local && best_local->projectile_ended && !local->projectile_ended)) {
+			best_local = local;
+			best_error = distance;
+			VectorCopy(local_origin, best_origin);
+			best_parallel = parallel;
+			best_perpendicular = perpendicular;
+			best_speed = local_speed;
+		}
+	}
+
+	if (best_local) {
+		ezcsqc_entity_t *local = best_local;
+		vec3_t local_origin, diff;
+		float parallel = best_parallel, perpendicular = best_perpendicular;
+		float local_speed = best_speed, server_speed = VectorLength(server->s_velocity);
+
+		VectorCopy(best_origin, local_origin);
+		VectorSubtract(server_origin, local_origin, diff);
+		if (local->projectile_ended) {
+			// Consume exactly one prediction, retaining authority invisibly until removal.
+			CL_EZCSQC_EndProjectileVisual(server);
+			CL_EZCSQC_Ent_Remove(local);
+			if (cl_ezcsqc_debug.integer > 2) {
+				Com_Printf("EZCSQC completed projectile matched server=%d phase=%.1f perp=%.1f\n",
+					server->entnum, parallel, perpendicular);
+			}
+			return true;
 		}
 
 		if (cl_ezcsqc_debug.integer > 2) {
@@ -1066,6 +1132,13 @@ static qbool Predraw_Projectile(ezcsqc_entity_t *self)
 	float dt;
 	int visual_effects;
 
+	if (self->projectile_ended) {
+		if (self->local_projectile && cl.time >= self->endtime) {
+			CL_EZCSQC_Ent_Remove(self);
+		}
+		return false;
+	}
+
 	if (!CL_PredictProjectilesEnabled() && self->local_projectile) {
 		return false;
 	}
@@ -1128,7 +1201,7 @@ static qbool Predraw_Projectile(ezcsqc_entity_t *self)
 			if (CL_EZCSQC_PredictOwnerRocketWorldImpact(self, trace_start, trace_end, visual_effects) ||
 				CL_EZCSQC_ProjectileTraceBlocked(self->start, trace_end)) {
 				CL_EZCSQC_DebugLocalProjectile(self, "trace-remove", self->origin);
-				CL_EZCSQC_Ent_Remove(self);
+				CL_EZCSQC_EndProjectileVisual(self);
 				return false;
 			}
 		}
@@ -1183,7 +1256,12 @@ static qbool Predraw_Projectile(ezcsqc_entity_t *self)
 			if (CL_EZCSQC_ProjectileTraceBlocked(previous_origin, trace_end)) {
 				// Adopted owner rockets can still predict their final world impact on retirement.
 				CL_EZCSQC_PredictOwnerRocketWorldImpact(self, previous_origin, trace_end, visual_effects);
-				CL_EZCSQC_Ent_Remove(self);
+				if (CL_EZCSQC_OwnerProjectile(self)) {
+					CL_EZCSQC_EndProjectileVisual(self);
+				}
+				else {
+					CL_EZCSQC_Ent_Remove(self);
+				}
 				return false;
 			}
 		}
@@ -1237,12 +1315,6 @@ static qbool WeaponPred_SpawnProjectile(usercmd_t *u, player_state_t *ps, ezcsqc
 	VectorMA(velocity, anim->projectile_velocity[1], forward, velocity);
 	VectorMA(velocity, anim->projectile_velocity[2], up, velocity);
 
-	// Point-blank rocket impacts become a predicted explosion instead of a projectile model.
-	if (CL_EZCSQC_PredictRocketSpawnTouch(modelindex, origin, velocity, ps->state_time)) {
-		CL_EZCSQC_Ent_Remove(ent);
-		return true;
-	}
-
 	// Initialize common projectile motion state from the predicted weapon definition.
 	vectoangles(velocity, ent->angles);
 	VectorCopy(origin, ent->origin);
@@ -1250,6 +1322,14 @@ static qbool WeaponPred_SpawnProjectile(usercmd_t *u, player_state_t *ps, ezcsqc
 	VectorCopy(velocity, ent->vel);
 	VectorCopy(origin, ent->partorg);
 	VectorClear(ent->avel);
+
+	// Even point-blank impacts need a trajectory record for a late server projectile.
+	if (CL_EZCSQC_PredictRocketSpawnTouch(modelindex, origin, velocity, ps->state_time)) {
+		ent->starttime -= 0.05f;
+		CL_EZCSQC_EndProjectileVisual(ent);
+		return true;
+	}
+
 	if (ent->projectile_type == 1) {
 		const float newmis_time = 0.05f;
 
@@ -2756,7 +2836,7 @@ void CL_EZCSQC_PrepareParticleFrame(void)
 		entity_state_t state;
 		vec3_t origin;
 
-		if (ent->isfree || ent->local_projectile || !(ent->drawmask & DRAWMASK_PROJECTILE)) {
+		if (ent->isfree || ent->local_projectile || ent->projectile_ended || !(ent->drawmask & DRAWMASK_PROJECTILE)) {
 			continue;
 		}
 		if (!ent->modelindex || ent->modelindex >= MAX_MODELS || !cl.model_precache[ent->modelindex]) {
