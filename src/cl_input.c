@@ -15,6 +15,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // cl.input.c  -- builds an intended movement command to send to the server
 
 #include "quakedef.h"
+#include "cl_session.h"
 #include "movie.h"
 #include "gl_model.h"
 #include "teamplay.h"
@@ -142,6 +143,22 @@ kbutton_t in_up, in_down;
 
 
 int in_impulse;
+
+void CL_ClearSessionInput(void)
+{
+	extern int mx, my;
+	/* +mlook can be a persistent config setting rather than a held key. */
+	kbutton_t *buttons[] = { &in_klook, &in_left, &in_right,
+		&in_forward, &in_back, &in_lookup, &in_lookdown, &in_moveleft,
+		&in_moveright, &in_strafe, &in_speed, &in_use, &in_jump,
+		&in_autohop, &in_attack, &in_attack2, &in_up, &in_down };
+	int i;
+	for (i = 0; i < sizeof(buttons) / sizeof(buttons[0]); ++i)
+		memset(buttons[i], 0, sizeof(*buttons[i]));
+	in_ar_count = 0;
+	in_impulse = 0;
+	mx = my = 0;
+}
 
 #define VOID_KEY (-1)
 #define NULL_KEY (-2)
@@ -1353,6 +1370,10 @@ void CL_SendCmd(void)
 	cmdtime_msec += cmd->msec;
 
 	Cam_FinishMove(cmd);
+	if (!CL_SessionIsActive()) {
+		cmd->forwardmove = cmd->sidemove = cmd->upmove = 0;
+		cmd->buttons = cmd->impulse = cmd->impulse_pred = 0;
+	}
 
 	if (cls.mvdplayback) {
 		CL_CalcPlayerFPS(&cl.players[cl.playernum], cmd->msec);

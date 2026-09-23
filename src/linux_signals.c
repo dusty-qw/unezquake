@@ -25,6 +25,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include <signal.h>
 
 #include "quakedef.h"
+#include "cl_session.h"
 #include "input.h"
 
 static qbool signalcaught = false;
@@ -44,6 +45,7 @@ static void signal_handler(int sig) // bk010104 - replace this... (NOTE TTimo hu
 //
 // client related things
 //
+	CL_SessionsShutdown();
 	VID_Shutdown(false);  // bk010104 - shouldn't this be CL_Shutdown
 
 	Sys_Quit();

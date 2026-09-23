@@ -46,6 +46,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <dlfcn.h>
 
 #include "quakedef.h"
+#include "cl_session.h"
 #include "server.h"
 #include <pcre2.h>
 
@@ -123,7 +124,8 @@ void Sys_Error(char *error, ...)
 		fprintf(qconsole_log, "Error: %s\n", string);
 
 	Host_Shutdown ();
-	SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Error", string, NULL);
+	if (!CL_SessionIsWorker())
+		SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Error", string, NULL);
 	exit(1);
 }
 
@@ -324,6 +326,7 @@ int main(int argc, char **argv)
 #endif
 
 	COM_InitArgv (argc, argv);
+	CL_SessionsEarlyInit();
 
 	// let me use -condebug C:\condebug.log before Quake FS init, so I get ALL messages before quake fully init
 	if ((i = COM_CheckParm(cmdline_param_console_debug)) && i < COM_Argc() - 1) {

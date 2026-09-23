@@ -73,6 +73,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "r_performance.h"
 #include "r_program.h"
 #include "demo_spawnwarn.h"
+#include "cl_session.h"
 
 extern qbool ActiveApp, Minimized;
 
@@ -2187,6 +2188,7 @@ void EX_FileList_Init(void);
 
 void CL_Init (void) 
 {
+	CL_SessionsInit();
 	// When ezquake was launched via a webpage (qtv) the working directory wasn't properly
 	// set. Changing the directory makes sure it starts out in the directory where ezquake 
 	// is located.
@@ -2267,10 +2269,12 @@ void CL_Init (void)
 
 	QTV_Init();
 
-	Sys_InitIPC();
+	if (!CL_SessionIsWorker())
+		Sys_InitIPC();
 
 #ifdef WITH_DISCORD
-	CL_InitDiscord();
+	if (!CL_SessionIsWorker())
+		CL_InitDiscord();
 #endif
 }
 
@@ -2316,6 +2320,8 @@ static void CL_CheckAutoPause (void)
 static double CL_MinFrameTime (void) 
 {
 	double fps, fpscap;
+	if (!CL_SessionIsActive())
+		return 1.0 / 72.0;
 
 	if (cls.timedemo || Movie_IsCapturing())
 		return 0;
@@ -2507,6 +2513,7 @@ void CL_Frame(double time)
 	double minframetime;
 	static double	extraphysframetime;	//#fps
 	qbool need_server_frame = false;
+	CL_SessionsFrame();
 
 	extratime += time;
 	minframetime = CL_MinFrameTime();
@@ -2514,7 +2521,7 @@ void CL_Frame(double time)
 
 	if (extratime < minframetime) {
 		extern cvar_t sys_yieldcpu;
-		if (sys_yieldcpu.integer || Minimized) {
+		if (sys_yieldcpu.integer || Minimized || !CL_SessionIsActive()) {
 			#ifdef _WIN32
 			Sys_MSleep(0);
 			#else
@@ -2762,6 +2769,8 @@ void CL_Frame(double time)
 		}
 	}
 
+	if (!CL_SessionIsActive())
+		goto session_background;
 	VID_ReloadCheck();
 
 #ifdef FTE_PEXT_CSQC
@@ -2856,6 +2865,7 @@ void CL_Frame(double time)
 
 	CDAudio_Update();
 
+session_background:
 	MT_Frame();
 
 	if (Movie_IsCapturing()) {
@@ -2871,7 +2881,8 @@ void CL_Frame(double time)
 	Sys_ReadIPC();
 
 #ifdef WITH_DISCORD
-	CL_UpdatePresence();
+	if (!CL_SessionIsWorker())
+		CL_UpdatePresence();
 #endif
 
 	CL_QTVPoll();
@@ -2896,11 +2907,13 @@ void CL_Frame(double time)
 
 void CL_Shutdown (void)
 {
+	CL_SessionsShutdown();
 #ifdef WITH_DISCORD
 	CL_ShutdownDiscord();
 #endif
 	CL_Disconnect();
-	SList_Shutdown();
+	if (!CL_SessionIsWorker())
+		SList_Shutdown();
 	CDAudio_Shutdown();
 	S_Shutdown();
 	IN_Shutdown ();
@@ -2929,6 +2942,9 @@ void CL_UpdateCaption(qbool force)
 {
 	static char caption[512] = { 0 };
 	char str[512] = { 0 };
+	/* The coordinator owns the shared native window's session title. */
+	if (!CL_SessionIsActive() || CL_SessionIsWorker())
+		return;
 
 	if (!cl_window_caption.value) {
 		if (!cls.demoplayback && (cls.state == ca_active)) {

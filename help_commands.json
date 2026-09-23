@@ -1629,6 +1629,15 @@
   "serverinfo": {
     "description": "Reports the current server info."
   },
+  "session": {
+    "description": "Select session 1 through 9, creating a fresh console if needed. Ctrl+1 through Ctrl+9 are shortcuts. Sessions retain independent connections and consoles in one application window. Currently requires Linux and SDL's X11 driver (including XWayland)."
+  },
+  "session_close": {
+    "description": "Close an additional session: session_close [number]. Without a number, closes the current session. Slot 1 owns the main window; use disconnect to leave its server, or quit from slot 1 to close all sessions."
+  },
+  "session_list": {
+    "description": "List allocated sessions with connection state, server address, and map. An asterisk marks the selected session."
+  },
   "set": {
     "arguments": [
       {

@@ -46,6 +46,7 @@ void Sys_ActiveAppChanged (void);
 
 #include "ezquake-icon.c"
 #include "keys.h"
+#include "cl_session.h"
 #include "tr_types.h"
 #include "input.h"
 #include "rulesets.h"
@@ -100,6 +101,13 @@ static void conres_changed_callback (cvar_t *var, char *string, qbool *cancel);
 static void framebuffer_smooth_changed_callback(cvar_t* var, char* string, qbool* cancel);
 static void vid_reload_callback(cvar_t* var, char* string, qbool* cancel);
 static void GrabMouse(qbool grab, qbool raw);
+static qbool session_alt_tab_enabled = true;
+
+#if defined(__linux__) && defined(SDL_VIDEO_DRIVER_X11)
+static qbool session_swap_control_checked;
+static SDL_SysWMinfo session_swap_wm;
+static int64_t (*session_swap_msc)(Display *, unsigned long, int64_t, int64_t, int64_t);
+#endif
 static void HandleEvents(void);
 static void VID_UpdateConRes(void);
 void IN_Restart_f(void);
@@ -250,6 +258,12 @@ cvar_t vid_framebuffer_fxaa        = {"vid_framebuffer_fxaa",          "0" };
 // function declaration
 //
 
+static qbool IN_IsFullscreen(void)
+{
+	/* Workers use -window during setup but render in the owner's native window. */
+	return CL_SessionIsWorker() ? CL_SessionWindowIsFullscreen() : r_fullscreen.integer != 0;
+}
+
 // True if we need to release the mouse and let the OS show cursor again
 static qbool IN_OSMouseCursorRequired(void)
 {
@@ -257,7 +271,7 @@ static qbool IN_OSMouseCursorRequired(void)
 	qbool in_os_cursor_mode = (key_dest != key_game || cls.demoplayback) && (in_release_mouse_modes.integer & (1 << key_dest));
 
 	// Windowed & (not-grabbing mouse | in OS cursor mode)
-	return (!r_fullscreen.value && (!in_grab_windowed_mouse.value || in_os_cursor_mode));
+	return (!IN_IsFullscreen() && (!in_grab_windowed_mouse.value || in_os_cursor_mode));
 }
 
 // True if we're in a mode where we need to keep track of mouse movement
@@ -294,11 +308,13 @@ static void in_grab_windowed_mouse_callback(cvar_t *val, char *value, qbool *can
 
 static void GrabMouse(qbool grab, qbool raw)
 {
+	if (grab && !CL_SessionIsActive())
+		return;
 	if ((grab && mouse_active && raw == in_raw.integer) || (!grab && !mouse_active) || !mouseinitialized || !sdl_window) {
 		return;
 	}
 
-	if (!r_fullscreen.integer && in_grab_windowed_mouse.integer == 0) {
+	if (!IN_IsFullscreen() && in_grab_windowed_mouse.integer == 0) {
 		if (!mouse_active) {
 			return;
 		}
@@ -317,7 +333,7 @@ static void GrabMouse(qbool grab, qbool raw)
 	SDL_GetRelativeMouseState(NULL, NULL);
 
 	// never show real cursor in fullscreen
-	if (r_fullscreen.integer) {
+	if (IN_IsFullscreen()) {
 		SDL_ShowCursor(SDL_DISABLE);
 	} else {
 		SDL_ShowCursor(grab ? SDL_DISABLE : SDL_ENABLE);
@@ -372,7 +388,7 @@ static void IN_Frame(void)
 
 	HandleEvents();
 
-	if (!ActiveApp || Minimized || IN_OSMouseCursorRequired()) {
+	if (!CL_SessionIsActive() || !ActiveApp || Minimized || IN_OSMouseCursorRequired()) {
 		IN_DeactivateMouse();
 		return;
 	}
@@ -406,7 +422,7 @@ void Sys_SendKeyEvents(void)
 {
 	IN_Frame();
 
-	if (sys_inactivesleep.integer > 0) {
+	if (sys_inactivesleep.integer > 0 && CL_SessionIsActive()) {
 		// Yield the CPU a little
 		if ((ISPAUSED && (!ActiveApp)) || Minimized || block_drawing) {
 			if (!cls.download) {
@@ -567,10 +583,14 @@ static void window_event(SDL_WindowEvent *event)
 			break;
 
 		case SDL_WINDOWEVENT_FOCUS_GAINED:
+#ifdef __linux__
+			if (CL_SessionIsWorker() || CL_SessionCount() > 1)
+				block_keyboard_input = false;
+#endif
 			TP_ExecTrigger("f_focusgained");
 			/* Fall through */
 		case SDL_WINDOWEVENT_RESTORED:
-			Minimized = false;
+			Minimized = CL_SessionIsWorker() && CL_SessionWindowIsMinimized();
 			ActiveApp = true;
 			scr_skipupdate = 0;
 #ifdef X11_GAMMA_WORKAROUND
@@ -584,7 +604,7 @@ static void window_event(SDL_WindowEvent *event)
 			break;
 
 		case SDL_WINDOWEVENT_MOVED:
-			if (!(flags & SDL_WINDOW_FULLSCREEN) && r_win_save_pos.integer) {
+			if (!CL_SessionIsWorker() && !(flags & SDL_WINDOW_FULLSCREEN) && r_win_save_pos.integer) {
 				int displayNumber = 0;
 				int x = event->data1;
 				int y = event->data2;
@@ -598,10 +618,10 @@ static void window_event(SDL_WindowEvent *event)
 			break;
 
 		case SDL_WINDOWEVENT_RESIZED:
-			if (!(flags & SDL_WINDOW_FULLSCREEN)) {
+			if (CL_SessionIsWorker() || !(flags & SDL_WINDOW_FULLSCREEN)) {
 				glConfig.vidWidth = event->data1;
 				glConfig.vidHeight = event->data2;
-				if (r_win_save_size.integer) {
+				if (!CL_SessionIsWorker() && r_win_save_size.integer) {
 					Cvar_LatchedSetValue(&vid_win_width, event->data1);
 					Cvar_LatchedSetValue(&vid_win_height, event->data2);
 				}
@@ -742,6 +762,36 @@ static void keyb_textinputevent(char* text)
 static void keyb_event(SDL_KeyboardEvent *event)
 {
 	byte result = Key_ScancodeToQuakeCode(event->keysym.scancode);
+	static qbool session_keys[CL_MAX_SESSIONS];
+	int slot = event->keysym.scancode - SDL_SCANCODE_1;
+	if (!CL_SessionIsActive())
+		return;
+	/* SDL's normal fullscreen/grabbed Alt+Tab fallback minimizes its window.
+	 * A worker must request that action from the owner instead of letting SDL
+	 * manage fullscreen through a foreign-window wrapper. Keep delivering the
+	 * key event normally, just as SDL does before applying its fallback. */
+	if (CL_SessionIsWorker() && session_alt_tab_enabled && !event->repeat &&
+		event->state == SDL_PRESSED && event->keysym.sym == SDLK_TAB &&
+		(event->keysym.mod & KMOD_ALT) && IN_IsFullscreen()) {
+#if SDL_VERSION_ATLEAST(2, 0, 16)
+		if (SDL_GetWindowKeyboardGrab(sdl_window))
+#else
+		if (SDL_GetWindowGrab(sdl_window) && SDL_GetHintBoolean(SDL_HINT_GRAB_KEYBOARD, SDL_FALSE))
+#endif
+			VID_Minimize();
+	}
+	if (slot >= 0 && slot < CL_MAX_SESSIONS) {
+		if (event->state && (event->keysym.mod & KMOD_CTRL) && !(event->keysym.mod & KMOD_ALT)) {
+			session_keys[slot] = true;
+			if (!event->repeat)
+				CL_SessionSelect(slot + 1);
+			return;
+		}
+		if (session_keys[slot] && !event->state) {
+			session_keys[slot] = false;
+			return;
+		}
+	}
 
 #ifdef __APPLE__
 	if (in_ignore_deadkeys.integer) {
@@ -872,9 +922,14 @@ static void HandleEvents(void)
 #endif
 
 	while (SDL_PollEvent(&event)) {
+		if (!CL_SessionIsActive() && event.type != SDL_WINDOWEVENT && event.type != SDL_QUIT) {
+			if (event.type == SDL_DROPFILE)
+				SDL_free(event.drop.file);
+			continue;
+		}
 		switch (event.type) {
 		case SDL_QUIT:
-			Sys_Quit();
+			Host_Quit();
 			break;
 		case SDL_WINDOWEVENT:
 			window_event(&event.window);
@@ -966,6 +1021,11 @@ void VID_SoftRestart(void)
 void VID_Shutdown(qbool restart)
 {
 	IN_DeactivateMouse();
+
+#if defined(__linux__) && defined(SDL_VIDEO_DRIVER_X11)
+	session_swap_control_checked = false;
+	session_swap_msc = NULL;
+#endif
 
 	SDL_StopTextInput();
 
@@ -1290,6 +1350,8 @@ static int VID_SetWindowIcon(SDL_Window *sdl_window)
 
 static SDL_Window *VID_SDL_CreateWindow(int flags)
 {
+	if (CL_SessionIsWorker())
+		return CL_SessionCreateWindow();
 	if (r_fullscreen.integer == 0) {
 		int displayNumber = VID_DisplayNumber(false);
 		int xpos = vid_xpos.integer;
@@ -1357,6 +1419,8 @@ static void VID_X11_GetGammaRampSize(void)
 
 static void VID_SetWindowResolution(void)
 {
+	if (CL_SessionIsWorker())
+		return;
 	if (r_fullscreen.integer > 0 && vid_usedesktopres.integer != 1) {
 		int index = VID_GetCurrentModeIndex();
 
@@ -1425,11 +1489,18 @@ static void VID_SDL_Init(void)
 		flags |= (vid_win_borderless.integer > 0 ? SDL_WINDOW_BORDERLESS : 0);
 	}
 
-	SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, vid_minimize_on_focus_loss.integer == 0 ? "0" : "1");
+	SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS,
+		CL_SessionIsWorker() || vid_minimize_on_focus_loss.integer == 0 ? "0" : "1");
 #ifdef __APPLE__
 	SDL_SetHint(SDL_HINT_VIDEO_MAC_FULLSCREEN_SPACES, "0");
 #endif
 	SDL_SetHint(SDL_HINT_GRAB_KEYBOARD, vid_grab_keyboard.integer == 0 ? "0" : "1");
+	if (CL_SessionIsWorker()) {
+		/* Preserve the user's Alt+Tab policy, but perform SDL's usual action
+		 * through the coordinator. The keyboard grab itself is unchanged. */
+		session_alt_tab_enabled = SDL_GetHintBoolean("SDL_ALLOW_ALT_TAB_WHILE_GRABBED", SDL_TRUE);
+		SDL_SetHintWithPriority("SDL_ALLOW_ALT_TAB_WHILE_GRABBED", "0", SDL_HINT_OVERRIDE);
+	}
 	SDL_SetHintWithPriority(SDL_HINT_MOUSE_RELATIVE_MODE_WARP, "0", SDL_HINT_OVERRIDE);
 #ifdef __APPLE__
 #ifdef SDL_HINT_TOUCH_MOUSE_EVENTS
@@ -1535,7 +1606,7 @@ static void VID_SDL_Init(void)
 		}
 	}
 
-	if (VID_SetWindowIcon(sdl_window) < 0) {
+	if (!CL_SessionIsWorker() && VID_SetWindowIcon(sdl_window) < 0) {
 		Com_Printf("Failed to set window icon");
 	}
 
@@ -1563,11 +1634,67 @@ static void VID_SDL_Init(void)
 	}
 
 	glConfig.initialized = true;
+	CL_SessionsAttachWindow(sdl_window);
 }
 
 static void VID_SwapBuffers (void)
 {
+#if defined(__linux__) && defined(SDL_VIDEO_DRIVER_X11)
+	if (r_swapInterval.integer == 1 && (CL_SessionIsWorker() || CL_SessionCount() > 1)) {
+		if (!session_swap_control_checked) {
+			const char *(*query_extensions)(Display *, int);
+			void *(*current_context)(void);
+			const char *extensions, *extension;
+			const char *name = "GLX_OML_sync_control";
+			session_swap_control_checked = true;
+			SDL_VERSION(&session_swap_wm.version);
+			query_extensions = SDL_GL_GetProcAddress("glXQueryExtensionsString");
+			current_context = SDL_GL_GetProcAddress("glXGetCurrentContext");
+			if (query_extensions && current_context && current_context() &&
+				SDL_GetWindowWMInfo(sdl_window, &session_swap_wm) && session_swap_wm.subsystem == SDL_SYSWM_X11) {
+				extensions = query_extensions(session_swap_wm.info.x11.display, DefaultScreen(session_swap_wm.info.x11.display));
+				extension = extensions ? strstr(extensions, name) : NULL;
+				if (extension && (extension == extensions || extension[-1] == ' ') &&
+					(extension[strlen(name)] == ' ' || extension[strlen(name)] == '\0'))
+					session_swap_msc = SDL_GL_GetProcAddress("glXSwapBuffersMscOML");
+			}
+		}
+		if (session_swap_msc) {
+			/* Mesa's implicit VSync target uses sent-minus-completed swap counts.
+			 * Present completion events on this shared X window also come from
+			 * other engines, whose serials can rewind that per-process counter.
+			 * A resumed engine can then wait thousands of refreshes for a frame.
+			 * Explicit MSC scheduling (divisor 1) targets the next refresh without
+			 * deriving a deadline from those independent serial numbers. OML does
+			 * not implicitly flush rendering commands, so flush them ourselves. */
+			glFlush();
+			if (session_swap_msc(session_swap_wm.info.x11.display, session_swap_wm.info.x11.window, 0, 1, 0) >= 0)
+				return;
+			Con_Printf("Session refresh scheduling failed; using SDL buffer swaps.\n");
+			session_swap_msc = NULL;
+		}
+	}
+#endif
 	SDL_GL_SwapWindow(sdl_window);
+}
+
+void VID_SessionRelease(void)
+{
+	/* Finish the old context's writes before another process uses the drawable. */
+	glFinish();
+}
+
+void VID_SessionActivate(void)
+{
+	int flags;
+	/* Discard queued input from the previous owner while we are still inactive. */
+	HandleEvents();
+	flags = SDL_GetWindowFlags(sdl_window);
+	ActiveApp = (flags & SDL_WINDOW_INPUT_FOCUS) != 0;
+	Minimized = CL_SessionWindowIsMinimized();
+	scr_skipupdate = 0;
+	/* GLX swap interval belongs to the shared drawable, not the engine. */
+	r_swapInterval.modified = true;
 }
 
 static void VID_SwapBuffersWithVsyncFix(void)
@@ -1576,7 +1703,7 @@ static void VID_SwapBuffersWithVsyncFix(void)
 
 	time_before_swap = Sys_DoubleTime();
 
-	SDL_GL_SwapWindow(sdl_window);
+	VID_SwapBuffers();
 
 	vid_last_swap_time = Sys_DoubleTime();
 	vid_vsync_lag = vid_last_swap_time - time_before_swap;
@@ -1606,7 +1733,7 @@ void R_BeginRendering(int *x, int *y, int *width, int *height)
 
 void R_EndRendering(void)
 {
-	if (r_swapInterval.modified) {
+	if (CL_SessionIsActive() && r_swapInterval.modified) {
 		if (r_swapInterval.integer == 0) {
 			if (SDL_GL_SetSwapInterval(0)) {
 				Con_Printf("vsync: Failed to disable vsync...\n");
@@ -1633,7 +1760,7 @@ void R_EndRendering(void)
 		r_swapInterval.modified = false;
     }
 
-	if (!scr_skipupdate || block_drawing) {
+	if (CL_SessionIsActive() && (!scr_skipupdate || block_drawing)) {
 		if (vid_vsync_lag_fix.integer > 0) {
 			VID_SwapBuffersWithVsyncFix();
 		}
@@ -1677,6 +1804,8 @@ void VID_NotifyActivity(void)
 
 int VID_SetDeviceGammaRamp(unsigned short *ramps)
 {
+	if (CL_SessionIsWorker())
+		return 0;
 	if (!sdl_window || (COM_CheckParm(cmdline_param_client_nohardwaregamma) && Ruleset_AllowNoHardwareGamma())) {
 		return 0;
 	}
@@ -1697,6 +1826,8 @@ int VID_SetDeviceGammaRamp(unsigned short *ramps)
 
 void VID_Minimize (void) 
 {
+	if (CL_SessionRequestWindowAction(false))
+		return;
 	if (!sdl_window) {
 		return;
 	}
@@ -1706,6 +1837,8 @@ void VID_Minimize (void)
 
 void VID_Restore (void)
 {
+	if (CL_SessionRequestWindowAction(true))
+		return;
 	if (!sdl_window || (SDL_GetWindowFlags(sdl_window) & SDL_WINDOW_INPUT_FOCUS)) {
 		return;
 	}
@@ -1839,6 +1972,10 @@ void VID_ReloadCheck(void)
 
 static void VID_Restart_f(void)
 {
+	if (!CL_SessionVideoRestartAllowed()) {
+		Con_Printf("Close additional sessions before restarting video.\n");
+		return;
+	}
 	if (!host_initialized) { // sanity
 		Com_Printf("Can't do %s yet\n", Cmd_Argv(0));
 		return;

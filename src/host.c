@@ -45,6 +45,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "version.h"
 #include "qsound.h"
 #include "keys.h"
+#include "cl_session.h"
 #include "config_manager.h"
 #include "EX_qtvlist.h"
 #include "r_renderer.h"
@@ -753,7 +754,7 @@ void Host_Init (int argc, char **argv, int default_memsize)
 	Com_Printf("\n");
 	Com_Printf("Type /help to access the manual.\nUse /describe for help on commands.\n\n", VersionString());
 
-	if ((vf = FS_OpenVFS("autoexec.cfg", "rb", FS_ANY))) {
+	if (!CL_SessionIsWorker() && (vf = FS_OpenVFS("autoexec.cfg", "rb", FS_ANY))) {
 		Cbuf_AddText ("exec autoexec.cfg\n\n");
 		VFS_CLOSE(vf);
 	}
@@ -771,7 +772,7 @@ void Host_Init (int argc, char **argv, int default_memsize)
 		if (COM_CheckArgsForPlayableFiles(cmd, sizeof(cmd))) {
 			Cbuf_AddText(cmd);
 		}
-		else {
+		else if (!CL_SessionIsWorker()) {
 			Startup_Place();
 		}
 	}
@@ -782,6 +783,10 @@ void Host_Init (int argc, char **argv, int default_memsize)
 	Cbuf_Execute();
 
 	host_everything_loaded = true;
+	if (CL_SessionIsWorker()) {
+		CL_Disconnect();
+		key_dest = key_console;
+	}
 #ifdef DEBUG_MEMORY_ALLOCATIONS
 	Sys_Printf("\nevent,init\n");
 #endif
@@ -834,7 +839,8 @@ void Host_Quit (void)
 	Cbuf_Execute();
 	
 	// save config (conditional)
-	Config_QuitSave();
+	if (!CL_SessionIsWorker())
+		Config_QuitSave();
 
 	// turn off
 	Host_Shutdown ();

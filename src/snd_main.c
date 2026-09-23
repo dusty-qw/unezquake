@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <SDL.h>
 #include "quakedef.h"
+#include "cl_session.h"
 #include "qsound.h"
 #include "utils.h"
 #include "rulesets.h"
@@ -165,7 +166,7 @@ static void S_SoundInfo_f (void)
 static void S_SDL_callback(void *userdata, Uint8 *stream, int len)
 {
 	// Mixer is run in main thread when capturing, play silence instead
-	if (Movie_IsCapturing()) {
+	if (Movie_IsCapturing() || !CL_SessionIsActive()) {
 		SDL_memset(stream, 0, len);
 		return;
 	}

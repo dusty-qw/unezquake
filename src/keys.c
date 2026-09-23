@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <wchar.h>
 #include "quakedef.h"
+#include "cl_session.h"
 #include "textencoding.h"
 #include "menu.h"
 #include "keys.h"
@@ -1825,7 +1826,7 @@ void History_Init (void)
 	}
 	key_linepos = 1;
 
-	if (cl_savehistory.value)
+	if (cl_savehistory.value && !CL_SessionIsWorker())
 	{
 		char filename[MAX_OSPATH] = {0};
 
@@ -1857,7 +1858,7 @@ void History_Shutdown (void)
 	int i;
 	FILE *hf;
 
-	if (cl_savehistory.value)
+	if (cl_savehistory.value && !CL_SessionIsWorker())
 	{
 		char filename[MAX_OSPATH] = {0};
 
