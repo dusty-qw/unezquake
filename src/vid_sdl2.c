@@ -102,6 +102,7 @@ static void framebuffer_smooth_changed_callback(cvar_t* var, char* string, qbool
 static void vid_reload_callback(cvar_t* var, char* string, qbool* cancel);
 static void GrabMouse(qbool grab, qbool raw);
 static qbool session_alt_tab_enabled = true;
+static qbool session_alt_tab_initialized;
 
 #if defined(__linux__) && defined(SDL_VIDEO_DRIVER_X11)
 static qbool session_swap_control_checked;
@@ -253,6 +254,42 @@ cvar_t vid_framebuffer_smooth      = {"vid_framebuffer_smooth",        "1",     
 cvar_t vid_framebuffer_sshotmode   = {"vid_framebuffer_sshotmode",     "0" };
 cvar_t vid_framebuffer_multisample = {"vid_framebuffer_multisample",   "0" };
 cvar_t vid_framebuffer_fxaa        = {"vid_framebuffer_fxaa",          "0" };
+
+static cvar_t *session_window_vars[SESSION_WINDOW_SETTINGS] = {
+	&vid_width, &vid_height, &vid_win_width, &vid_win_height,
+	&r_colorbits, &r_24bit_depth, &r_fullscreen, &r_displayRefresh,
+	&vid_usedesktopres, &vid_win_borderless, &gl_multisamples,
+	&vid_displayNumber, &vid_minimize_on_focus_loss, &vid_gammacorrection
+};
+
+void VID_SessionWindowSettings(session_video_settings_t *settings, qbool pending_only)
+{
+	int i;
+	memset(settings, 0, sizeof(*settings));
+	for (i = 0; i < SESSION_WINDOW_SETTINGS && session_window_vars[i]; ++i) {
+		cvar_t *var = session_window_vars[i];
+		const char *value = pending_only ? var->latchedString : var->string;
+		if (value) {
+			strlcpy(settings->values[i], value, sizeof(settings->values[i]));
+		}
+	}
+}
+
+void VID_SessionSyncWindowSettings(const session_video_settings_t *settings)
+{
+	int i;
+	for (i = 0; i < SESSION_WINDOW_SETTINGS && session_window_vars[i]; ++i) {
+		cvar_t *var = session_window_vars[i];
+		if (settings->values[i][0] && strcmp(settings->values[i], var->string)) {
+			char value[sizeof(settings->values[i])];
+			char *pending = var->latchedString;
+			var->latchedString = NULL;
+			strlcpy(value, settings->values[i], sizeof(value));
+			Cvar_LatchedSet(var, value);
+			var->latchedString = pending;
+		}
+	}
+}
 
 //
 // function declaration
@@ -922,6 +959,10 @@ static void HandleEvents(void)
 #endif
 
 	while (SDL_PollEvent(&event)) {
+		/* Discard events for windows retired by a video restart. */
+		if (event.type == SDL_WINDOWEVENT &&
+			event.window.windowID != SDL_GetWindowID(sdl_window))
+			continue;
 		if (!CL_SessionIsActive() && event.type != SDL_WINDOWEVENT && event.type != SDL_QUIT) {
 			if (event.type == SDL_DROPFILE)
 				SDL_free(event.drop.file);
@@ -1035,7 +1076,9 @@ void VID_Shutdown(qbool restart)
 	}
 #endif
 
-	R_Shutdown(restart ? r_shutdown_restart : r_shutdown_full);
+	/* A detached worker can quit before it receives its replacement window. */
+	if (sdl_context)
+		R_Shutdown(restart ? r_shutdown_restart : r_shutdown_full);
 
 	if (sdl_context) {
 		SDL_GL_DeleteContext(sdl_context);
@@ -1043,6 +1086,7 @@ void VID_Shutdown(qbool restart)
 	}
 
 	if (sdl_window) {
+		CL_SessionsDetachWindow();
 		SDL_DestroyWindow(sdl_window);
 		sdl_window = NULL;
 	}
@@ -1083,22 +1127,16 @@ static int VID_SDL_InitSubSystem(void)
 // Do not include any cvars here that should take effect without full restart
 static void VID_RegisterLatchCvars(void)
 {
+	int i;
 	Cvar_SetCurrentGroup(CVAR_GROUP_VIDEO);
 
-	Cvar_Register(&vid_width);
-	Cvar_Register(&vid_height);
-	Cvar_Register(&vid_win_width);
-	Cvar_Register(&vid_win_height);
+	for (i = 0; i < SESSION_WINDOW_SETTINGS && session_window_vars[i]; ++i) {
+		Cvar_Register(session_window_vars[i]);
+	}
 	Cvar_Register(&vid_hwgammacontrol);
-	Cvar_Register(&r_colorbits);
-	Cvar_Register(&r_24bit_depth);
-	Cvar_Register(&r_fullscreen);
-	Cvar_Register(&r_displayRefresh);
-	Cvar_Register(&vid_usedesktopres);
-	Cvar_Register(&vid_win_borderless);
-	Cvar_Register(&gl_multisamples);
-	Cvar_Register(&vid_displayNumber);
-	Cvar_Register(&vid_minimize_on_focus_loss);
+#ifdef X11_GAMMA_WORKAROUND
+	Cvar_Register(&vid_gamma_workaround);
+#endif
 	Cvar_Register(&vid_grab_keyboard);
 #ifdef EZ_MULTIPLE_RENDERERS
 	Cvar_Register(&vid_renderer);
@@ -1109,11 +1147,6 @@ static void VID_RegisterLatchCvars(void)
 	Cvar_Register(&vid_framebuffer_depthformat);
 	Cvar_Register(&gl_reverse_z);
 	Cvar_Register(&vid_framebuffer_hdr);
-
-#ifdef X11_GAMMA_WORKAROUND
-	Cvar_Register(&vid_gamma_workaround);
-#endif
-	Cvar_Register(&vid_gammacorrection);
 
 	Cvar_ResetCurrentGroup();
 }
@@ -1490,15 +1523,16 @@ static void VID_SDL_Init(void)
 	}
 
 	SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS,
-		CL_SessionIsWorker() || vid_minimize_on_focus_loss.integer == 0 ? "0" : "1");
+		CL_SessionIsWorker() || CL_SessionCount() > 1 || vid_minimize_on_focus_loss.integer == 0 ? "0" : "1");
 #ifdef __APPLE__
 	SDL_SetHint(SDL_HINT_VIDEO_MAC_FULLSCREEN_SPACES, "0");
 #endif
 	SDL_SetHint(SDL_HINT_GRAB_KEYBOARD, vid_grab_keyboard.integer == 0 ? "0" : "1");
-	if (CL_SessionIsWorker()) {
+	if (CL_SessionIsWorker() && !session_alt_tab_initialized) {
 		/* Preserve the user's Alt+Tab policy, but perform SDL's usual action
 		 * through the coordinator. The keyboard grab itself is unchanged. */
 		session_alt_tab_enabled = SDL_GetHintBoolean("SDL_ALLOW_ALT_TAB_WHILE_GRABBED", SDL_TRUE);
+		session_alt_tab_initialized = true;
 		SDL_SetHintWithPriority("SDL_ALLOW_ALT_TAB_WHILE_GRABBED", "0", SDL_HINT_OVERRIDE);
 	}
 	SDL_SetHintWithPriority(SDL_HINT_MOUSE_RELATIVE_MODE_WARP, "0", SDL_HINT_OVERRIDE);
@@ -1634,6 +1668,8 @@ static void VID_SDL_Init(void)
 	}
 
 	glConfig.initialized = true;
+	if (CL_SessionIsWorker())
+		SDL_GetWindowSize(sdl_window, &glConfig.vidWidth, &glConfig.vidHeight);
 	CL_SessionsAttachWindow(sdl_window);
 }
 
@@ -1970,10 +2006,53 @@ void VID_ReloadCheck(void)
 	}
 }
 
+void VID_SessionRestart(const session_video_settings_t *settings, qbool apply_pending)
+{
+	struct saved_latch { cvar_t *var; char *value; } *saved = NULL;
+	cvar_t *var;
+	int i, count = 0;
+	/* A shared-window rebuild is not permission to apply another session's
+	 * pending renderer changes. Keep those latches through reinitialization. */
+	if (!apply_pending) {
+		for (var = Cvar_Next(NULL); var; var = Cvar_Next(var))
+			if ((var->flags & CVAR_LATCH_GFX) && var->latchedString)
+				++count;
+		if (count)
+			saved = Q_malloc(count * sizeof(*saved));
+		for (var = Cvar_Next(NULL), i = 0; var; var = Cvar_Next(var)) {
+			if ((var->flags & CVAR_LATCH_GFX) && var->latchedString) {
+				saved[i].var = var;
+				saved[i++].value = var->latchedString;
+				var->latchedString = NULL;
+			}
+		}
+	}
+	/* Workers have already torn down graphics before acknowledging DETACHED. */
+	if (vid_initialized)
+		VID_Shutdown(true);
+	for (i = 0; i < SESSION_WINDOW_SETTINGS && session_window_vars[i]; ++i) {
+		if (settings->values[i][0]) {
+			char value[sizeof(settings->values[i])];
+			strlcpy(value, settings->values[i], sizeof(value));
+			Cvar_LatchedSet(session_window_vars[i], value);
+		}
+	}
+	ReloadPaletteAndColormap();
+	Key_ClearStates();
+	CL_ClearSessionInput();
+	VID_Init(host_basepal);
+	VID_Startup();
+	for (i = 0; i < count; ++i) {
+		Q_free(saved[i].var->latchedString);
+		saved[i].var->latchedString = saved[i].value;
+	}
+	Q_free(saved);
+}
+
 static void VID_Restart_f(void)
 {
-	if (!CL_SessionVideoRestartAllowed()) {
-		Con_Printf("Close additional sessions before restarting video.\n");
+	if (!CL_SessionIsActive()) {
+		Con_Printf("Select this session before restarting its renderer.\n");
 		return;
 	}
 	if (!host_initialized) { // sanity
@@ -1981,12 +2060,15 @@ static void VID_Restart_f(void)
 		return;
 	}
 
+	if (CL_SessionRestartVideo())
+		return;
 	VID_Shutdown(true);
 
 	ReloadPaletteAndColormap();
 
 	// keys can get stuck because SDL2 doesn't send keyup event when the video system is down
 	Key_ClearStates();
+	CL_ClearSessionInput();
 
 	VID_Init(host_basepal);
 

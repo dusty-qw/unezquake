@@ -24,6 +24,7 @@ int CL_SessionSelected(void) { return selected_slot; }
 int CL_SessionNumber(void) { return local_slot; }
 qbool CL_SessionIsWorker(void) { return local_slot != 1; }
 qbool CL_SessionIsActive(void) { return SDL_AtomicGet(&active) != 0; }
+qbool CL_SessionVideoSuspended(void) { return CL_SessionIsWorker() && !session_window; }
 qbool CL_SessionWindowIsFullscreen(void)
 {
 	return CL_SessionIsWorker() ? worker_window_fullscreen :
@@ -74,11 +75,6 @@ qbool CL_SessionInfo(int slot, cl_session_info_t *info)
 	return info->exists;
 }
 
-qbool CL_SessionVideoRestartAllowed(void)
-{
-	return !CL_SessionIsWorker() && CL_SessionCount() <= 1;
-}
-
 #if defined(__linux__) && defined(SDL_VIDEO_DRIVER_X11)
 #include <errno.h>
 #include <dirent.h>
@@ -96,13 +92,17 @@ extern char **environ;
 #endif
 
 enum { SESSION_READY = 1, SESSION_SELECT, SESSION_SLEEP, SESSION_ASLEEP,
-	SESSION_WAKE, SESSION_SNAPSHOT, SESSION_CLOSE, SESSION_MINIMIZE, SESSION_RESTORE };
+	SESSION_WAKE, SESSION_SNAPSHOT, SESSION_CLOSE, SESSION_MINIMIZE, SESSION_RESTORE,
+	SESSION_VIDEO_REQUEST, SESSION_VIDEO_DETACH, SESSION_VIDEO_DETACHED,
+	SESSION_VIDEO_ATTACH, SESSION_VIDEO_ATTACHED };
 typedef struct {
 	int type, slot;
+	unsigned int generation;
 	qbool fullscreen;
 	qbool minimized;
 	int x, y, width, height;
 	unsigned long window;
+	session_video_settings_t video;
 	cl_session_info_t info[CL_MAX_SESSIONS];
 } session_message_t;
 typedef struct {
@@ -110,6 +110,7 @@ typedef struct {
 	pid_t pid;
 	Window window;
 	double started;
+	qbool video_sent, video_ready;
 } session_worker_t;
 
 static session_worker_t workers[CL_MAX_SESSIONS];
@@ -125,6 +126,14 @@ static Status (*session_XGetWindowAttributes)(Display *, Window, XWindowAttribut
 static long session_events;
 static int (*session_XSync)(Display *, Bool);
 static int (*session_XPutBackEvent)(Display *, XEvent *);
+
+static enum { VIDEO_IDLE, VIDEO_DETACHING, VIDEO_ATTACHING } video_phase;
+static unsigned int video_generation;
+static int video_requester;
+static double video_started;
+static qbool video_failed, video_cancelled, video_detached;
+static int video_ack;
+static session_video_settings_t video_settings;
 
 static void Session_WindowState(session_message_t *message)
 {
@@ -146,6 +155,8 @@ static void Session_ApplyWindowState(const session_message_t *message)
 	if (Minimized && !worker_window_minimized)
 		scr_skipupdate = false;
 	Minimized = worker_window_minimized;
+	if (!session_window)
+		return;
 	SDL_GetWindowPosition(session_window, &x, &y);
 	SDL_GetWindowSize(session_window, &width, &height);
 	if (message->width > 0 && message->height > 0 &&
@@ -178,6 +189,8 @@ static qbool Session_Control(int fd, int type, int slot)
 	message.type = type;
 	message.slot = slot;
 	Session_WindowState(&message);
+	if (type == SESSION_WAKE)
+		VID_SessionWindowSettings(&message.video, false);
 	return Session_Send(fd, &message);
 }
 
@@ -198,10 +211,24 @@ static void Session_ReleaseInput(void)
 	CL_ClearSessionInput();
 	IN_DeactivateMouse();
 	S_StopAllSounds();
-	if (display) {
+	if (display && session_window) {
 		session_XSelectInput(display, parent_window, session_events & ~ButtonPressMask);
 		session_XSync(display, False);
 	}
+}
+
+void CL_SessionsDetachWindow(void)
+{
+	if (CL_SessionIsWorker() && display && session_window) {
+		/* Foreign wrappers must stop receiving events before the owner replaces
+		 * the window. The owner must retain its subscriptions: SDL_DestroyWindow
+		 * hides the native window and waits synchronously for UnmapNotify, which
+		 * requires StructureNotifyMask. Clearing that mask strands it forever. */
+		session_XSelectInput(display, parent_window, 0);
+		session_XSync(display, False);
+	}
+	session_window = NULL;
+	display = NULL;
 }
 
 void CL_SessionsEarlyInit(void)
@@ -383,6 +410,107 @@ static void Session_Activate(int slot)
 	next_status = 0;
 }
 
+static void Session_BeginVideoRestart(int slot, const session_video_settings_t *settings)
+{
+	int i;
+	if (video_phase != VIDEO_IDLE || sleeping_slot || slot != selected_slot) {
+		Con_Printf("Video restart deferred: wait for the current session operation to finish.\n");
+		return;
+	}
+	for (i = 1; i < CL_MAX_SESSIONS; ++i) {
+		if (workers[i].pid > 0 && (!sessions[i].ready || workers[i].fd < 0)) {
+			Con_Printf("Wait for sessions to finish starting or closing before vid_restart.\n");
+			return;
+		}
+	}
+	video_settings = *settings;
+	video_requester = slot;
+	requested_slot = selected_slot;
+	++video_generation;
+	video_phase = VIDEO_DETACHING;
+	video_started = Sys_DoubleTime();
+	video_failed = video_cancelled = false;
+	Session_ReleaseInput();
+	for (i = 1; i < CL_MAX_SESSIONS; ++i)
+		workers[i].video_sent = workers[i].video_ready = false;
+}
+
+qbool CL_SessionRestartVideo(void)
+{
+	session_message_t message;
+	if (!CL_SessionIsWorker() && CL_SessionCount() <= 1)
+		return false;
+	memset(&message, 0, sizeof(message));
+	/* vid_restart is an unconditional video reset, even without new settings. */
+	VID_SessionWindowSettings(&message.video, true);
+	if (CL_SessionIsWorker()) {
+		message.type = SESSION_VIDEO_REQUEST;
+		message.slot = local_slot;
+		if (!Session_Send(coordinator_fd, &message))
+			Con_Printf("Video restart request could not be queued; try vid_restart again.\n");
+	}
+	else {
+		Session_BeginVideoRestart(local_slot, &message.video);
+	}
+	return true;
+}
+
+static void Session_VideoFrame(double now)
+{
+	session_message_t message;
+	qbool ready = true;
+	int i;
+	if (video_phase == VIDEO_IDLE)
+		return;
+	memset(&message, 0, sizeof(message));
+	message.type = video_phase == VIDEO_DETACHING ? SESSION_VIDEO_DETACH : SESSION_VIDEO_ATTACH;
+	message.generation = video_generation;
+	message.slot = video_cancelled ? 0 : video_requester;
+	message.window = parent_window;
+	message.video = video_settings;
+	Session_WindowState(&message);
+	for (i = 1; i < CL_MAX_SESSIONS; ++i) {
+		session_worker_t *worker = &workers[i];
+		if (worker->pid <= 0)
+			continue;
+		if (!worker->video_sent && worker->fd >= 0)
+			worker->video_sent = Session_Send(worker->fd, &message);
+		if (!worker->video_ready) {
+			ready = false;
+			/* A crashed or hung engine must not strand every other session.
+			 * Wait for reaping before granting input to a replacement owner. */
+			if (video_phase == VIDEO_ATTACHING && now - video_started > 30)
+				kill(worker->pid, now - video_started > 35 ? SIGKILL : SIGTERM);
+		}
+	}
+	if (video_phase == VIDEO_DETACHING) {
+		if (!ready && !video_failed && now - video_started < 10)
+			return;
+		video_cancelled = video_failed || !ready;
+		if (video_cancelled) {
+			Con_Printf("Shared video restart cancelled: a session could not detach. Restoring the existing window.\n");
+		}
+		else {
+			VID_SessionRestart(&video_settings, video_requester == 1);
+			/* SDL selects ButtonPress on the newly created window. Release it
+			 * before any foreign wrapper attempts to attach. */
+			Session_ReleaseInput();
+		}
+		VID_SessionWindowSettings(&video_settings, false);
+		video_phase = VIDEO_ATTACHING;
+		video_started = Sys_DoubleTime();
+		for (i = 1; i < CL_MAX_SESSIONS; ++i)
+			workers[i].video_sent = workers[i].video_ready = false;
+	}
+	else if (ready) {
+		video_phase = VIDEO_IDLE;
+		if (!sessions[video_requester - 1].exists)
+			video_requester = 1;
+		requested_slot = video_requester;
+		Session_Activate(video_requester);
+	}
+}
+
 void CL_SessionSelect(int slot)
 {
 	if (slot < 1 || slot > CL_MAX_SESSIONS) {
@@ -398,7 +526,7 @@ void CL_SessionSelect(int slot)
 		Con_Printf("Sessions require Linux with SDL's X11 driver. Launch with SDL_VIDEODRIVER=x11 (also works under XWayland).\n");
 		return;
 	}
-	if (sleeping_slot)
+	if (sleeping_slot || video_phase != VIDEO_IDLE)
 		return;
 	if (!sessions[slot - 1].exists && !Session_Start(slot))
 		return;
@@ -415,7 +543,11 @@ static void Session_Remove(int slot)
 	memset(&sessions[slot - 1], 0, sizeof(sessions[slot - 1]));
 	if (requested_slot == slot)
 		requested_slot = 1;
-	if (selected_slot == slot || sleeping_slot == slot)
+	if (video_phase != VIDEO_IDLE) {
+		if (video_phase == VIDEO_DETACHING && video_requester == slot)
+			video_failed = true;
+	}
+	else if (selected_slot == slot || sleeping_slot == slot)
 		Session_Activate(1);
 	next_status = 0;
 }
@@ -446,11 +578,40 @@ void CL_SessionsFrame(void)
 			if (bytes != sizeof(message))
 				continue;
 			switch (message.type) {
+			case SESSION_VIDEO_DETACH:
+				if (message.generation <= video_generation)
+					break;
+				video_generation = message.generation;
+				Session_ReleaseInput();
+				/* Release GLX resources and close SDL's X connection while the
+				 * owner's window is still valid. Moving a live context to another
+				 * drawable does not tear down its old GLX drawable/cache entries. */
+				VID_Shutdown(true);
+				video_detached = true;
+				video_ack = SESSION_VIDEO_DETACHED;
+				break;
+			case SESSION_VIDEO_ATTACH:
+				if (message.generation < video_generation)
+					break;
+				video_generation = message.generation;
+				if (video_detached) {
+					parent_window = message.window;
+					VID_SessionRestart(&message.video, message.slot == local_slot);
+					video_detached = false;
+				}
+				Session_ApplyWindowState(&message);
+				video_ack = SESSION_VIDEO_ATTACHED;
+				break;
 			case SESSION_SLEEP:
+				if (video_detached)
+					break;
 				Session_ReleaseInput();
 				Session_Control(coordinator_fd, SESSION_ASLEEP, local_slot);
 				break;
 			case SESSION_WAKE:
+				if (video_detached)
+					break;
+				VID_SessionSyncWindowSettings(&message.video);
 				Session_ApplyWindowState(&message);
 				VID_SessionActivate();
 				session_XSelectInput(display, parent_window, session_events);
@@ -475,12 +636,19 @@ void CL_SessionsFrame(void)
 			Host_Quit();
 			return;
 		}
+		if (video_ack) {
+			memset(&message, 0, sizeof(message));
+			message.type = video_ack;
+			message.generation = video_generation;
+			if (Session_Send(coordinator_fd, &message))
+				video_ack = 0;
+		}
 		if (now >= next_status) {
 			SDL_SysWMinfo wm;
 			memset(&message, 0, sizeof(message));
 			message.type = SESSION_READY;
 			SDL_VERSION(&wm.version);
-			if (SDL_GetWindowWMInfo(session_window, &wm))
+			if (session_window && SDL_GetWindowWMInfo(session_window, &wm))
 				message.window = wm.info.x11.window;
 			Session_LocalInfo();
 			message.info[local_slot - 1] = sessions[local_slot - 1];
@@ -504,6 +672,18 @@ void CL_SessionsFrame(void)
 			if (bytes != sizeof(message))
 				continue;
 			switch (message.type) {
+			case SESSION_VIDEO_REQUEST:
+				Session_BeginVideoRestart(i + 1, &message.video);
+				break;
+			case SESSION_VIDEO_DETACHED:
+				if (video_phase == VIDEO_DETACHING && message.generation == video_generation) {
+					worker->video_ready = true;
+				}
+				break;
+			case SESSION_VIDEO_ATTACHED:
+				if (video_phase == VIDEO_ATTACHING && message.generation == video_generation)
+					worker->video_ready = true;
+				break;
 			case SESSION_READY:
 				worker->window = message.window;
 				sessions[i] = message.info[i];
@@ -539,6 +719,9 @@ void CL_SessionsFrame(void)
 			Session_Remove(i + 1);
 		}
 	}
+	Session_VideoFrame(now);
+	if (video_phase != VIDEO_IDLE)
+		return;
 	if (!sleeping_slot && requested_slot != selected_slot && sessions[requested_slot - 1].ready) {
 		if (selected_slot == 1) {
 			Session_ReleaseInput();
@@ -612,6 +795,8 @@ void CL_SessionsShutdown(void)
 
 #else
 qbool CL_SessionRequestWindowAction(qbool restore) { return false; }
+qbool CL_SessionRestartVideo(void) { return false; }
+void CL_SessionsDetachWindow(void) { session_window = NULL; }
 SDL_Window *CL_SessionCreateWindow(void) { return NULL; }
 void CL_SessionsEarlyInit(void) { }
 void CL_SessionsAttachWindow(SDL_Window *window) { session_window = window; }

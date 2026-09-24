@@ -25,10 +25,20 @@ qbool CL_SessionInfo(int slot, cl_session_info_t *info);
 void CL_SessionSelect(int slot);
 qbool CL_SessionIsWorker(void);
 qbool CL_SessionIsActive(void);
+qbool CL_SessionVideoSuspended(void);
 qbool CL_SessionWindowIsFullscreen(void);
 qbool CL_SessionWindowIsMinimized(void);
 qbool CL_SessionRequestWindowAction(qbool restore);
-qbool CL_SessionVideoRestartAllowed(void);
+/* Fixed-size, numeric video settings exchanged only over private session IPC. */
+#define SESSION_WINDOW_SETTINGS 16
+typedef struct {
+	char values[SESSION_WINDOW_SETTINGS][64];
+} session_video_settings_t;
+qbool CL_SessionRestartVideo(void);
+void CL_SessionsDetachWindow(void);
+void VID_SessionWindowSettings(session_video_settings_t *settings, qbool pending_only);
+void VID_SessionSyncWindowSettings(const session_video_settings_t *settings);
+void VID_SessionRestart(const session_video_settings_t *settings, qbool apply_pending);
 void CL_SessionsEarlyInit(void);
 void CL_SessionsInit(void);
 void CL_SessionsFrame(void);

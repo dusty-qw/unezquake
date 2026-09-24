@@ -2514,6 +2514,13 @@ void CL_Frame(double time)
 	static double	extraphysframetime;	//#fps
 	qbool need_server_frame = false;
 	CL_SessionsFrame();
+	if (CL_SessionVideoSuspended()) {
+		/* Server packets can load models and textures. Leave them queued while
+		 * the shared video restart has no graphics context, keeping the socket
+		 * and game state intact. Continue polling session IPC on each frame. */
+		Sys_MSleep(1);
+		return;
+	}
 
 	extratime += time;
 	minframetime = CL_MinFrameTime();
