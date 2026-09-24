@@ -64,10 +64,13 @@ void Draw_BeginDisc (void);
 void Draw_EndDisc (void);
 
 #define MAX_NUM_ARGVS	50
+/* Worker bootstrap adds four IPC arguments, -nohwgamma and +set (3 args).
+ * Reserve these separately so forwarding a full launch cannot drop user args. */
+#define SESSION_INTERNAL_ARGVS 8
 
 usercmd_t nullcmd; // guaranteed to be zero
 
-static char	*largv[MAX_NUM_ARGVS + 1];
+static char	*largv[MAX_NUM_ARGVS + SESSION_INTERNAL_ARGVS + 1];
 
 cvar_t	developer = {"developer", "0"};
 cvar_t	host_mapname = {"mapname", "", CVAR_ROM};
@@ -750,11 +753,18 @@ void COM_InitArgv(int argc, char **argv)
 {
 	int id;
 	int i;
+	int arg_limit = MAX_NUM_ARGVS - 1;
+	for (i = 1; i < argc; ++i) {
+		if (argv[i] && !strcmp(argv[i], "-session-worker")) {
+			arg_limit += SESSION_INTERNAL_ARGVS;
+			break;
+		}
+	}
 
-	for (i = 0, com_argc = 0; com_argc < MAX_NUM_ARGVS - 1 && i < argc; ++i) {
+	for (i = 0, com_argc = 0; com_argc < arg_limit && i < argc; ++i) {
 		if (argv[i]) {
 			// follow qw urls if they are our argument without a +qwurl command
-			if (!strncmp(argv[i], "qw://", 5) && (i == 0 || strncmp(argv[i - 1], "+qwurl", 6)) && com_argc < MAX_NUM_ARGVS - 1) {
+			if (!strncmp(argv[i], "qw://", 5) && (i == 0 || strncmp(argv[i - 1], "+qwurl", 6)) && com_argc < arg_limit) {
 				largv[com_argc++] = "+qwurl";
 				largv[com_argc++] = argv[i];
 			}

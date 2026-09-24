@@ -259,7 +259,8 @@ static cvar_t *session_window_vars[SESSION_WINDOW_SETTINGS] = {
 	&vid_width, &vid_height, &vid_win_width, &vid_win_height,
 	&r_colorbits, &r_24bit_depth, &r_fullscreen, &r_displayRefresh,
 	&vid_usedesktopres, &vid_win_borderless, &gl_multisamples,
-	&vid_displayNumber, &vid_minimize_on_focus_loss, &vid_gammacorrection
+	&vid_displayNumber, &vid_minimize_on_focus_loss, &vid_gammacorrection,
+	&vid_xpos, &vid_ypos, &vid_win_displayNumber
 };
 
 void VID_SessionWindowSettings(session_video_settings_t *settings, qbool pending_only)
@@ -268,27 +269,37 @@ void VID_SessionWindowSettings(session_video_settings_t *settings, qbool pending
 	memset(settings, 0, sizeof(*settings));
 	for (i = 0; i < SESSION_WINDOW_SETTINGS && session_window_vars[i]; ++i) {
 		cvar_t *var = session_window_vars[i];
-		const char *value = pending_only ? var->latchedString : var->string;
+		const char *value = pending_only && (var->flags & CVAR_LATCH) ? var->latchedString : var->string;
 		if (value) {
 			strlcpy(settings->values[i], value, sizeof(settings->values[i]));
 		}
 	}
 }
 
-void VID_SessionSyncWindowSettings(const session_video_settings_t *settings)
+static void VID_ApplySessionWindowSettings(const session_video_settings_t *settings, qbool preserve_pending)
 {
 	int i;
 	for (i = 0; i < SESSION_WINDOW_SETTINGS && session_window_vars[i]; ++i) {
 		cvar_t *var = session_window_vars[i];
-		if (settings->values[i][0] && strcmp(settings->values[i], var->string)) {
+		if (settings->values[i][0] && (!preserve_pending || strcmp(settings->values[i], var->string))) {
 			char value[sizeof(settings->values[i])];
-			char *pending = var->latchedString;
-			var->latchedString = NULL;
+			char *pending = preserve_pending ? var->latchedString : NULL;
+			if (preserve_pending)
+				var->latchedString = NULL;
 			strlcpy(value, settings->values[i], sizeof(value));
-			Cvar_LatchedSet(var, value);
-			var->latchedString = pending;
+			if (var->flags & CVAR_LATCH)
+				Cvar_LatchedSet(var, value);
+			else
+				Cvar_SetIgnoreCallback(var, value);
+			if (preserve_pending)
+				var->latchedString = pending;
 		}
 	}
+}
+
+void VID_SessionSyncWindowSettings(const session_video_settings_t *settings)
+{
+	VID_ApplySessionWindowSettings(settings, true);
 }
 
 //
@@ -297,7 +308,7 @@ void VID_SessionSyncWindowSettings(const session_video_settings_t *settings)
 
 static qbool IN_IsFullscreen(void)
 {
-	/* Workers use -window during setup but render in the owner's native window. */
+	/* Foreign wrappers use the window owner's actual fullscreen state. */
 	return CL_SessionIsWorker() ? CL_SessionWindowIsFullscreen() : r_fullscreen.integer != 0;
 }
 
@@ -535,6 +546,28 @@ static void VID_AbsolutePositionFromRelative(int* x, int* y, int* display)
 	*y = bounds.y + min(*y, bounds.h - 30);
 }
 
+void VID_SessionSyncWindowGeometry(int x, int y, int width, int height)
+{
+	int displayNumber = 0;
+	if (r_win_save_pos.integer) {
+		VID_RelativePositionFromAbsolute(&x, &y, &displayNumber);
+		Cvar_SetValue(&vid_win_displayNumber, displayNumber);
+		Cvar_SetValue(&vid_xpos, x);
+		Cvar_SetValue(&vid_ypos, y);
+	}
+	if (r_win_save_size.integer) {
+		/* A real resize updates the saved current size, while preserving a
+		 * separately requested resolution awaiting vid_restart. */
+		char *pending_width = vid_win_width.latchedString;
+		char *pending_height = vid_win_height.latchedString;
+		vid_win_width.latchedString = vid_win_height.latchedString = NULL;
+		Cvar_LatchedSetValue(&vid_win_width, width);
+		Cvar_LatchedSetValue(&vid_win_height, height);
+		vid_win_width.latchedString = pending_width;
+		vid_win_height.latchedString = pending_height;
+	}
+}
+
 static int VID_SetDeviceGammaRampReal(unsigned short *ramps)
 {
 #ifdef X11_GAMMA_WORKAROUND
@@ -586,7 +619,7 @@ static int VID_SetDeviceGammaRampReal(unsigned short *ramps)
 #ifdef X11_GAMMA_WORKAROUND
 static void VID_RestoreSystemGamma(void)
 {
-	if (!sdl_window || COM_CheckParm(cmdline_param_client_nohardwaregamma)) {
+	if (CL_SessionIsCoordinator() || !sdl_window || COM_CheckParm(cmdline_param_client_nohardwaregamma)) {
 		return;
 	}
 	VID_SetDeviceGammaRampReal(sysramps);
@@ -621,10 +654,11 @@ static void window_event(SDL_WindowEvent *event)
 
 		case SDL_WINDOWEVENT_FOCUS_GAINED:
 #ifdef __linux__
-			if (CL_SessionIsWorker() || CL_SessionCount() > 1)
+			if (CL_SessionIsWorker())
 				block_keyboard_input = false;
 #endif
-			TP_ExecTrigger("f_focusgained");
+			if (!CL_SessionIsCoordinator())
+				TP_ExecTrigger("f_focusgained");
 			/* Fall through */
 		case SDL_WINDOWEVENT_RESTORED:
 			Minimized = CL_SessionIsWorker() && CL_SessionWindowIsMinimized();
@@ -662,7 +696,7 @@ static void window_event(SDL_WindowEvent *event)
 					Cvar_LatchedSetValue(&vid_win_width, event->data1);
 					Cvar_LatchedSetValue(&vid_win_height, event->data2);
 				}
-				if (!r_conwidth.integer || !r_conheight.integer)
+				if (!CL_SessionIsCoordinator() && (!r_conwidth.integer || !r_conheight.integer))
 					VID_UpdateConRes();
 			}
 			if (renderer.InvalidateViewport)
@@ -963,14 +997,16 @@ static void HandleEvents(void)
 		if (event.type == SDL_WINDOWEVENT &&
 			event.window.windowID != SDL_GetWindowID(sdl_window))
 			continue;
-		if (!CL_SessionIsActive() && event.type != SDL_WINDOWEVENT && event.type != SDL_QUIT) {
+		if (!CL_SessionIsActive() && event.type != SDL_WINDOWEVENT && event.type != SDL_QUIT &&
+			!(CL_SessionIsCoordinator() && event.type == SDL_DROPFILE)) {
 			if (event.type == SDL_DROPFILE)
 				SDL_free(event.drop.file);
 			continue;
 		}
 		switch (event.type) {
 		case SDL_QUIT:
-			Host_Quit();
+			if (!CL_SessionRequestQuit(true))
+				Host_Quit();
 			break;
 		case SDL_WINDOWEVENT:
 			window_event(&event.window);
@@ -1022,14 +1058,7 @@ static void HandleEvents(void)
 			}
 			break;
 		case SDL_DROPFILE:
-			/* TODO: Add handling for different file types */
-			if (strncmp(event.drop.file, "qw://", 5) == 0) {
-				Cbuf_AddText("qwurl ");
-			} else {
-				Cbuf_AddText("playdemo ");
-			}
-			Cbuf_AddText(event.drop.file);
-			Cbuf_AddText("\n");
+			CL_SessionDropFile(event.drop.file);
 			SDL_free(event.drop.file);
 			break;
 		}
@@ -1104,7 +1133,7 @@ void VID_Shutdown(qbool restart)
 	vid_hwgamma_enabled = false;
 	vid_initialized = false;
 
-	if (!restart) {
+	if (!restart && !CL_SessionIsCoordinator()) {
 		QMB_ShutdownParticles();
 	}
 }
@@ -1131,7 +1160,8 @@ static void VID_RegisterLatchCvars(void)
 	Cvar_SetCurrentGroup(CVAR_GROUP_VIDEO);
 
 	for (i = 0; i < SESSION_WINDOW_SETTINGS && session_window_vars[i]; ++i) {
-		Cvar_Register(session_window_vars[i]);
+		if (session_window_vars[i]->flags & CVAR_LATCH)
+			Cvar_Register(session_window_vars[i]);
 	}
 	Cvar_Register(&vid_hwgammacontrol);
 #ifdef X11_GAMMA_WORKAROUND
@@ -1318,7 +1348,9 @@ static void VID_SDL_GL_SetupWindowAttributes(int options)
 	SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, options & VID_MULTISAMPLED ? 1 : 0);
 	SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, options & VID_MULTISAMPLED ? bound(2, gl_multisamples.integer, 16) : 0);
 	SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, options & VID_ACCELERATED ? 1 : 0);
-	if (vid_framebuffer.integer) {
+	/* A context-free owner must provide a depth buffer for any engine that
+	 * renders directly to the window, regardless of another engine's FBO use. */
+	if (vid_framebuffer.integer && !CL_SessionIsCoordinator()) {
 		SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 0);
 	}
 	else {
@@ -1523,7 +1555,7 @@ static void VID_SDL_Init(void)
 	}
 
 	SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS,
-		CL_SessionIsWorker() || CL_SessionCount() > 1 || vid_minimize_on_focus_loss.integer == 0 ? "0" : "1");
+		CL_SessionIsWorker() || CL_SessionIsCoordinator() || vid_minimize_on_focus_loss.integer == 0 ? "0" : "1");
 #ifdef __APPLE__
 	SDL_SetHint(SDL_HINT_VIDEO_MAC_FULLSCREEN_SPACES, "0");
 #endif
@@ -1588,6 +1620,10 @@ static void VID_SDL_Init(void)
 
 				if (sdl_window) {
 					VID_SetWindowResolution();
+					/* The coordinator owns a GL-capable drawable, but no context
+					 * or renderer. Every playable engine creates its own context. */
+					if (CL_SessionIsCoordinator())
+						break;
 
 					// Try to create context and see what we get
 					sdl_context = VID_SDL_GL_SetupContextAttributes();
@@ -1649,14 +1685,15 @@ static void VID_SDL_Init(void)
 
 #ifdef X11_GAMMA_WORKAROUND
 	/* PLEASE REMOVE ME AS SOON AS SDL2 AND XORG ARE TALKING NICELY TO EACHOTHER AGAIN IN TERMS OF GAMMA */
-	if (vid_gamma_workaround.integer != 0) {
+	if (!CL_SessionIsCoordinator() && vid_gamma_workaround.integer != 0) {
 		VID_X11_GetGammaRampSize();
 	} else {
 		glConfig.gammacrap.size = 256;
 	}
 #endif
 
-	R_Initialise();
+	if (!CL_SessionIsCoordinator())
+		R_Initialise();
 
 	//always get/set refresh rate
 	SDL_DisplayMode display_mode;
@@ -1676,7 +1713,7 @@ static void VID_SDL_Init(void)
 static void VID_SwapBuffers (void)
 {
 #if defined(__linux__) && defined(SDL_VIDEO_DRIVER_X11)
-	if (r_swapInterval.integer == 1 && (CL_SessionIsWorker() || CL_SessionCount() > 1)) {
+	if (r_swapInterval.integer == 1 && CL_SessionIsWorker()) {
 		if (!session_swap_control_checked) {
 			const char *(*query_extensions)(Display *, int);
 			void *(*current_context)(void);
@@ -2011,6 +2048,13 @@ void VID_SessionRestart(const session_video_settings_t *settings, qbool apply_pe
 	struct saved_latch { cvar_t *var; char *value; } *saved = NULL;
 	cvar_t *var;
 	int i, count = 0;
+	if (CL_SessionIsCoordinator()) {
+		VID_Shutdown(true);
+		VID_SessionSyncWindowSettings(settings);
+		VID_SDL_Init();
+		vid_initialized = true;
+		return;
+	}
 	/* A shared-window rebuild is not permission to apply another session's
 	 * pending renderer changes. Keep those latches through reinitialization. */
 	if (!apply_pending) {
@@ -2030,13 +2074,7 @@ void VID_SessionRestart(const session_video_settings_t *settings, qbool apply_pe
 	/* Workers have already torn down graphics before acknowledging DETACHED. */
 	if (vid_initialized)
 		VID_Shutdown(true);
-	for (i = 0; i < SESSION_WINDOW_SETTINGS && session_window_vars[i]; ++i) {
-		if (settings->values[i][0]) {
-			char value[sizeof(settings->values[i])];
-			strlcpy(value, settings->values[i], sizeof(value));
-			Cvar_LatchedSet(session_window_vars[i], value);
-		}
-	}
+	VID_ApplySessionWindowSettings(settings, false);
 	ReloadPaletteAndColormap();
 	Key_ClearStates();
 	CL_ClearSessionInput();
@@ -2051,6 +2089,10 @@ void VID_SessionRestart(const session_video_settings_t *settings, qbool apply_pe
 
 static void VID_Restart_f(void)
 {
+	if (CL_SessionIsWorker() && host_initialized && !host_everything_loaded) {
+		CL_SessionRestartVideo();
+		return;
+	}
 	if (!CL_SessionIsActive()) {
 		Con_Printf("Select this session before restarting its renderer.\n");
 		return;
@@ -2258,6 +2300,23 @@ void VID_Init(unsigned char *palette)
 	VID_UpdateConRes();
 
 	vid_initialized = true;
+}
+
+void VID_CoordinatorInit(void)
+{
+	VID_RegisterLatchCvars();
+	VID_RegisterCvars();
+	VID_ParseCmdLine();
+	SDL_SetHint(SDL_HINT_APP_NAME, "ezQuake");
+	VID_SDL_Init();
+	vid_initialized = true;
+}
+
+void VID_CoordinatorFrame(void)
+{
+	/* Pump native window/WM events only; this process never captures input or
+	 * runs engine commands. Workers receive visibility and geometry over IPC. */
+	HandleEvents();
 }
 
 int VID_ScaledWidth3D(void)

@@ -2269,11 +2269,11 @@ void CL_Init (void)
 
 	QTV_Init();
 
-	if (!CL_SessionIsWorker())
+	if (CL_SessionNumber() == 1)
 		Sys_InitIPC();
 
 #ifdef WITH_DISCORD
-	if (!CL_SessionIsWorker())
+	if (CL_SessionNumber() == 1)
 		CL_InitDiscord();
 #endif
 }
@@ -2888,7 +2888,7 @@ session_background:
 	Sys_ReadIPC();
 
 #ifdef WITH_DISCORD
-	if (!CL_SessionIsWorker())
+	if (CL_SessionNumber() == 1)
 		CL_UpdatePresence();
 #endif
 
@@ -2919,7 +2919,7 @@ void CL_Shutdown (void)
 	CL_ShutdownDiscord();
 #endif
 	CL_Disconnect();
-	if (!CL_SessionIsWorker())
+	if (CL_SessionNumber() == 1)
 		SList_Shutdown();
 	CDAudio_Shutdown();
 	S_Shutdown();
@@ -2949,8 +2949,8 @@ void CL_UpdateCaption(qbool force)
 {
 	static char caption[512] = { 0 };
 	char str[512] = { 0 };
-	/* The coordinator owns the shared native window's session title. */
-	if (!CL_SessionIsActive() || CL_SessionIsWorker())
+	/* Only the active engine may update the shared window's normal caption. */
+	if (!CL_SessionIsActive())
 		return;
 
 	if (!cl_window_caption.value) {

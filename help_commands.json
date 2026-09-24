@@ -373,6 +373,9 @@
   "clipboard": {
     "description": "Copies all the following arguments to the system clipboard"
   },
+  "close": {
+    "description": "Closes the current session without saving its config. Session 1 cannot be closed."
+  },
   "cmd": {
     "description": "Sends a command directly to the server."
   },
@@ -1353,7 +1356,7 @@
     "description": "Lists all viewers currently watching the QTV stream you are connected to. Prints a table of numeric user IDs and display names, one per line, with a total count at the end. Only works during an active QTV playback session; if you are connected to a server but not watching QTV, the request is forwarded to the server instead."
   },
   "quit": {
-    "description": "Exit - disconnects from the server and closes the client."
+    "description": "Exit - disconnects from the server and closes the client and all sessions."
   },
   "qwurl": {
     "description": "Connects to a server or QTV stream using a qw:// URL. Usage: `qwurl <qw://host[:port][/command]>`. The URL must start with qw://. The optional path component selects the action: omitted or \"join\" or \"connect\" joins as a player; \"spectate\" or \"observe\" joins as a spectator; \"qtv[/password]\" connects to a QTV proxy. A challenge response path (\"challenge?...\") is also handled internally. Semicolons in the URL are rejected to prevent command injection. Example: `qwurl qw://qw.server.se:27500/spectate`."
@@ -1633,10 +1636,10 @@
     "description": "Select session 1 through 9, creating a fresh console if needed. Ctrl+1 through Ctrl+9 are shortcuts. Sessions retain independent connections and consoles in one application window. Currently requires Linux and SDL's X11 driver (including XWayland)."
   },
   "session_close": {
-    "description": "Close an additional session: session_close [number]. Without a number, closes the current session. Slot 1 owns the main window; use disconnect to leave its server, or quit from slot 1 to close all sessions."
+    "description": "Closes a session: session_close [number]. Defaults to the current session."
   },
   "session_list": {
-    "description": "List allocated sessions with connection state, server address, and map. An asterisk marks the selected session."
+    "description": "List allocated sessions with server address, map name, and player count. An asterisk marks the selected session."
   },
   "set": {
     "arguments": [
