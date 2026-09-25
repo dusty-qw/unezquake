@@ -1740,8 +1740,8 @@ int MVD_Stats_Gather(void)
 
 void MVD_Status(void)
 {
+	static char str[1024] = "";
 	int x, y, p;
-	char str[1024];
 	int i;
 	int id = 0;
 	int z = 0;

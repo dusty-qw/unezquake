@@ -31,6 +31,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <stdlib.h>
 #include <ctype.h>
 #include <assert.h>
+#include <limits.h>
 
 #define wchar unsigned short	// 16-bit Unicode char
 
