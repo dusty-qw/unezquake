@@ -712,6 +712,7 @@ set(client
         ${SOURCE_DIR}/cl_cam.c
         ${SOURCE_DIR}/cl_cmd.c
         ${SOURCE_DIR}/cl_demo.c
+        ${SOURCE_DIR}/cl_connectbr.c
         ${SOURCE_DIR}/cl_ents.c
         ${SOURCE_DIR}/cl_ezcsqc.c
         ${SOURCE_DIR}/cl_input.c
