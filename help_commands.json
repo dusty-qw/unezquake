@@ -1633,7 +1633,7 @@
     "description": "Reports the current server info."
   },
   "session": {
-    "description": "Select session 1 through 9, creating a fresh console if needed. Ctrl+1 through Ctrl+9 are shortcuts. Sessions retain independent connections and consoles in one application window. Currently requires Linux and SDL's X11 driver (including XWayland)."
+    "description": "Select session 1 through 9, creating a fresh console if needed. Ctrl+1 through Ctrl+9 are shortcuts. Sessions retain independent connections and consoles in one application window."
   },
   "session_close": {
     "description": "Closes a session: session_close [number]. Defaults to the current session."

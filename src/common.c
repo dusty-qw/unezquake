@@ -32,6 +32,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 #include "quakedef.h"
+#include "cl_session.h"
 
 #include "utils.h"
 #include "gl_model.h"
@@ -64,9 +65,7 @@ void Draw_BeginDisc (void);
 void Draw_EndDisc (void);
 
 #define MAX_NUM_ARGVS	50
-/* Worker bootstrap adds four IPC arguments, -nohwgamma and +set (3 args).
- * Reserve these separately so forwarding a full launch cannot drop user args. */
-#define SESSION_INTERNAL_ARGVS 8
+/* Reserve worker IPC arguments separately from the user's launch arguments. */
 
 usercmd_t nullcmd; // guaranteed to be zero
 

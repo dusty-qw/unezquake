@@ -29,6 +29,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <conio.h>		// _putch
 #include <tchar.h>
 #include "keys.h"
+#include "cl_session.h"
 #include "server.h"
 #include "pcre2.h"
 #include <shlobj.h>
@@ -99,6 +100,14 @@ cvar_t	sys_disableWinKeys = {"sys_disableWinKeys", "0", 0, OnChange_sys_disableW
 
 extern qbool ActiveApp, Minimized;
 
+static int session_disable_win_keys;
+static qbool session_input_fullscreen, session_text_entry;
+
+static qbool Sys_InputOwnerActive(void)
+{
+	return ActiveApp && !CL_SessionIsWorker();
+}
+
 static void ReleaseKeyHook (void)
 {
 	if (WinKeyHook_isActive) {
@@ -121,7 +130,9 @@ void OnChange_sys_disableWinKeys(cvar_t *var, char *string, qbool *cancel)
 {
 	extern cvar_t r_fullscreen;
 
-	if (Q_atof(string) == 1 || (Q_atof(string) == 2 && r_fullscreen.value))
+	int mode = CL_SessionIsCoordinator() ? session_disable_win_keys : Q_atof(string);
+	qbool fullscreen = CL_SessionIsCoordinator() ? session_input_fullscreen : r_fullscreen.value != 0;
+	if (Sys_InputOwnerActive() && (mode == 1 || (mode == 2 && fullscreen)))
 	{
 		if (!WinKeyHook_isActive) 
 		{
@@ -142,6 +153,8 @@ void OnChange_sys_disableWinKeys(cvar_t *var, char *string, qbool *cancel)
 
 LRESULT CALLBACK LLWinKeyHook(int Code, WPARAM wParam, LPARAM lParam) 
 {
+	if (Code < 0 || !Sys_InputOwnerActive())
+		return CallNextHookEx(NULL, Code, wParam, lParam);
 	PKBDLLHOOKSTRUCT p = (PKBDLLHOOKSTRUCT) lParam;
 	unsigned int* flags = (p->flags & LLKHF_UP) ? &windows_keys_up : &windows_keys_down;
 
@@ -160,7 +173,7 @@ LRESULT CALLBACK LLWinKeyHook(int Code, WPARAM wParam, LPARAM lParam)
 			*flags |= WINDOWS_PRINTSCREEN;
 			return 1;
 		case VK_CAPITAL:
-			if (key_dest != key_console && key_dest != key_message) {
+			if (CL_SessionIsCoordinator() ? !session_text_entry : (key_dest != key_console && key_dest != key_message)) {
 				// Don't toggle capslock when in game
 				*flags |= WINDOWS_CAPSLOCK;
 				return 1;
@@ -171,23 +184,20 @@ LRESULT CALLBACK LLWinKeyHook(int Code, WPARAM wParam, LPARAM lParam)
 	return CallNextHookEx(NULL, Code, wParam, lParam);
 }
 
+void Sys_SessionInputPolicy(int disable_win_keys, qbool fullscreen, qbool text_entry)
+{
+	session_disable_win_keys = disable_win_keys;
+	session_input_fullscreen = fullscreen;
+	session_text_entry = text_entry;
+	Sys_ActiveAppChanged();
+}
+
 void Sys_ActiveAppChanged(void)
 {
-	static qbool appWasActive = true;
-	static qbool hookWasActive = false;
-
-	if (appWasActive == ActiveApp)
-		return;
-
-	appWasActive = ActiveApp;
-	if (ActiveApp && hookWasActive) {
-		RegisterKeyHook();
-	}
-	else if (!ActiveApp) {
-		hookWasActive = WinKeyHook_isActive;
-
-		ReleaseKeyHook();
-	}
+	qbool cancel = false;
+	/* Re-evaluate the setting on both OS focus and session ownership changes.
+	 * A background engine must never retain a global low-level key hook. */
+	OnChange_sys_disableWinKeys(&sys_disableWinKeys, sys_disableWinKeys.string, &cancel);
 }
 
 #endif
@@ -657,8 +667,8 @@ void WinCheckOSInfo(void)
 		return;
 	}
 
-	if (vinfo.dwPlatformId != VER_PLATFORM_WIN32_NT || vinfo.dwMajorVersion < 5 || (vinfo.dwMajorVersion == 5 && vinfo.dwMinorVersion < 1)) {
-		Sys_Error("ezQuake requires at least Windows XP.");
+	if (vinfo.dwPlatformId != VER_PLATFORM_WIN32_NT || vinfo.dwMajorVersion < 6 || (vinfo.dwMajorVersion == 6 && vinfo.dwMinorVersion < 1)) {
+		Sys_Error("unezQuake requires at least Windows 7.");
 		return;
 	}
 
@@ -679,7 +689,7 @@ void WinCheckOSInfo(void)
 
 void Sys_Init_ (void) 
 {
-	if (!COM_CheckParm(cmdline_param_client_allowmultipleclients))
+	if (!CL_SessionIsWorker() && !COM_CheckParm(cmdline_param_client_allowmultipleclients))
 	{
 		// Mutex will fail if semaphore already exists.
 		qwclsemaphore = CreateMutex(
@@ -728,7 +738,7 @@ void Sys_Init_ (void)
 // WINDOWS CRAP
 //==============================================================================
 
-#define MAX_NUM_ARGVS	50
+#define MAX_NUM_ARGVS (50 + SESSION_INTERNAL_ARGVS)
 
 int		argc;
 char	*argv[MAX_NUM_ARGVS];
@@ -736,50 +746,53 @@ static char exename[1024] = {0};
 
 void ParseCommandLine (char *lpCmdLine) 
 {
-    int i;
+	int i;
+	char *read = lpCmdLine, *write = lpCmdLine;
 	argc = 1;
 	argv[0] = exename;
+	i = GetModuleFileNameA(NULL, exename, sizeof(exename) - 1);
+	exename[i > 0 && i < sizeof(exename) ? i : 0] = 0;
+	strlcpy(exename, COM_SkipPath(exename), sizeof(exename));
 
-	if(!(i = GetModuleFileName(NULL, exename, sizeof(exename)-1))) // here we get loong string, with full path
-		exename[0] = 0; // oh, something bad
-	else 
-	{
-		exename[i] = 0; // ensure null terminator
-		strlcpy(exename, COM_SkipPath(exename), sizeof(exename));
-	}
-
-	while (*lpCmdLine && (argc < MAX_NUM_ARGVS))
-	{
-		while (*lpCmdLine && ((*lpCmdLine <= 32) || (*lpCmdLine > 126)))
-			lpCmdLine++;
-
-		if (*lpCmdLine)
-		{
-			if (*lpCmdLine == '\"')
-			{
-				lpCmdLine++;
-
-				argv[argc] = lpCmdLine;
-				argc++;
-
-				while (*lpCmdLine && *lpCmdLine != '\"') // this include chars less that 32 and greate than 126... is that evil?
-					lpCmdLine++;
+	/* Windows quoting rules, including escaped quotes and trailing backslashes.
+	 * Workers are launched from an argv array; the conversion must round-trip. */
+	while (*read && argc < MAX_NUM_ARGVS) {
+		qbool quoted = false;
+		while (*read == ' ' || *read == '\t')
+			++read;
+		if (!*read)
+			break;
+		argv[argc++] = write;
+		while (*read && (quoted || (*read != ' ' && *read != '\t'))) {
+			int slashes = 0;
+			while (*read == '\\') {
+				++slashes;
+				++read;
 			}
-			else
-			{
-				argv[argc] = lpCmdLine;
-				argc++;
-
-				while (*lpCmdLine && ((*lpCmdLine > 32) && (*lpCmdLine <= 126)))
-					lpCmdLine++;
+			if (*read == '"') {
+				for (i = 0; i < slashes / 2; ++i)
+					*write++ = '\\';
+				if (slashes & 1)
+					*write++ = *read++;
+				else {
+					++read;
+					if (quoted && *read == '"')
+						*write++ = *read++;
+					else
+						quoted = !quoted;
+				}
 			}
-
-			if (*lpCmdLine)
-			{
-				*lpCmdLine = 0;
-				lpCmdLine++;
+			else {
+				while (slashes--)
+					*write++ = '\\';
+				if (*read && (quoted || (*read != ' ' && *read != '\t')))
+					*write++ = *read++;
 			}
 		}
+		/* Advance before terminating: read/write may still point at the same byte. */
+		while (*read == ' ' || *read == '\t')
+			++read;
+		*write++ = 0;
 	}
 }
 
@@ -1263,8 +1276,11 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 	ParseCommandLine(lpCmdLine);
 
+	COM_InitArgv(argc, argv);
+	CL_SessionsEarlyInit();
+
 	// Check if we're the registered QW url protocol handler.
-	if (!WinCheckQWURL() && ((argc + 3) < MAX_NUM_ARGVS))
+	if (!CL_SessionIsWorker() && !WinCheckQWURL() && ((argc + 3) < 50))
 	{
 		// User doesn't want to be bothered again.
 		argv[argc++] = "+cl_verify_qwprotocol";
@@ -1283,7 +1299,8 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			qconsole_log = fopen(s, "a");
 	}
 
-	Sys_DisableScreenSaving();
+	if (!CL_SessionIsWorker())
+		Sys_DisableScreenSaving();
 
 	// Take the greater of all the available memory or half the total memory,
 	// but at least 8 Mb and no more than 32 Mb, unless they explicitly request otherwise
@@ -1410,7 +1427,7 @@ void Sys_GetFullExePath(char *path, unsigned int path_length, int long_name)
 #define EZQUAKE_MAILSLOT	"\\\\.\\mailslot\\ezquake"
 #define MAILSLOT_BUFFERSIZE 1024
 
-HANDLE ezquake_server_mailslot;
+HANDLE ezquake_server_mailslot = INVALID_HANDLE_VALUE;
 
 void Sys_InitIPC(void)
 {	

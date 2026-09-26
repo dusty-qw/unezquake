@@ -477,7 +477,7 @@ void Host_Frame (double time)
 	if (CL_SessionIsCoordinator()) {
 		VID_CoordinatorFrame();
 		CL_SessionsFrame();
-		SDL_Delay(1);
+		CL_SessionsWait();
 		return;
 	}
 	if (setjmp (host_abort))

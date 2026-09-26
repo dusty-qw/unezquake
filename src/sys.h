@@ -23,6 +23,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #ifdef _WIN32
 #define Sys_MSleep(x) Sleep(x)
+void Sys_ActiveAppChanged(void);
+void Sys_SessionInputPolicy(int disable_win_keys, qbool fullscreen, qbool text_entry);
 #else
 #define Sys_MSleep(x) usleep((x) * 1000)
 #endif

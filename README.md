@@ -4,6 +4,22 @@ unezQuake is a fork of the ezQuake client that aims to bring more permissive sta
 ## Features
 unezQuake has all of the latest ezQuake features, plus:
 
+### Multiple Server Sessions (Windows and Linux (X11) only)
+
+Connect to up to nine servers at once in a single client window. Each session has
+its own connection, console, command history, and game state. Switching sessions
+keeps the others connected.
+
+Press **Ctrl+2** to open a fresh console, then connect to another server as usual.
+Press **Ctrl+1** to return to your original session. **Ctrl+1 through Ctrl+9**
+create or select the corresponding session. You can also use console commands
+or bind your own keys, for example `bind F2 "session 2"`.
+
+ * `session <1-9>` - Select a session, creating it if needed
+ * `session_list` - List sessions with server address, map name, and player count; `*` marks the selected session
+ * `close` - Close the current session
+ * `session_close [number]` - Close a specific session, or the current one if no number is given
+
 ### EZCSQC Antilag Support
 unezQuake supports **NEW** EZCSQC antilag and extended prediction functionality, including enhanced weapon prediction, audio prediction, smoothing, and high-confidence explosion prediction. The default values are highly recommended.
 
