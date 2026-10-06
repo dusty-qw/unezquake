@@ -37,6 +37,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "r_local.h"
 #include "r_renderer.h"
 #include "r_brushmodel.h"
+#include "menu_scene.h"
 
 /*
 The view is allowed to move slightly from its true position for bobbing,
@@ -1069,28 +1070,32 @@ extern vrect_t scr_vrect;
 qbool V_PreRenderView(void)
 {
 	char *p;
+	// while disconnected, the main menu may be showing its background map
+	qbool menu_scene = (cls.state != ca_active && MenuScene_SetupView());
 
 	cl.simangles[ROLL] = 0;	// FIXME @@@ 
 
-	if (cls.state != ca_active) {
+	if (cls.state != ca_active && !menu_scene) {
 		V_CalcBlend();
 	}
 	else {
-		view_frame = &cl.frames[cl.validsequence & UPDATE_MASK];
-		if (!cls.nqdemoplayback) {
-			view_message = view_frame->playerstate[cl.viewplayernum];
-		}
+		if (!menu_scene) {
+			view_frame = &cl.frames[cl.validsequence & UPDATE_MASK];
+			if (!cls.nqdemoplayback) {
+				view_message = view_frame->playerstate[cl.viewplayernum];
+			}
 
-		DropPunchAngle();
-		if (cl.intermission) {
-			// intermission / finale rendering
-			V_CalcIntermissionRefdef();
-		}
-		else {
-			V_CalcRefdef();
-		}
+			DropPunchAngle();
+			if (cl.intermission) {
+				// intermission / finale rendering
+				V_CalcIntermissionRefdef();
+			}
+			else {
+				V_CalcRefdef();
+			}
 
-		MVD_PowerupCam_Frame();
+			MVD_PowerupCam_Frame();
+		}
 
 		R_PushDlights();
 
@@ -1146,7 +1151,7 @@ qbool V_PreRenderView(void)
 
 	renderer.PreRenderView();
 
-	return cls.state == ca_active;
+	return cls.state == ca_active || menu_scene;
 }
 
 //============================================================================

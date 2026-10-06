@@ -53,6 +53,7 @@ $Id: cl_screen.c,v 1.156 2007-10-29 00:56:47 qqshka Exp $
 #ifndef CLIENTONLY
 #include "server.h"
 #endif
+#include "menu_scene.h"
 
 void WeaponStats_CommandInit(void);
 void SCR_DrawHud(void);
@@ -951,6 +952,8 @@ void SCR_UpdateScreenPlayerView(int flags)
 
 		// draw any areas not covered by the refresh
 		SCR_TileClear();
+
+		MenuScene_Draw2D();
 	}
 }
 
@@ -1025,6 +1028,9 @@ void SCR_UpdateScreenPostPlayerView(void)
 		R_FlushImageDrawLayer(draw_layer_top, true);
 	}
 
+	// Dear ImGui menus go on top of everything, in window coordinates
+	M_ImGui_Frame();
+
 	SCR_CheckAutoScreenshot();
 
 	VID_RenderFrameEnd();
@@ -1036,6 +1042,8 @@ void SCR_UpdateScreenPostPlayerView(void)
 // WARNING: be very careful calling this from elsewhere, because the refresh needs almost the entire 256k of stack space!
 qbool SCR_UpdateScreen(void)
 {
+	MenuScene_Frame();
+
 	if (!SCR_UpdateScreenPrePlayerView()) {
 		VID_RenderFrameEnd();
 		return false;

@@ -1148,6 +1148,9 @@
   "menu_quit": {
     "description": "This command will display the quit menu."
   },
+  "menu_quickplay": {
+    "description": "Opens the Quick Play page of the menu: servers with people playing, closest first."
+  },
   "menu_save": {
     "description": "This command will display the singleplayer save menu."
   },

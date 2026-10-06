@@ -1,0 +1,2 @@
+Dear ImGui v1.92.9b (https://github.com/ocornut/imgui), commit f1cc2ae15e53a861a874c3034aae6798fde194ab.
+Only the core library and the SDL2 / OpenGL2 / OpenGL3 backends are vendored here.

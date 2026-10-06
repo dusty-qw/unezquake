@@ -36,6 +36,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "r_sprite3d.h"
 #include "r_state.h"
 #include "r_matrix.h"
+#include "menu_scene.h"
 
 texture_ref GL_FramebufferTextureReference(framebuffer_id id, fbtex_id tex_id);
 qbool GLM_CompilePostProcessVAO(void);
@@ -149,7 +150,7 @@ void GLM_PrepareModelRendering(qbool vid_restart)
 {
 	GLM_BuildCommonTextureArrays(vid_restart);
 
-	if (cls.state != ca_disconnected) {
+	if (cls.state != ca_disconnected || MenuScene_HasWorld()) {
 		R_CreateInstanceVBO();
 		R_CreateAliasModelVBO();
 		R_BrushModelCreateVBO();

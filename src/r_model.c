@@ -32,6 +32,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "utils.h"
 #include "r_texture.h"
 #include "r_renderer.h"
+#include "menu_scene.h"
 
 model_t	*loadmodel;
 char	loadname[32];	// for hunk tags
@@ -332,7 +333,7 @@ void Mod_ReloadModelsTextures(void)
 	model_t *m;
 	texture_t *tx;
 
-	if (cls.state != ca_active) {
+	if (cls.state != ca_active && !MenuScene_HasWorld()) {
 		return; // seems we are not loaded models yet, so no need to reload textures
 	}
 

@@ -60,6 +60,8 @@ void Sys_ActiveAppChanged (void);
 #include "r_buffers.h"
 #include "r_renderer.h"
 #include "r_program.h"
+#include "menu.h"
+#include "menu_ui_bridge.h"
 
 SDL_GLContext GLM_SDL_CreateContext(SDL_Window* window);
 SDL_GLContext GLC_SDL_CreateContext(SDL_Window* window);
@@ -253,6 +255,11 @@ cvar_t vid_framebuffer_fxaa        = {"vid_framebuffer_fxaa",          "0" };
 // True if we need to release the mouse and let the OS show cursor again
 static qbool IN_OSMouseCursorRequired(void)
 {
+	// the ImGui menus use the system cursor, even in fullscreen
+	if (M_ImGui_IsOpen()) {
+		return true;
+	}
+
 	// Explicit check here for key_game... really setting all modes is equivalent to "in_grab_windowed_mouse 0"
 	qbool in_os_cursor_mode = (key_dest != key_game || cls.demoplayback) && (in_release_mouse_modes.integer & (1 << key_dest));
 
@@ -316,8 +323,8 @@ static void GrabMouse(qbool grab, qbool raw)
 	SDL_SetRelativeMouseMode((raw && grab) ? SDL_TRUE : SDL_FALSE);
 	SDL_GetRelativeMouseState(NULL, NULL);
 
-	// never show real cursor in fullscreen
-	if (r_fullscreen.integer) {
+	// never show real cursor in fullscreen (unless the ImGui menus are open)
+	if (r_fullscreen.integer && !(M_ImGui_IsOpen() && !grab)) {
 		SDL_ShowCursor(SDL_DISABLE);
 	} else {
 		SDL_ShowCursor(grab ? SDL_DISABLE : SDL_ENABLE);
@@ -374,6 +381,9 @@ static void IN_Frame(void)
 
 	if (!ActiveApp || Minimized || IN_OSMouseCursorRequired()) {
 		IN_DeactivateMouse();
+		if (M_ImGui_IsOpen() && SDL_ShowCursor(SDL_QUERY) != SDL_ENABLE) {
+			SDL_ShowCursor(SDL_ENABLE);
+		}
 		return;
 	}
 	else {
@@ -872,6 +882,10 @@ static void HandleEvents(void)
 #endif
 
 	while (SDL_PollEvent(&event)) {
+		if (MenuUI_ProcessEvent(&event)) {
+			continue;
+		}
+
 		switch (event.type) {
 		case SDL_QUIT:
 			Sys_Quit();
@@ -965,6 +979,10 @@ void VID_SoftRestart(void)
 
 void VID_Shutdown(qbool restart)
 {
+	// the menus own GL objects and textures, release them while the context still exists
+	M_ImGui_VidReady(false);
+	MenuUI_VidShutdown();
+
 	IN_DeactivateMouse();
 
 	SDL_StopTextInput();
@@ -1552,6 +1570,9 @@ static void VID_SDL_Init(void)
 #endif
 
 	R_Initialise();
+
+	MenuUI_VidInit(sdl_window, sdl_context, glConfig.majorVersion);
+	M_ImGui_VidReady(true);
 
 	//always get/set refresh rate
 	SDL_DisplayMode display_mode;

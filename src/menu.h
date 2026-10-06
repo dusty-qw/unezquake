@@ -66,10 +66,21 @@ typedef enum {
     m_options,
 	m_help,
 	m_quit, m_ingame, 
+	m_imgui,            // the Dear ImGui menus (menu_imgui.cpp)
 } m_state_t;
 
 extern m_state_t m_state;
 
 void M_Shutdown(void);
+
+// Dear ImGui menus (menu_ui_bridge.c)
+void M_ImGui_Init(void);
+qbool M_ImGui_Enabled(void);
+qbool M_ImGui_IsOpen(void);
+void M_ImGui_Open(int page);
+void M_ImGui_Key(int key);
+qbool M_ImGui_Mouse_Event(const mouse_state_t *ms);
+void M_ImGui_VidReady(qbool ready);
+void M_ImGui_Frame(void);
 
 #endif // __MENU_H_

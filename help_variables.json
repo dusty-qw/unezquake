@@ -14728,6 +14728,28 @@
         }
       ]
     },
+    "menu_background": {
+      "default": "1",
+      "desc": "Shows a map in the background of the main menu while disconnected (see menu_background_map), instead of the console.",
+      "group-id": "17",
+      "type": "boolean",
+      "values": [
+        {
+          "description": "console background",
+          "name": "false"
+        },
+        {
+          "description": "map in the background",
+          "name": "true"
+        }
+      ]
+    },
+    "menu_background_map": {
+      "default": "aerowalk ztndm3 dm4 dm6 dm2 dm3 schloss bravado",
+      "desc": "Space separated list of maps for the main menu background, one of those available is picked at random each time the background is loaded. Doors, items and spawn points are taken from the map, the camera tours its spawn points.",
+      "group-id": "17",
+      "type": "string"
+    },
     "menu_botmatch_gamedir": {
       "default": "fbca",
       "desc": "The gamedir that ezQuake will switch to when starting a botmatch through the multiplayer menu.",
@@ -14739,6 +14761,22 @@
       "desc": "If set, starting a botmatch through multiplayer menu will disable features that cause problems for older mods that spawn bots as non-clients.",
       "group-id": "17",
       "type": "boolean"
+    },
+    "menu_classic": {
+      "default": "0",
+      "desc": "Use the classic Quake style menus instead of the new menus.",
+      "group-id": "17",
+      "type": "boolean",
+      "values": [
+        {
+          "description": "new menus",
+          "name": "false"
+        },
+        {
+          "description": "classic menus",
+          "name": "true"
+        }
+      ]
     },
     "menu_ingame": {
       "default": "1",
@@ -14765,6 +14803,12 @@
     "menu_marked_fade": {
       "default": "4",
       "desc": "Speed of menu entry highlight flashing. Zero disables the flashing effect.",
+      "group-id": "17",
+      "type": "float"
+    },
+    "menu_scale": {
+      "default": "1",
+      "desc": "Size of the new menus. They scale with the window height, this is applied on top of that (0.5 to 3).",
       "group-id": "17",
       "type": "float"
     },

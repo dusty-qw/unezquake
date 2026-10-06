@@ -650,14 +650,23 @@ enum { MOCPM_SETTINGS, MOCPM_CHOOSECONFIG, MOCPM_CHOOSESCRIPT, MOCPM_ENTERFILENA
 extern cvar_t cfg_backup, cfg_save_aliases, cfg_save_binds, cfg_save_cmdline,
 	cfg_save_cmds, cfg_save_cvars, cfg_save_unchanged, cfg_save_userinfo, cfg_use_home, cfg_save_onquit, cfg_use_gamedir, cfg_legacy_exec;
 
-void MOpt_ImportConfig(void) {
-	MOpt_configpage_mode = MOCPM_CHOOSECONFIG;
-	
+const char *Menu_Options_ConfigsDir(void)
+{
 	// hope few doubled trinary operator won't hurt your brains
 	if (cfg_use_home.integer)
-		FL_SetCurrentDir(&configs_filelist, (cfg_use_gamedir.integer) ? va("%s/%s", com_homedir, (strcmp(com_gamedirfile, "qw") == 0) ? "" : com_gamedirfile) : com_homedir);
-    else
-		FL_SetCurrentDir(&configs_filelist, (cfg_use_gamedir.integer) ? va("%s/%s/configs", com_basedir, (strcmp(com_gamedirfile, "qw") == 0) ? "ezquake" : com_gamedirfile) : va("%s/ezquake/configs", com_basedir));
+		return (cfg_use_gamedir.integer) ? va("%s/%s", com_homedir, (strcmp(com_gamedirfile, "qw") == 0) ? "" : com_gamedirfile) : com_homedir;
+	else
+		return (cfg_use_gamedir.integer) ? va("%s/%s/configs", com_basedir, (strcmp(com_gamedirfile, "qw") == 0) ? "ezquake" : com_gamedirfile) : va("%s/ezquake/configs", com_basedir);
+}
+
+const char *Menu_Options_ScriptsDir(void)
+{
+	return "./ezquake/cfg";
+}
+
+void MOpt_ImportConfig(void) {
+	MOpt_configpage_mode = MOCPM_CHOOSECONFIG;
+	FL_SetCurrentDir(&configs_filelist, Menu_Options_ConfigsDir());
 }
 void MOpt_ExportConfig(void) {
 	MOpt_configpage_mode = MOCPM_ENTERFILENAME;
@@ -667,7 +676,7 @@ void MOpt_ExportConfig(void) {
 
 void MOpt_LoadScript(void) {
 	MOpt_configpage_mode = MOCPM_CHOOSESCRIPT;
-	FL_SetCurrentDir(&configs_filelist, "./ezquake/cfg");
+	FL_SetCurrentDir(&configs_filelist, Menu_Options_ScriptsDir());
 }
 
 void MOpt_CfgSaveAllOn(void) {
@@ -1455,4 +1464,32 @@ qbool Menu_Options_IsBindingKey (void)
 		(CTab_GetCurrentId (&options_tab) == OPTPG_BINDS && settbinds.mode == SPM_BINDING) ||
 		(CTab_GetCurrentId (&options_tab) == OPTPG_SYSTEM && settsystem.mode == SPM_BINDING)
 	);
+}
+
+static const struct {
+	const char *name;
+	settings_page *page;
+} options_pages[] = {
+	{ "Player", &settplayer },
+	{ "Graphics", &settfps },
+	{ "View", &settview },
+	{ "Controls", &settbinds },
+	{ "Misc", &settmisc },
+	{ "System", &settsystem },
+	{ "Config", &settconfig },
+};
+
+int Menu_Options_PageCount(void)
+{
+	return sizeof(options_pages) / sizeof(options_pages[0]);
+}
+
+const char *Menu_Options_PageName(int index)
+{
+	return index >= 0 && index < Menu_Options_PageCount() ? options_pages[index].name : "";
+}
+
+struct settings_page_s *Menu_Options_Page(int index)
+{
+	return index >= 0 && index < Menu_Options_PageCount() ? options_pages[index].page : NULL;
 }

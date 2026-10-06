@@ -29,3 +29,6 @@ void qtvlist_init(void);
 void qtvlist_deinit(void);
 void qtvlist_joinfromqtv_cmd(void);
 
+// true if the QTV list knows a stream for the given "host:port" game server (doesn't block)
+qbool qtvlist_has_stream(const char *address);
+

@@ -155,18 +155,29 @@ static void qtvlist_print_server_and_qtvaddress_list(void)
 }
 #endif
 
+static const char *qtvlist_find_qtvaddress(const char *qwserver, short port);
+
 static const char *qtvlist_get_qtvaddress(const char *qwserver, short port)
 {
-	int i, j;
-	json_t *server_array, *server_entry, *gs_array, *gs_entry;
-	const char *hostname, *ipaddress;
-
 	if (qwserver == NULL) {
 		return NULL;
 	}
 
 	if (root == NULL) {
 		Com_Printf("error: qtv list data not initialized\n");
+		return NULL;
+	}
+
+	return qtvlist_find_qtvaddress(qwserver, port);
+}
+
+static const char *qtvlist_find_qtvaddress(const char *qwserver, short port)
+{
+	int i, j;
+	json_t *server_array, *server_entry, *gs_array, *gs_entry;
+	const char *hostname, *ipaddress;
+
+	if (qwserver == NULL || root == NULL) {
 		return NULL;
 	}
 
@@ -624,6 +635,32 @@ void qtvlist_joinfromqtv_cmd(void)
 	} else {
 		Com_Printf("No game address found for this QTV stream\n");
 	}
+}
+
+qbool qtvlist_has_stream(const char *address)
+{
+	char host[256];
+	char *port;
+	qbool found;
+
+	if (qtvlist_mutex == NULL || root == NULL || address == NULL) {
+		return false;
+	}
+
+	strlcpy(host, address, sizeof(host));
+	port = strchr(host, ':');
+	if (port) {
+		*port++ = 0;
+	}
+
+	// never block the menu while the list is being downloaded
+	if (SDL_TryLockMutex(qtvlist_mutex) != 0) {
+		return false;
+	}
+	found = qtvlist_find_qtvaddress(host, port ? Q_atoi(port) : 27500) != NULL;
+	SDL_UnlockMutex(qtvlist_mutex);
+
+	return found;
 }
 
 void qtvlist_init(void)

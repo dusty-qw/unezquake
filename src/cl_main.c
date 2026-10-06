@@ -73,6 +73,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "r_performance.h"
 #include "r_program.h"
 #include "demo_spawnwarn.h"
+#include "menu_scene.h"
 
 extern qbool ActiveApp, Minimized;
 
@@ -1283,6 +1284,7 @@ void CL_ClearState (void)
 
 	CL_ClearTEnts ();
 	CL_ClearScene ();
+	MenuScene_Invalidate();
 
 	CL_ClearPredict();
 #ifdef FTE_PEXT_CSQC
@@ -1386,6 +1388,8 @@ void CL_Disconnect (void)
 
 	//
 	R_OnDisconnect();
+	// model textures are gone, the menu background has to be loaded again
+	MenuScene_Invalidate();
 	CL_SpraysDisconnect();
 
 	if (cls.demorecording && cls.state != ca_disconnected) {
