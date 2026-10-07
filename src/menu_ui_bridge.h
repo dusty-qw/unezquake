@@ -34,6 +34,8 @@ typedef struct mui_client_state_s {
 	mui_bool connected;        // connecting or connected to a server, or playing a demo
 	mui_bool active;           // fully in game
 	mui_bool demoplayback;
+	mui_bool can_join;         // join/observe make sense: on a server or watching QTV
+	mui_bool spectator;        // observing a server, or watching QTV
 	mui_bool background_scene; // the menu background map is being rendered
 	mui_bool console_down;
 	char map[64];

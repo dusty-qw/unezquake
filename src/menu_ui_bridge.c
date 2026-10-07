@@ -102,6 +102,8 @@ void MUI_GetClientState(mui_client_state_t *out)
 	out->connected = cls.state >= ca_connected || cls.demoplayback;
 	out->active = cls.state == ca_active;
 	out->demoplayback = cls.demoplayback;
+	out->can_join = (cls.state >= ca_connected && !cls.demoplayback) || cls.mvdplayback == QTV_PLAYBACK;
+	out->spectator = cls.demoplayback || cl.spectator;
 	out->background_scene = MenuScene_Active();
 	out->console_down = key_dest == key_console;
 	out->realtime = cls.realtime;

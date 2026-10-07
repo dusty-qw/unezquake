@@ -703,6 +703,14 @@ void DrawTopBar()
 		if (ImGui::Button(client.demoplayback ? "Stop demo" : "Disconnect")) {
 			MUI_Disconnect();
 		}
+		if (client.can_join) {
+			ImGui::SameLine();
+			ImGui::SetCursorPosY(button_y);
+			if (ImGui::Button(client.spectator ? "Join" : "Observe")) {
+				MUI_Command(client.spectator ? "join" : "observe");
+				MUI_CloseMenu();
+			}
+		}
 		ImGui::SameLine(0, S(14));
 		char where[256];
 		snprintf(where, sizeof(where), client.map[0] ? "%s  %s" : "%s", client.server, client.map);
