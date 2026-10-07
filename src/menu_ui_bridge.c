@@ -1087,8 +1087,18 @@ void M_ImGui_Frame(void)
 	// A server was reached or a demo/QTV stream started (from the menus, the command line,
 	// the console, a qw:// url...): get out of the way. Failed attempts leave the menu as it was.
 	started = (cls.state >= ca_connected && last_state < ca_connected) || (cls.demoplayback && !last_demoplayback);
-	if (started && M_ImGui_IsOpen()) {
-		M_LeaveMenus();
+	if (started && m_state == m_imgui) {
+		if (key_dest == key_menu) {
+			M_LeaveMenus();
+		}
+		else {
+			// connected from the console: leave it open, but drop the menu underneath it
+			// (it would hide the HUD, and come back once the console is closed)
+			m_state = m_none;
+			if (key_dest_beforecon == key_menu) {
+				key_dest_beforecon = key_game;
+			}
+		}
 	}
 	last_state = cls.state;
 	last_demoplayback = cls.demoplayback;

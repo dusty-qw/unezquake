@@ -401,8 +401,15 @@ static qbool MenuScene_Load(void)
 	cl.clipmodels[1] = CM_LoadMap(path, true, NULL, &checksum2);
 	R_NewMapPreLoad();
 
+	// The map is only flagged as the world model if it matches the mapname a server would have
+	// set. Otherwise the renderer sizes the brush model index buffer for MAX_STANDARD_ENTITIES
+	// copies of the whole map (hundreds of MB), and as that buffer never shrinks, every map played
+	// afterwards renders much slower. The mapname must not stay set while disconnected though.
+	COM_StripExtension(COM_SkipPath(path), scene.map_name, sizeof(scene.map_name));
+	Cvar_ForceSet(&host_mapname, scene.map_name);
 	strlcpy(cl.model_name[1], path, sizeof(cl.model_name[1]));
 	cl.model_precache[1] = Mod_ForName(path, false);
+	Cvar_ForceSet(&host_mapname, "");
 	if (!cl.model_precache[1] || cl.model_precache[1]->type != mod_brush) {
 		Com_Printf("menu_background: couldn't load %s\n", path);
 		CL_ClearState();
@@ -420,7 +427,6 @@ static qbool MenuScene_Load(void)
 
 	R_NewMap(false);
 
-	COM_StripExtension(COM_SkipPath(path), scene.map_name, sizeof(scene.map_name));
 	scene.start_time = cls.realtime;
 	scene.loaded = true;
 	Com_DPrintf("menu_background: %s loaded, %d camera positions, %d static entities\n", path, scene.shot_count, cl.num_statics);
