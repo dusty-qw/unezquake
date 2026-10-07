@@ -27,6 +27,7 @@ See the GNU General Public License for more details.
 #include "gl_model.h"
 #include "cmodel.h"
 #include "vfs.h"
+#include "menu.h"
 #include "menu_scene.h"
 
 #define SCENE_MAX_SHOTS       64
@@ -434,7 +435,7 @@ void MenuScene_Invalidate(void)
 
 static qbool MenuScene_ShouldLoad(void)
 {
-	return menu_background.integer && host_initialized && cls.state == ca_disconnected
+	return menu_background.integer && !M_ClassicMenus() && host_initialized && cls.state == ca_disconnected
 		&& !cls.demoplayback && !com_serveractive && !scene.failed;
 }
 

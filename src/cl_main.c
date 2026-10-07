@@ -2219,6 +2219,7 @@ void CL_Init (void)
 	V_Init ();
 	MVD_Utils_Init ();
 
+	M_ClassicMenus_Init(); // before VID_Init, which sets up the new menus unless disabled
 	VID_Init(host_basepal);
 	IN_Init();
 

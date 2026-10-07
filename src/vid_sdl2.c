@@ -1571,8 +1571,10 @@ static void VID_SDL_Init(void)
 
 	R_Initialise();
 
-	MenuUI_VidInit(sdl_window, sdl_context, glConfig.majorVersion);
-	M_ImGui_VidReady(true);
+	if (!M_ClassicMenus()) {
+		MenuUI_VidInit(sdl_window, sdl_context, glConfig.majorVersion);
+		M_ImGui_VidReady(true);
+	}
 
 	//always get/set refresh rate
 	SDL_DisplayMode display_mode;

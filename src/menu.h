@@ -75,6 +75,9 @@ void M_Shutdown(void);
 
 // Dear ImGui menus (menu_ui_bridge.c)
 void M_ImGui_Init(void);
+// menu_classic was set at startup: the classic menus are used for this session
+void M_ClassicMenus_Init(void);
+qbool M_ClassicMenus(void);
 qbool M_ImGui_Enabled(void);
 qbool M_ImGui_IsOpen(void);
 void M_ImGui_Open(int page);

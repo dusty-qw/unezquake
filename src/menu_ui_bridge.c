@@ -48,12 +48,16 @@ float VARFVAL(const cvar_t *v);
 char *VARSVAL(const cvar_t *v);
 int Sbar_ColorForMap(int m);
 
-// 0 = new menus, 1 = classic menus
-cvar_t menu_classic = {"menu_classic", "0"};
+static void OnChange_menu_classic(cvar_t *var, char *value, qbool *cancel);
+// 0 = new menus, 1 = classic menus. Only read at startup, changing it needs a restart.
+cvar_t menu_classic = {"menu_classic", "0", 0, OnChange_menu_classic};
 // size of the new menus relative to the automatic scale (based on window height)
 cvar_t menu_scale = {"menu_scale", "1"};
 
 static qbool mui_video_ready;
+// menu_classic as it was when the client started
+static qbool mui_classic;
+static qbool mui_classic_latched;
 
 //=============================================================================
 // client
@@ -962,17 +966,40 @@ static void MUI_Settings_BindKey(int key)
 // glue with menu.c, vid_sdl2.c and cl_screen.c
 //=============================================================================
 
-void M_ImGui_Init(void)
+static void OnChange_menu_classic(cvar_t *var, char *value, qbool *cancel)
+{
+	if (mui_classic_latched && (Q_atoi(value) != 0) != mui_classic) {
+		Com_Printf("%s will take effect after you restart the client\n", var->name);
+	}
+}
+
+// Before VID_Init(), which decides whether the new menus get set up.
+// The config (and +set from the command line) has been executed by now.
+void M_ClassicMenus_Init(void)
 {
 	Cvar_SetCurrentGroup(CVAR_GROUP_MENU);
 	Cvar_Register(&menu_classic);
+	Cvar_ResetCurrentGroup();
+
+	mui_classic = menu_classic.integer != 0;
+	mui_classic_latched = true;
+}
+
+void M_ImGui_Init(void)
+{
+	Cvar_SetCurrentGroup(CVAR_GROUP_MENU);
 	Cvar_Register(&menu_scale);
 	Cvar_ResetCurrentGroup();
 }
 
+qbool M_ClassicMenus(void)
+{
+	return mui_classic;
+}
+
 qbool M_ImGui_Enabled(void)
 {
-	return !menu_classic.integer && mui_video_ready;
+	return !mui_classic && mui_video_ready;
 }
 
 qbool M_ImGui_IsOpen(void)
@@ -1046,10 +1073,6 @@ void M_ImGui_Frame(void)
 	int page;
 
 	if (!M_ImGui_Enabled()) {
-		// switched to the classic menus
-		if (menu_classic.integer && m_state == m_imgui) {
-			M_LeaveMenus();
-		}
 		return;
 	}
 

@@ -14764,7 +14764,7 @@
     },
     "menu_classic": {
       "default": "0",
-      "desc": "Use the classic Quake style menus instead of the new menus.",
+      "desc": "Use the classic Quake style menus instead of the new menus. Takes effect after restarting the client.",
       "group-id": "17",
       "type": "boolean",
       "values": [
