@@ -195,7 +195,8 @@ extern cvar_t mvd_autotrack, mvd_moreinfo, mvd_status, cl_weaponpreselect, cl_we
 	cl_chatsound, con_sound_mm1_volume, con_sound_mm2_volume, con_sound_spec_volume, con_sound_other_volume, s_khz, s_desiredsamples,
 	scr_sshot_dir, log_dir, cl_nolerp, cl_confirmquit, log_readable, ignore_flood, ignore_flood_duration, con_timestamps, scr_consize, scr_conspeed, cl_chatmode, cl_chasecam,
 	enemyforceskins, teamforceskins, vid_vsync_lag_fix, cl_sayfilter_coloredtext, cl_sayfilter_sendboth,
-	mvd_autotrack_lockteam, qtv_adjustbuffer, cl_earlypackets, cl_useimagesinfraglog, con_completion_format, menu_ingame, sys_inactivesound
+	mvd_autotrack_lockteam, qtv_adjustbuffer, cl_earlypackets, cl_useimagesinfraglog, con_completion_format, menu_ingame, sys_inactivesound,
+	menu_classic
 ;
 
 #ifdef _WIN32
@@ -650,14 +651,23 @@ enum { MOCPM_SETTINGS, MOCPM_CHOOSECONFIG, MOCPM_CHOOSESCRIPT, MOCPM_ENTERFILENA
 extern cvar_t cfg_backup, cfg_save_aliases, cfg_save_binds, cfg_save_cmdline,
 	cfg_save_cmds, cfg_save_cvars, cfg_save_unchanged, cfg_save_userinfo, cfg_use_home, cfg_save_onquit, cfg_use_gamedir, cfg_legacy_exec;
 
-void MOpt_ImportConfig(void) {
-	MOpt_configpage_mode = MOCPM_CHOOSECONFIG;
-	
+const char *Menu_Options_ConfigsDir(void)
+{
 	// hope few doubled trinary operator won't hurt your brains
 	if (cfg_use_home.integer)
-		FL_SetCurrentDir(&configs_filelist, (cfg_use_gamedir.integer) ? va("%s/%s", com_homedir, (strcmp(com_gamedirfile, "qw") == 0) ? "" : com_gamedirfile) : com_homedir);
-    else
-		FL_SetCurrentDir(&configs_filelist, (cfg_use_gamedir.integer) ? va("%s/%s/configs", com_basedir, (strcmp(com_gamedirfile, "qw") == 0) ? "ezquake" : com_gamedirfile) : va("%s/ezquake/configs", com_basedir));
+		return (cfg_use_gamedir.integer) ? va("%s/%s", com_homedir, (strcmp(com_gamedirfile, "qw") == 0) ? "" : com_gamedirfile) : com_homedir;
+	else
+		return (cfg_use_gamedir.integer) ? va("%s/%s/configs", com_basedir, (strcmp(com_gamedirfile, "qw") == 0) ? "ezquake" : com_gamedirfile) : va("%s/ezquake/configs", com_basedir);
+}
+
+const char *Menu_Options_ScriptsDir(void)
+{
+	return "./ezquake/cfg";
+}
+
+void MOpt_ImportConfig(void) {
+	MOpt_configpage_mode = MOCPM_CHOOSECONFIG;
+	FL_SetCurrentDir(&configs_filelist, Menu_Options_ConfigsDir());
 }
 void MOpt_ExportConfig(void) {
 	MOpt_configpage_mode = MOCPM_ENTERFILENAME;
@@ -667,7 +677,7 @@ void MOpt_ExportConfig(void) {
 
 void MOpt_LoadScript(void) {
 	MOpt_configpage_mode = MOCPM_CHOOSESCRIPT;
-	FL_SetCurrentDir(&configs_filelist, "./ezquake/cfg");
+	FL_SetCurrentDir(&configs_filelist, Menu_Options_ScriptsDir());
 }
 
 void MOpt_CfgSaveAllOn(void) {
@@ -1238,6 +1248,10 @@ setting settmisc_arr[] = {
 	ADDSET_NAMED	("Auto Log Match", match_auto_logconsole, autorecord_enum),
 	ADDSET_BOOL		("Log Readable", log_readable),
 
+	//Menus
+	ADDSET_SEPARATOR("Menus"),
+	ADDSET_BOOL		("Classic Menus", menu_classic),
+
 	//Paths
 	ADDSET_SEPARATOR("Paths"),
 	ADDSET_NAMED    ("Media Paths Type", cl_mediaroot, mediaroot_enum),
@@ -1455,4 +1469,32 @@ qbool Menu_Options_IsBindingKey (void)
 		(CTab_GetCurrentId (&options_tab) == OPTPG_BINDS && settbinds.mode == SPM_BINDING) ||
 		(CTab_GetCurrentId (&options_tab) == OPTPG_SYSTEM && settsystem.mode == SPM_BINDING)
 	);
+}
+
+static const struct {
+	const char *name;
+	settings_page *page;
+} options_pages[] = {
+	{ "Player", &settplayer },
+	{ "Graphics", &settfps },
+	{ "View", &settview },
+	{ "Controls", &settbinds },
+	{ "Misc", &settmisc },
+	{ "System", &settsystem },
+	{ "Config", &settconfig },
+};
+
+int Menu_Options_PageCount(void)
+{
+	return sizeof(options_pages) / sizeof(options_pages[0]);
+}
+
+const char *Menu_Options_PageName(int index)
+{
+	return index >= 0 && index < Menu_Options_PageCount() ? options_pages[index].name : "";
+}
+
+struct settings_page_s *Menu_Options_Page(int index)
+{
+	return index >= 0 && index < Menu_Options_PageCount() ? options_pages[index].page : NULL;
 }

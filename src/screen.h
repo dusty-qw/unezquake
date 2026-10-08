@@ -28,7 +28,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef EZQUAKE_SCREEN_HEADER
 #define EZQUAKE_SCREEN_HEADER
 
-#define		SCR_NEED_CONSOLE_BACKGROUND		(cls.state < ca_active && !cl.intermission)
+qbool MenuScene_Active(void); // menu_scene.c
+// the main menu background map, if loaded, replaces the full screen console while disconnected
+#define		SCR_NEED_CONSOLE_BACKGROUND		(cls.state < ca_active && !cl.intermission && !MenuScene_Active())
 
 void SCR_Init (void);
 

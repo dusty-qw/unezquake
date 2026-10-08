@@ -35,3 +35,18 @@ qbool Menu_Options_IsBindingKey (void);
 // process mouse move
 qbool Menu_Options_Mouse_Event(const mouse_state_t *);
 // </interface>
+
+// <interface for menu_ui_bridge.c>
+// the settings pages, in the order the options menu shows them as tabs
+int Menu_Options_PageCount(void);
+const char *Menu_Options_PageName(int index);
+struct settings_page_s *Menu_Options_Page(int index);
+
+// directories used by the "Import config" and "Load Script" actions
+const char *Menu_Options_ConfigsDir(void);
+const char *Menu_Options_ScriptsDir(void);
+
+void MOpt_ImportConfig(void);
+void MOpt_ExportConfig(void);
+void MOpt_LoadScript(void);
+// </interface>

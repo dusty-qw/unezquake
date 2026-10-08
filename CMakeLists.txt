@@ -7,14 +7,12 @@ if(ENABLE_SPEEX)
     list(APPEND VCPKG_MANIFEST_FEATURES "speex")
 endif()
 
-project(unezquake C)
+project(unezquake C CXX)
 
-if(ENABLE_DISCORD)
-    # Discord Rich Presence (src/discord) is vendored upstream C++ code.
-    enable_language(CXX)
-    set(CMAKE_CXX_STANDARD 14)
-    set(CMAKE_CXX_STANDARD_REQUIRED ON)
-endif()
+# C++ is used by the Dear ImGui based menus (src/imgui, src/menu_imgui.cpp) and
+# by the vendored Discord Rich Presence code (src/discord).
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     enable_language(OBJC)
@@ -804,6 +802,28 @@ set(client
 if(ENABLE_DISCORD)
     list(APPEND client ${SOURCE_DIR}/cl_prescence.c)
 endif()
+
+# Dear ImGui (vendored, see src/imgui/VERSION.txt) and the menus built on top of it.
+set(IMGUI_DIR ${SOURCE_DIR}/imgui)
+set(imgui
+        ${IMGUI_DIR}/imgui.cpp
+        ${IMGUI_DIR}/imgui_draw.cpp
+        ${IMGUI_DIR}/imgui_tables.cpp
+        ${IMGUI_DIR}/imgui_widgets.cpp
+        ${IMGUI_DIR}/backends/imgui_impl_sdl2.cpp
+        ${IMGUI_DIR}/backends/imgui_impl_opengl2.cpp
+        ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
+        ${IMGUI_DIR}/imgui.h
+        ${IMGUI_DIR}/imconfig.h
+)
+source_group(TREE ${IMGUI_DIR} PREFIX "Source Files/imgui" FILES ${imgui})
+list(APPEND client
+        ${SOURCE_DIR}/menu_imgui.cpp
+        ${SOURCE_DIR}/menu_ui_bridge.c
+        ${SOURCE_DIR}/menu_ui_bridge.h
+        ${SOURCE_DIR}/menu_scene.c
+        ${SOURCE_DIR}/menu_scene.h
+)
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     list(APPEND client ${SOURCE_DIR}/movie_avi.c ${SOURCE_DIR}/cl_session_win.c)
 endif()
@@ -886,6 +906,7 @@ add_executable(unezquake ${TARGET_TYPE}
         ${server}
         ${client}
         ${discord}
+        ${imgui}
 
         ${common_opengl}
         ${common_renderer}
@@ -901,6 +922,8 @@ add_executable(unezquake ${TARGET_TYPE}
 target_include_directories(unezquake PRIVATE
         ${SOURCE_DIR}/qwprot/src
         ${EZQUAKE_MINIZIP_INCLUDE_DIR}
+        ${IMGUI_DIR}
+        ${IMGUI_DIR}/backends
         $<$<BOOL:${ENABLE_DISCORD}>:${DISCORD_INCLUDE_DIR}>
 )
 
@@ -936,6 +959,9 @@ target_compile_definitions(unezquake PRIVATE
         $<$<BOOL:${ENABLE_SPEEX}>:WITH_SPEEX>
 
         PCRE2_CODE_UNIT_WIDTH=8
+
+        IMGUI_DISABLE_OBSOLETE_FUNCTIONS
+        IMGUI_DISABLE_DEFAULT_SHELL_FUNCTIONS
 )
 
 target_link_libraries(unezquake PRIVATE

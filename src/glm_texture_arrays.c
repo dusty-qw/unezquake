@@ -36,6 +36,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "r_chaticons.h"
 #include "gl_texture_internal.h"
 #include "r_renderer.h"
+#include "menu_scene.h"
 
 static const texture_array_ref_t zero_array_ref[TEXTURETYPES_COUNT];
 static texture_flag_t texture_flags[MAX_GLTEXTURES];
@@ -540,7 +541,7 @@ void GLM_BuildCommonTextureArrays(qbool vid_restart)
 	GL_DeleteExistingTextureArrays(!vid_restart);
 	R_ClearModelTextureData();
 
-	if (cls.state == ca_disconnected) {
+	if (cls.state == ca_disconnected && !MenuScene_HasWorld()) {
 		return;
 	}
 

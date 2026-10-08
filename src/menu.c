@@ -34,6 +34,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "menu_options.h"
 #include "menu_ingame.h"
 #include "menu_multiplayer.h"
+#include "menu_scene.h"
+#include "menu_ui_bridge.h"
 #include "EX_FileList.h"
 #include "help.h"
 #include "utils.h"
@@ -317,6 +319,17 @@ static void M_ToggleHeadMenus(int type)
 }
 
 void M_ToggleMenu_f (void) {
+	if (M_ImGui_Enabled()) {
+		if (!M_ImGui_IsOpen()) {
+			M_ImGui_Open(MUI_PAGE_HOME);
+		}
+		else if (cls.state != ca_disconnected) {
+			M_LeaveMenus();
+		}
+		// while disconnected the menu is the home screen, there's nothing to toggle back to
+		return;
+	}
+
 	if (cls.state == ca_active) {
 		M_ToggleHeadMenus(m_ingame);
 	}
@@ -369,6 +382,10 @@ static qbool	newmainmenu = false;
 menu_window_t m_main_window;
 
 void M_Menu_Main_f (void) {
+	if (M_ImGui_Enabled()) {
+		M_ImGui_Open(MUI_PAGE_HOME);
+		return;
+	}
 	M_EnterMenu (m_main);
 }
 
@@ -538,6 +555,10 @@ static qbool M_Main_Mouse_Event(const mouse_state_t* ms)
 /* OPTIONS MENU */
 
 void M_Menu_Options_f (void) {
+	if (M_ImGui_Enabled()) {
+		M_ImGui_Open(MUI_PAGE_SETTINGS);
+		return;
+	}
 	M_EnterMenu (m_options);
 }
 
@@ -612,6 +633,11 @@ void M_Menu_Quit_f (void) {
 	extern cvar_t cl_confirmquit;
 
 	if (!cl_confirmquit.integer) Host_Quit();
+
+	if (M_ImGui_Enabled()) {
+		M_ImGui_Open(MUI_PAGE_QUIT);
+		return;
+	}
 
 	if (m_state == m_quit)
 		return;
@@ -1252,11 +1278,19 @@ qbool M_MultiPlayerSub_Mouse_Event(const mouse_state_t *ms)
 }
 
 void M_Menu_Browser_f (void) {
+	if (M_ImGui_Enabled()) {
+		M_ImGui_Open(MUI_PAGE_SERVERS);
+		return;
+	}
 	M_EnterMenu(m_multiplayer);
 }
 
 void M_Menu_MultiPlayer_f (void)
 {
+	if (M_ImGui_Enabled()) {
+		M_ImGui_Open(MUI_PAGE_SERVERS);
+		return;
+	}
 	if (Draw_BigFontAvailable()) {
 		M_EnterMenu(m_multiplayer);
 	}
@@ -1267,8 +1301,21 @@ void M_Menu_MultiPlayer_f (void)
 	}
 }
 
+static void M_Menu_QuickPlay_f (void)
+{
+	if (M_ImGui_Enabled()) {
+		M_ImGui_Open(MUI_PAGE_QUICKPLAY);
+		return;
+	}
+	M_Menu_Browser_f();
+}
+
 void M_Menu_Demos_f (void)
 {
+	if (M_ImGui_Enabled()) {
+		M_ImGui_Open(MUI_PAGE_DEMOS);
+		return;
+	}
 	M_EnterMenu(m_demos); // switches client state
 }
 
@@ -1295,6 +1342,8 @@ void M_Init (void) {
 	Menu_Options_Init(); // menu_options module
 	Menu_Ingame_Init();
 	Menu_MultiPlayer_Init(); // menu_multiplayer.h
+	MenuScene_Init();
+	M_ImGui_Init();
 
 	Cmd_AddCommand ("togglemenu", M_ToggleMenu_f);
 	Cmd_AddCommand ("toggleproxymenu", M_ToggleProxyMenu_f);
@@ -1307,6 +1356,7 @@ void M_Init (void) {
 #endif
 	Cmd_AddCommand ("menu_multiplayer", M_Menu_MultiPlayer_f);
 	Cmd_AddCommand ("menu_slist", M_Menu_Browser_f);
+	Cmd_AddCommand ("menu_quickplay", M_Menu_QuickPlay_f);
 	Cmd_AddCommand ("menu_demos", M_Menu_Demos_f);
 	Cmd_AddCommand ("menu_options", M_Menu_Options_f);
 	Cmd_AddCommand ("help", M_Menu_Help_f);
@@ -1325,7 +1375,8 @@ void M_Shutdown(void)
 
 void M_Draw(void)
 {
-	if (m_state == m_none || key_dest != key_menu || m_state == m_proxy) {
+	// the ImGui menus are drawn by M_ImGui_Frame() once the frame is complete
+	if (m_state == m_none || key_dest != key_menu || m_state == m_proxy || m_state == m_imgui) {
 		return;
 	}
 
@@ -1387,6 +1438,7 @@ void M_Draw(void)
 		case m_help:			M_Help_Draw(); break;
 		case m_quit:			M_Quit_Draw(); break;
 		case m_demos:			Menu_Demo_Draw(); break;
+		case m_imgui:			break;
 	}
 
 	if (scr_scaleMenu.value) {
@@ -1407,7 +1459,7 @@ qbool Menu_ExecuteKey (int key) {
 	}
 
 	// Capture all keypresses when binding
-	if (Menu_Options_IsBindingKey ()) {
+	if (Menu_Options_IsBindingKey () || MUI_Settings_IsBinding ()) {
 		return false;
 	}
 
@@ -1445,6 +1497,7 @@ void M_Keydown (int key, wchar unichar) {
 		case m_help:			Menu_Help_Key(key, unichar); return;
 		case m_quit:			M_Quit_Key(key); return;
 		case m_demos:			Menu_Demo_Key(key, unichar); break;
+		case m_imgui:			M_ImGui_Key(key); break;
 	}
 }
 
@@ -1474,6 +1527,7 @@ qbool Menu_Mouse_Event(const mouse_state_t* ms)
 	case m_demos:			return Menu_Demo_Mouse_Event(ms);
 	case m_ingame:			return Menu_Ingame_Mouse_Event(ms);
 	case m_help:			return Menu_Help_Mouse_Event(ms);
+	case m_imgui:			return M_ImGui_Mouse_Event(ms);
 	case m_none: default:	return false;
 	}
 }

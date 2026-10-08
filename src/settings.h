@@ -126,7 +126,7 @@ typedef struct {
 	int top;                   // distance of the setting from the top of the settings page
 } setting;
 
-typedef struct {
+typedef struct settings_page_s {
 	setting* settings;         // array of settings
 	int count;                 // amount of elements in set_tab
 	int marked;                // currently selected element in settings
