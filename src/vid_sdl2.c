@@ -400,7 +400,11 @@ static void GrabMouse(qbool grab, qbool raw)
 		IN_SnapMouseBackToCentre();
 	}
 
+#if SDL_VERSION_ATLEAST(2, 0, 16)
+	SDL_SetWindowMouseGrab(sdl_window, grab ? SDL_TRUE : SDL_FALSE);
+#else
 	SDL_SetWindowGrab(sdl_window, grab ? SDL_TRUE : SDL_FALSE);
+#endif
 	SDL_SetRelativeMouseMode((raw && grab) ? SDL_TRUE : SDL_FALSE);
 	SDL_GetRelativeMouseState(NULL, NULL);
 
@@ -442,14 +446,35 @@ void IN_StartupMouse(void)
 	}
 }
 
+static qbool IN_KeyboardGrabRequired(void)
+{
+	return vid_grab_keyboard.integer && CL_SessionIsActive() && ActiveApp && !Minimized &&
+		(mouse_active || M_ImGui_IsOpen());
+}
+
+static void IN_SetKeyboardGrab(qbool grab)
+{
+#if SDL_VERSION_ATLEAST(2, 0, 16)
+#ifdef _WIN32
+	/* The coordinator owns keyboard capture for Windows workers. */
+	if (CL_SessionIsWorker())
+		return;
+#endif
+	if (sdl_window)
+		SDL_SetWindowKeyboardGrab(sdl_window, grab ? SDL_TRUE : SDL_FALSE);
+#endif
+}
+
 void IN_ActivateMouse(void)
 {
 	GrabMouse(true, in_raw.integer);
+	IN_SetKeyboardGrab(IN_KeyboardGrabRequired());
 }
 
 void IN_DeactivateMouse(void)
 {
 	GrabMouse(false, in_raw.integer);
+	IN_SetKeyboardGrab(false);
 }
 
 static void IN_Frame(void)
@@ -470,7 +495,7 @@ static void IN_Frame(void)
 		memset(&settings, 0, sizeof(settings));
 		settings.grab = mouse_active;
 		settings.raw = in_raw.integer != 0;
-		settings.keyboard_grab = vid_grab_keyboard.integer != 0;
+		settings.keyboard_grab = IN_KeyboardGrabRequired();
 		settings.show_cursor = (!IN_IsFullscreen() || M_ImGui_IsOpen()) && !mouse_active;
 		settings.text_entry = key_dest == key_console || key_dest == key_message || M_ImGui_IsOpen();
 		settings.disable_win_keys = (int)Cvar_Value("sys_disableWinKeys");
@@ -482,7 +507,10 @@ static void IN_Frame(void)
 	}
 #endif
 	if (!CL_SessionIsActive() || !ActiveApp || Minimized || IN_OSMouseCursorRequired()) {
-		IN_DeactivateMouse();
+		/* Menus need an unconfined pointer, but must retain the configured
+		 * keyboard grab so window-manager shortcuts don't steal their keys. */
+		GrabMouse(false, in_raw.integer);
+		IN_SetKeyboardGrab(IN_KeyboardGrabRequired());
 		if (M_ImGui_IsOpen() && SDL_ShowCursor(SDL_QUERY) != SDL_ENABLE) {
 			SDL_ShowCursor(SDL_ENABLE);
 		}
@@ -1149,7 +1177,7 @@ void VID_SessionInputSettings(const session_input_settings_t *settings)
 		!(SDL_GetWindowFlags(sdl_window) & SDL_WINDOW_MINIMIZED);
 	effective = coordinator_input;
 	effective.grab = effective.grab && focused;
-	effective.keyboard_grab = effective.keyboard_grab && effective.grab;
+	effective.keyboard_grab = effective.keyboard_grab && focused;
 	effective.raw = effective.raw && effective.grab;
 	effective.show_cursor = effective.show_cursor || !focused;
 	if (!focused)
