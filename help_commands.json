@@ -373,6 +373,9 @@
   "clipboard": {
     "description": "Copies all the following arguments to the system clipboard"
   },
+  "close": {
+    "description": "Closes the current session without saving its config. Session 1 cannot be closed."
+  },
   "cmd": {
     "description": "Sends a command directly to the server."
   },
@@ -1356,7 +1359,7 @@
     "description": "Lists all viewers currently watching the QTV stream you are connected to. Prints a table of numeric user IDs and display names, one per line, with a total count at the end. Only works during an active QTV playback session; if you are connected to a server but not watching QTV, the request is forwarded to the server instead."
   },
   "quit": {
-    "description": "Exit - disconnects from the server and closes the client."
+    "description": "Exit - disconnects from the server and closes the client and all sessions."
   },
   "qwurl": {
     "description": "Connects to a server or QTV stream using a qw:// URL. Usage: `qwurl <qw://host[:port][/command]>`. The URL must start with qw://. The optional path component selects the action: omitted or \"join\" or \"connect\" joins as a player; \"spectate\" or \"observe\" joins as a spectator; \"qtv[/password]\" connects to a QTV proxy. A challenge response path (\"challenge?...\") is also handled internally. Semicolons in the URL are rejected to prevent command injection. Example: `qwurl qw://qw.server.se:27500/spectate`."
@@ -1631,6 +1634,15 @@
   },
   "serverinfo": {
     "description": "Reports the current server info."
+  },
+  "session": {
+    "description": "Select session 1 through 9, creating a fresh console if needed. Ctrl+1 through Ctrl+9 are shortcuts. Sessions retain independent connections and consoles in one application window."
+  },
+  "session_close": {
+    "description": "Closes a session: session_close [number]. Defaults to the current session."
+  },
+  "session_list": {
+    "description": "List allocated sessions with server address, map name, and player count. An asterisk marks the selected session."
   },
   "set": {
     "arguments": [
@@ -2113,7 +2125,7 @@
     "description": "Performs a soft video reload without a full renderer restart. Reloads the palette and colormap, re-runs video startup, and clears any pending reload flag. Lighter-weight than `vid_restart`, which tears down and fully reinitialises the renderer. Used for `CVAR_RELOAD_GFX`-flagged cvars (texture/GFX settings such as `gl_picmip`, `gl_lerpimages`) that take effect as textures are reloaded. Distinct from `CVAR_LATCH_GFX`-flagged cvars, which require a full `vid_restart` (window recreation)."
   },
   "vid_restart": {
-    "description": "Will restart your video renderer. Needed for some changes to take affect."
+    "description": "Will restart your video renderer for all sessions. Needed for some changes to take effect."
   },
   "viewalias": {
     "description": "Example:\nviewalias mystatus\n - prints mystatus alias."

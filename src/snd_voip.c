@@ -23,6 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <SDL.h>
 #include "quakedef.h"
+#include "cl_session.h"
 #include "qsound.h"
 
 #ifdef FTE_PEXT2_VOICECHAT
@@ -318,7 +319,7 @@ void S_Voip_Transmit (unsigned char clc, sizebuf_t *buf)
 	unsigned int samps;
 	float level, f;
 	float micamp = cl_voip_micamp.value;
-	qbool voipsendenable = (cl_voip_play.integer && (cls.fteprotocolextensions2 & FTE_PEXT2_VOICECHAT));
+	qbool voipsendenable = (CL_SessionIsActive() && cl_voip_play.integer && (cls.fteprotocolextensions2 & FTE_PEXT2_VOICECHAT));
 
 	if (!voipsendenable) {
 		S_Capture_Shutdown();

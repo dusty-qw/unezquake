@@ -45,6 +45,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "version.h"
 #include "qsound.h"
 #include "keys.h"
+#include "cl_session.h"
 #include "config_manager.h"
 #include "EX_qtvlist.h"
 #include "r_renderer.h"
@@ -473,6 +474,12 @@ void Host_ClearMemory (void)
 
 void Host_Frame (double time)
 {
+	if (CL_SessionIsCoordinator()) {
+		VID_CoordinatorFrame();
+		CL_SessionsFrame();
+		CL_SessionsWait();
+		return;
+	}
 	if (setjmp (host_abort))
 		return;			// something bad happened, or the server disconnected
 
@@ -699,6 +706,10 @@ void Host_Init (int argc, char **argv, int default_memsize)
 	Cbuf_Execute ();
 
 	Con_Init ();
+	/* The window owner needs config/console services, but no engine, game
+	 * sockets, assets, renderer, audio or startup command execution. */
+	if (CL_SessionsInitCoordinator())
+		return;
 	NET_InitClient ();
 	Netchan_Init ();
 
@@ -753,7 +764,7 @@ void Host_Init (int argc, char **argv, int default_memsize)
 	Com_Printf("\n");
 	Com_Printf("Type /help to access the manual.\nUse /describe for help on commands.\n\n", VersionString());
 
-	if ((vf = FS_OpenVFS("autoexec.cfg", "rb", FS_ANY))) {
+	if (CL_SessionNumber() == 1 && (vf = FS_OpenVFS("autoexec.cfg", "rb", FS_ANY))) {
 		Cbuf_AddText ("exec autoexec.cfg\n\n");
 		VFS_CLOSE(vf);
 	}
@@ -771,7 +782,7 @@ void Host_Init (int argc, char **argv, int default_memsize)
 		if (COM_CheckArgsForPlayableFiles(cmd, sizeof(cmd))) {
 			Cbuf_AddText(cmd);
 		}
-		else {
+		else if (CL_SessionNumber() == 1) {
 			Startup_Place();
 		}
 	}
@@ -782,6 +793,10 @@ void Host_Init (int argc, char **argv, int default_memsize)
 	Cbuf_Execute();
 
 	host_everything_loaded = true;
+	if (CL_SessionNumber() > 1) {
+		CL_Disconnect();
+		key_dest = key_console;
+	}
 #ifdef DEBUG_MEMORY_ALLOCATIONS
 	Sys_Printf("\nevent,init\n");
 #endif
@@ -798,6 +813,18 @@ void Host_Shutdown (void)
 		return;
 	}
 	isdown = true;
+	if (CL_SessionIsCoordinator()) {
+		CL_SessionsShutdown();
+		VID_Shutdown(false);
+		Con_Shutdown();
+		Cmd_Shutdown();
+		Key_Shutdown();
+		Cvar_Shutdown();
+		FS_Shutdown();
+		Q_free(com_args_original);
+		curl_global_cleanup();
+		return;
+	}
 
 	// on low-end systems quit process may last long time (was about 1 minute for me on old compo),
 	// at the same time may repeats repeats repeats some sounds, trying preventing this
@@ -823,18 +850,33 @@ void Host_Shutdown (void)
 	curl_global_cleanup();
 }
 
-void Host_Quit (void)
+static qbool host_quitting;
+
+void Host_Quit(void)
 {
+	if (host_quitting || CL_SessionRequestQuit(false))
+		return;
+	Host_QuitSession(true);
+}
+
+/* Local teardown only. The session coordinator decides who may save. */
+void Host_QuitSession(qbool save_config)
+{
+	if (host_quitting)
+		return;
+	host_quitting = true;
 #ifdef DEBUG_MEMORY_ALLOCATIONS
 	Sys_Printf("\nevent,quit\n");
 #endif
 
-	// execute user's trigger
-	TP_ExecTrigger ("f_exit");
-	Cbuf_Execute();
-	
-	// save config (conditional)
-	Config_QuitSave();
+	if (!CL_SessionIsCoordinator()) {
+		// execute user's trigger
+		TP_ExecTrigger ("f_exit");
+		Cbuf_Execute();
+		// save config (conditional)
+		if (save_config)
+			Config_QuitSave();
+	}
 
 	// turn off
 	Host_Shutdown ();

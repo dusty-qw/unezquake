@@ -715,6 +715,9 @@ set(client
         ${SOURCE_DIR}/cl_input.c
         ${SOURCE_DIR}/cl_mouseaccel.c
         ${SOURCE_DIR}/cl_main.c
+        ${SOURCE_DIR}/cl_session.c
+        ${SOURCE_DIR}/cl_session.h
+        ${SOURCE_DIR}/cl_session_win.h
         ${SOURCE_DIR}/cl_multiview.c
         ${SOURCE_DIR}/cl_nqdemo.c
         ${SOURCE_DIR}/cl_parse.c
@@ -822,7 +825,7 @@ list(APPEND client
         ${SOURCE_DIR}/menu_scene.h
 )
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
-    list(APPEND client ${SOURCE_DIR}/movie_avi.c)
+    list(APPEND client ${SOURCE_DIR}/movie_avi.c ${SOURCE_DIR}/cl_session_win.c)
 endif()
 source_group(TREE ${SOURCE_DIR} PREFIX "Source Files/client" FILES ${client})
 source_group(TREE ${SOURCE_DIR} PREFIX "Header Files/client" FILES ${client_headers})
@@ -997,6 +1000,12 @@ target_link_libraries(unezquake PRIVATE
         ${FRAMEWORK_CORESERVICES}
         ${FRAMEWORK_GAMECONTROLLER}
 )
+
+if(MINGW)
+    target_link_options(unezquake PRIVATE -static)
+    # Keep dependency search-mode changes from selecting runtime import libraries.
+    set_target_properties(unezquake PROPERTIES LINK_SEARCH_END_STATIC TRUE)
+endif()
 
 if(MATH)
     target_link_libraries(unezquake PRIVATE ${MATH})

@@ -21,6 +21,7 @@ $Id: cl_parse.c,v 1.135 2007-10-28 19:56:44 qqshka Exp $
 
 #include "common.h"
 #include "quakedef.h"
+#include "cl_session.h"
 #include "ezcsqc.h"
 #include "gl_model.h"
 #include "cdaudio.h"
@@ -532,7 +533,7 @@ qbool CL_CheckOrDownloadFile(char *filename)
 	cls.downloadstarttime = Sys_DoubleTime();
 
 	COM_StripExtension (cls.downloadname, cls.downloadtempname, sizeof(cls.downloadtempname));
-	strlcat (cls.downloadtempname, ".tmp", sizeof(cls.downloadtempname));
+	strlcat(cls.downloadtempname, CL_SessionIsWorker() ? va(".session%d.tmp", CL_SessionNumber()) : ".tmp", sizeof(cls.downloadtempname));
 
 	if (cls.mvdplayback == QTV_PLAYBACK) 
 	{

@@ -22,6 +22,7 @@ $Id: cl_screen.c,v 1.156 2007-10-29 00:56:47 qqshka Exp $
 /// declarations may be found in screen.h
 
 #include "quakedef.h"
+#include "cl_session.h"
 #include <time.h>
 #include "vx_tracker.h"
 #include "gl_model.h"
@@ -850,7 +851,7 @@ qbool SCR_UpdateScreenPrePlayerView (void)
 	extern qbool Minimized;
 	static int oldfovmode = 0;
 
-	if (!scr_initialized) {
+	if (!scr_initialized || !CL_SessionIsActive()) {
 		return false;
 	}
 

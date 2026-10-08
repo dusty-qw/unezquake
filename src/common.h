@@ -437,6 +437,7 @@ void Host_Abort (void);	 // longjmp() to Host_Frame
 void Host_EndGame (void); // kill local client and server
 void Host_Error (char *error, ...);
 void Host_Quit (void);
+void Host_QuitSession(qbool save_config);
 
 void CL_Init (void);
 void CL_Shutdown (void);

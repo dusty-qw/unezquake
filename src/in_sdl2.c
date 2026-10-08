@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "common.h"
 #include "cvar.h"
 #include "quakedef.h"
+#include "cl_session.h"
 #include "input.h"
 #include "keys.h"
 #include "movie.h"
@@ -738,6 +739,8 @@ IN_DeactivateJoystick (void)
 
 void IN_Move (usercmd_t *cmd)
 {
+	if (!CL_SessionIsActive())
+		return;
 	IN_MouseMove (cmd);
 	IN_JoyMove (cmd);
 }
