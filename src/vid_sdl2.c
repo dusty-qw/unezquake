@@ -471,8 +471,8 @@ static void IN_Frame(void)
 		settings.grab = mouse_active;
 		settings.raw = in_raw.integer != 0;
 		settings.keyboard_grab = vid_grab_keyboard.integer != 0;
-		settings.show_cursor = !IN_IsFullscreen() && !mouse_active;
-		settings.text_entry = key_dest == key_console || key_dest == key_message;
+		settings.show_cursor = (!IN_IsFullscreen() || M_ImGui_IsOpen()) && !mouse_active;
+		settings.text_entry = key_dest == key_console || key_dest == key_message || M_ImGui_IsOpen();
 		settings.disable_win_keys = (int)Cvar_Value("sys_disableWinKeys");
 		CL_SessionInputSettings(&settings);
 		mx = mouse_active ? session_mouse_x : 0;
@@ -684,6 +684,8 @@ static void window_event(SDL_WindowEvent *event)
 		event->event == SDL_WINDOWEVENT_MINIMIZED))
 		return;
 #endif
+
+	MenuUI_ProcessEvent(&(SDL_Event) { .window = *event });
 
 	switch (event->event) {
 		case SDL_WINDOWEVENT_MINIMIZED:
@@ -1016,6 +1018,10 @@ static void mouse_wheel_event(SDL_MouseWheelEvent *event)
 static void HandleInputEvent(SDL_Event event)
 {
 	qbool track_movement_through_state = mouse_active && !SDL_GetRelativeMouseMode();
+	/* Both native SDL input and forwarded session input must reach the menu
+	 * before the game. The menu lets releases through to clear held keys. */
+	if (MenuUI_ProcessEvent(&event))
+		return;
 #ifdef _WIN32
 	if (CL_SessionIsWorker())
 		track_movement_through_state = false;
@@ -1080,6 +1086,19 @@ static void HandleInputEvent(SDL_Event event)
 void VID_SessionInputState(qbool focused, qbool minimized, qbool reset)
 {
 	qbool gained = !ActiveApp && focused && !minimized;
+	if (sdl_window && (reset || ActiveApp != (focused && !minimized))) {
+		SDL_Event event;
+		memset(&event, 0, sizeof(event));
+		event.type = SDL_WINDOWEVENT;
+		event.window.windowID = SDL_GetWindowID(sdl_window);
+		/* Reset ImGui's held buttons and keys along with the engine's input. */
+		event.window.event = SDL_WINDOWEVENT_FOCUS_LOST;
+		MenuUI_ProcessEvent(&event);
+		if (focused && !minimized) {
+			event.window.event = SDL_WINDOWEVENT_FOCUS_GAINED;
+			MenuUI_ProcessEvent(&event);
+		}
+	}
 	if (reset || (ActiveApp && (!focused || minimized))) {
 		Key_ClearStates();
 		CL_ClearSessionInput();
@@ -1096,8 +1115,22 @@ void VID_SessionInputState(qbool focused, qbool minimized, qbool reset)
 
 void VID_SessionInputEvent(const SDL_Event *event)
 {
-	if (CL_SessionIsActive() && ActiveApp && !Minimized)
-		HandleInputEvent(*event);
+	SDL_Event local_event = *event;
+	Uint32 window_id;
+	if (!CL_SessionIsActive() || !ActiveApp || Minimized || !sdl_window)
+		return;
+
+	/* SDL window IDs belong to a process. ImGui must see the worker's render
+	 * window ID, not the coordinator's shared-window ID. */
+	window_id = SDL_GetWindowID(sdl_window);
+	switch (local_event.type) {
+	case SDL_KEYDOWN: case SDL_KEYUP: local_event.key.windowID = window_id; break;
+	case SDL_TEXTINPUT: local_event.text.windowID = window_id; break;
+	case SDL_MOUSEMOTION: local_event.motion.windowID = window_id; break;
+	case SDL_MOUSEBUTTONDOWN: case SDL_MOUSEBUTTONUP: local_event.button.windowID = window_id; break;
+	case SDL_MOUSEWHEEL: local_event.wheel.windowID = window_id; break;
+	}
+	HandleInputEvent(local_event);
 }
 
 void VID_SessionInputSettings(const session_input_settings_t *settings)
@@ -1212,7 +1245,7 @@ static void HandleEvents(void)
 		case SDL_WINDOWEVENT:
 			window_event(&event.window);
 			break;
-		case SDL_KEYDOWN: case SDL_KEYUP: case SDL_TEXTINPUT:
+		case SDL_KEYDOWN: case SDL_KEYUP: case SDL_TEXTINPUT: case SDL_TEXTEDITING:
 		case SDL_MOUSEMOTION: case SDL_MOUSEBUTTONDOWN: case SDL_MOUSEBUTTONUP: case SDL_MOUSEWHEEL:
 			HandleInputEvent(event);
 			break;

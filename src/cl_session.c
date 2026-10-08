@@ -124,6 +124,7 @@ qbool CL_SessionInfo(int slot, cl_session_info_t *info)
 #include <sys/prctl.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <X11/extensions/XInput2.h>
 extern char **environ;
 #ifdef __GLIBC_PREREQ
 #if __GLIBC_PREREQ(2, 34)
@@ -188,6 +189,14 @@ static Status (*session_XGetWindowAttributes)(Display *, Window, XWindowAttribut
 static long session_events;
 static int (*session_XSync)(Display *, Bool);
 static int (*session_XPutBackEvent)(Display *, XEvent *);
+static void *xilib;
+static int (*session_XISelectEvents)(Display *, Window, XIEventMask *, int);
+static XIEventMask *(*session_XIGetSelectedEvents)(Display *, Window, int *);
+static int (*session_XFree)(void *);
+static qbool session_xi_available, session_xi2_pointer;
+#define SESSION_XI2_ENV "EZQUAKE_SESSION_XI2"
+enum { SESSION_XI2_DETACH, SESSION_XI2_IDLE, SESSION_XI2_ACTIVE };
+static void Session_XISelectPointer(int level);
 #else
 static char pending_caption[SESSION_NOTICE_LENGTH];
 static qbool caption_pending;
@@ -571,6 +580,7 @@ static void Session_ReleaseInput(void)
 #else
 	if (display && session_window) {
 		session_XSelectInput(display, parent_window, session_events & ~ButtonPressMask);
+		Session_XISelectPointer(SESSION_XI2_IDLE);
 		session_XSync(display, False);
 	}
 #endif
@@ -585,9 +595,11 @@ void CL_SessionsDetachWindow(void)
 		 * hides the native window and waits synchronously for UnmapNotify, which
 		 * requires StructureNotifyMask. Clearing that mask strands it forever. */
 		session_XSelectInput(display, parent_window, 0);
+		Session_XISelectPointer(SESSION_XI2_DETACH);
 		session_XSync(display, False);
 	}
 	display = NULL;
+	session_xi_available = false;
 #endif
 	session_window = NULL;
 }
@@ -646,6 +658,127 @@ SDL_Window *CL_SessionCreateWindow(void)
 #endif
 }
 
+#ifndef _WIN32
+static qbool Session_LoadXI(void)
+{
+	/* Xlib retains extension callbacks, so keep libXi loaded like libX11. */
+	if (!xilib)
+		xilib = SDL_LoadObject("libXi.so.6");
+	if (!xilib) {
+		Session_Printf("Sessions: cannot inspect XInput2 subscriptions: %s\n", SDL_GetError());
+		return false;
+	}
+	session_XISelectEvents = SDL_LoadFunction(xilib, "XISelectEvents");
+	session_XIGetSelectedEvents = SDL_LoadFunction(xilib, "XIGetSelectedEvents");
+	session_XFree = SDL_LoadFunction(xlib, "XFree");
+	if (!session_XISelectEvents || !session_XIGetSelectedEvents || !session_XFree) {
+		Session_Printf("Sessions: missing XInput2 subscription functions.\n");
+		return false;
+	}
+	return true;
+}
+
+static qbool Session_XIMaskHas(const XIEventMask *mask, int event)
+{
+	return mask->mask_len > event / 8 && XIMaskIsSet(mask->mask, event);
+}
+
+static XIEventMask *Session_XIGetMasks(int *count)
+{
+	XIEventMask *masks = session_XIGetSelectedEvents(display, parent_window, count);
+	if (*count < 0)
+		Session_Printf("Sessions: cannot read XInput2 subscriptions.\n");
+	return masks;
+}
+
+static void Session_XISelectMask(const XIEventMask *original, int level)
+{
+	XIEventMask mask = *original;
+	mask.mask_len = max(original->mask_len, XIMaskLen(XI_LASTEVENT));
+	mask.mask = Q_malloc(mask.mask_len);
+	memset(mask.mask, 0, mask.mask_len);
+	if (original->mask_len)
+		memcpy(mask.mask, original->mask, original->mask_len);
+
+	if (level == SESSION_XI2_DETACH) {
+		/* This foreign wrapper is about to be destroyed. */
+		mask.mask_len = 0;
+	}
+	else if (!session_xi2_pointer) {
+		/* Native SDL2 selects XI_Motion on the owner's window, but not on
+		 * foreign wrappers. Stop it suppressing workers' core MotionNotify. */
+		XIClearMask(mask.mask, XI_Motion);
+	}
+	else {
+		if (session_worker && mask.deviceid == XIAllDevices) {
+			/* SDL3/sdl2-compat uses XI2 for pointer input. Ensure workers have
+			 * its pointer selection even if foreign-window setup omitted it.
+			 * Retain any keyboard, touch, or other bits SDL already selected. */
+			XISetMask(mask.mask, XI_Motion);
+			XISetMask(mask.mask, XI_ButtonRelease);
+			XISetMask(mask.mask, XI_Enter);
+			XISetMask(mask.mask, XI_Leave);
+			XISetMask(mask.mask, XI_DeviceChanged);
+			XISetMask(mask.mask, XI_HierarchyChanged);
+			XISetMask(mask.mask, XI_PropertyEvent);
+			if (level == SESSION_XI2_ACTIVE)
+				XISetMask(mask.mask, XI_ButtonPress);
+		}
+		if (level != SESSION_XI2_ACTIVE)
+			XIClearMask(mask.mask, XI_ButtonPress);
+	}
+	if (session_XISelectEvents(display, parent_window, &mask, 1) != Success)
+		Session_Printf("Sessions: cannot update XInput2 subscriptions (device %d).\n", mask.deviceid);
+	Q_free(mask.mask);
+}
+
+static void Session_XISelectPointer(int level)
+{
+	XIEventMask *masks;
+	qbool all_devices = false;
+	int i, count = 0;
+	if (!session_xi_available || !display ||
+		(session_worker && !session_xi2_pointer && level != SESSION_XI2_DETACH))
+		return;
+	masks = Session_XIGetMasks(&count);
+	for (i = 0; masks && i < count; ++i) {
+		all_devices |= masks[i].deviceid == XIAllDevices;
+		Session_XISelectMask(&masks[i], level);
+	}
+	if (count >= 0 && session_worker && session_xi2_pointer && !all_devices && level != SESSION_XI2_DETACH) {
+		XIEventMask mask = { XIAllDevices, 0, NULL };
+		Session_XISelectMask(&mask, level);
+	}
+	if (masks)
+		session_XFree(masks);
+}
+
+static void Session_AttachXI(void)
+{
+	XIEventMask *masks;
+	const char *inherited = session_worker ? getenv(SESSION_XI2_ENV) : NULL;
+	int i, count = 0;
+	session_xi2_pointer = inherited && !strcmp(inherited, "1");
+	session_xi_available = Session_LoadXI();
+	if (!session_xi_available)
+		return;
+	masks = Session_XIGetMasks(&count);
+	/* Detect the actual SDL backend, not the headers used to build us:
+	 * SDL2 selects motion/touch on XIAllMasterDevices; SDL3 also selects
+	 * buttons on XIAllDevices. Motion alone doesn't imply XI2 buttons. */
+	for (i = 0; masks && i < count; ++i)
+		if (Session_XIMaskHas(&masks[i], XI_Motion) && Session_XIMaskHas(&masks[i], XI_ButtonPress))
+			session_xi2_pointer = true;
+	if (masks)
+		session_XFree(masks);
+	if (count < 0) {
+		session_xi_available = false;
+		return;
+	}
+	Session_XISelectPointer(SESSION_XI2_IDLE);
+}
+#endif
+
 void CL_SessionsAttachWindow(SDL_Window *window)
 {
 #ifdef _WIN32
@@ -695,6 +828,8 @@ void CL_SessionsAttachWindow(SDL_Window *window)
 		if (session_coordinator)
 			session_XSelectInput(display, parent_window, session_events & ~ButtonPressMask);
 	}
+	if (session_coordinator || session_worker)
+		Session_AttachXI();
 	session_XSync(display, False);
 #endif
 }
@@ -778,12 +913,15 @@ static qbool Session_Start(int slot)
 	}
 #endif
 	for (env_count = 0; environ[env_count]; ++env_count) { }
-	child_env = Q_malloc((env_count + 2) * sizeof(*child_env));
+	child_env = Q_malloc((env_count + 3) * sizeof(*child_env));
 	for (result = 0, env_count = 0; environ[result]; ++result)
-		if (strncmp(environ[result], "SDL_VIDEODRIVER=", 16))
+		if (strncmp(environ[result], "SDL_VIDEODRIVER=", 16) &&
+			strncmp(environ[result], SESSION_XI2_ENV "=", sizeof(SESSION_XI2_ENV)))
 			child_env[env_count++] = environ[result];
-	child_env[env_count] = "SDL_VIDEODRIVER=x11";
-	child_env[env_count + 1] = NULL;
+	child_env[env_count++] = "SDL_VIDEODRIVER=x11";
+	if (session_xi2_pointer)
+		child_env[env_count++] = SESSION_XI2_ENV "=1";
+	child_env[env_count] = NULL;
 	result = posix_spawn(&worker->pid, "/proc/self/exe", &actions, NULL, argv, child_env);
 	Q_free(argv);
 	Q_free(child_env);
@@ -1180,6 +1318,7 @@ void CL_SessionsFrame(void)
 				VID_SessionActivate();
 #ifndef _WIN32
 				session_XSelectInput(display, parent_window, session_events);
+				Session_XISelectPointer(SESSION_XI2_ACTIVE);
 				session_XSync(display, False);
 #endif
 				selected_slot = local_slot;
