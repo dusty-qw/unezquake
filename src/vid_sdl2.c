@@ -340,8 +340,13 @@ qbool IN_QuakeMouseCursorRequired(void)
 	return mouse_active && IN_MouseTrackingRequired() && !IN_OSMouseCursorRequired();
 }
 
+static int session_cursor_x, session_cursor_y;
+static qbool session_cursor_valid, session_cursor_pending;
+
 #ifdef _WIN32
 static int session_mouse_x, session_mouse_y;
+static unsigned int session_cursor_sequence, coordinator_cursor_sequence;
+static int session_cursor_restore_x, session_cursor_restore_y;
 static session_input_settings_t coordinator_input, coordinator_applied_input;
 static qbool coordinator_input_applied;
 #endif
@@ -477,12 +482,38 @@ void IN_DeactivateMouse(void)
 	IN_SetKeyboardGrab(false);
 }
 
+static void IN_RestoreSessionCursor(void)
+{
+	int width, height;
+	if (!session_cursor_pending || !CL_SessionIsActive() || !ActiveApp || Minimized || mouse_active ||
+		!IN_OSMouseCursorRequired())
+		return;
+	SDL_GetWindowSize(sdl_window, &width, &height);
+	if (width <= 0 || height <= 0)
+		return;
+	session_cursor_x = bound(0, session_cursor_x, width - 1);
+	session_cursor_y = bound(0, session_cursor_y, height - 1);
+#ifdef _WIN32
+	/* Windows workers render offscreen; the owner must move the real cursor
+	 * after applying this session's mouse capture/visibility settings. */
+	session_cursor_restore_x = session_cursor_x;
+	session_cursor_restore_y = session_cursor_y;
+	if (++session_cursor_sequence == 0)
+		++session_cursor_sequence;
+#else
+	SDL_WarpMouseInWindow(sdl_window, session_cursor_x, session_cursor_y);
+#endif
+	session_cursor_pending = false;
+}
+
 static void IN_Frame(void)
 {
 	if (!sdl_window) {
 		return;
 	}
 
+	/* Restore before draining motion events from the newly selected session. */
+	IN_RestoreSessionCursor();
 	HandleEvents();
 
 #ifdef _WIN32
@@ -499,6 +530,9 @@ static void IN_Frame(void)
 		settings.show_cursor = (!IN_IsFullscreen() || M_ImGui_IsOpen()) && !mouse_active;
 		settings.text_entry = key_dest == key_console || key_dest == key_message || M_ImGui_IsOpen();
 		settings.disable_win_keys = (int)Cvar_Value("sys_disableWinKeys");
+		settings.cursor_sequence = session_cursor_sequence;
+		settings.cursor_x = session_cursor_restore_x;
+		settings.cursor_y = session_cursor_restore_y;
 		CL_SessionInputSettings(&settings);
 		mx = mouse_active ? session_mouse_x : 0;
 		my = mouse_active ? session_mouse_y : 0;
@@ -511,8 +545,14 @@ static void IN_Frame(void)
 		 * keyboard grab so window-manager shortcuts don't steal their keys. */
 		GrabMouse(false, in_raw.integer);
 		IN_SetKeyboardGrab(IN_KeyboardGrabRequired());
-		if (M_ImGui_IsOpen() && SDL_ShowCursor(SDL_QUERY) != SDL_ENABLE) {
+		if (CL_SessionIsActive() && M_ImGui_IsOpen()) {
 			SDL_ShowCursor(SDL_ENABLE);
+			/* SDL/ImGui cache cursor state per process, but X11 stores the
+			 * cursor on our shared window. Another session can replace it
+			 * without invalidating this worker's cache. NULL reapplies the
+			 * current cursor even when SDL already considers it visible. */
+			if (CL_SessionIsWorker())
+				SDL_SetCursor(NULL);
 		}
 		return;
 	}
@@ -1046,6 +1086,20 @@ static void mouse_wheel_event(SDL_MouseWheelEvent *event)
 static void HandleInputEvent(SDL_Event event)
 {
 	qbool track_movement_through_state = mouse_active && !SDL_GetRelativeMouseMode();
+	/* Record absolute window coordinates before the menu consumes motion.
+	 * Never replace a saved position with relative mouse-look input or with
+	 * the cursor inherited from another session while a restore is pending. */
+	if ((event.type == SDL_MOUSEMOTION || event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP) &&
+		CL_SessionIsWorker() && CL_SessionIsActive() &&
+		ActiveApp && !Minimized && !mouse_active && IN_OSMouseCursorRequired() &&
+		!session_cursor_pending) {
+		Uint32 which = event.type == SDL_MOUSEMOTION ? event.motion.which : event.button.which;
+		if (which != SDL_TOUCH_MOUSEID || !in_ignore_touch_events.integer) {
+			session_cursor_x = event.type == SDL_MOUSEMOTION ? event.motion.x : event.button.x;
+			session_cursor_y = event.type == SDL_MOUSEMOTION ? event.motion.y : event.button.y;
+			session_cursor_valid = true;
+		}
+	}
 	/* Both native SDL input and forwarded session input must reach the menu
 	 * before the game. The menu lets releases through to clear held keys. */
 	if (MenuUI_ProcessEvent(&event))
@@ -1170,6 +1224,7 @@ void VID_SessionInputSettings(const session_input_settings_t *settings)
 	else {
 		memset(&coordinator_input, 0, sizeof(coordinator_input));
 		coordinator_input.show_cursor = true;
+		coordinator_cursor_sequence = 0;
 	}
 	if (!sdl_window)
 		return;
@@ -1201,6 +1256,16 @@ void VID_SessionInputSettings(const session_input_settings_t *settings)
 	}
 	SDL_ShowCursor(effective.show_cursor ? SDL_ENABLE : SDL_DISABLE);
 	SDL_SetCursor(NULL);
+	if (focused && effective.show_cursor && !effective.grab && effective.cursor_sequence &&
+		effective.cursor_sequence != coordinator_cursor_sequence) {
+		int width, height;
+		SDL_GetWindowSize(sdl_window, &width, &height);
+		if (width > 0 && height > 0) {
+			SDL_WarpMouseInWindow(sdl_window, bound(0, effective.cursor_x, width - 1),
+				bound(0, effective.cursor_y, height - 1));
+			coordinator_cursor_sequence = effective.cursor_sequence;
+		}
+	}
 #ifndef WITHOUT_WINKEYHOOK
 	Sys_SessionInputPolicy(effective.disable_win_keys, CL_SessionWindowIsFullscreen(), effective.text_entry);
 #endif
@@ -2005,6 +2070,14 @@ static void VID_SwapBuffers (void)
 
 void VID_SessionRelease(void)
 {
+#ifndef _WIN32
+	/* Capture even a stationary cursor; Windows uses forwarded motion above. */
+	if (CL_SessionIsActive() && ActiveApp && !Minimized && !mouse_active &&
+		!session_cursor_pending && IN_OSMouseCursorRequired()) {
+		SDL_GetMouseState(&session_cursor_x, &session_cursor_y);
+		session_cursor_valid = true;
+	}
+#endif
 	/* Finish the old context's writes before another process uses the drawable. */
 	glFinish();
 }
@@ -2014,10 +2087,12 @@ void VID_SessionActivate(void)
 	int flags;
 	/* Discard queued input from the previous owner while we are still inactive. */
 	HandleEvents();
+	session_cursor_pending = session_cursor_valid;
 	flags = SDL_GetWindowFlags(sdl_window);
 #ifdef _WIN32
 	ActiveApp = CL_SessionIsWorker() ? CL_SessionWindowIsFocused() : (flags & SDL_WINDOW_INPUT_FOCUS) != 0;
 	session_mouse_x = session_mouse_y = 0;
+	session_cursor_sequence = 0;
 #else
 	ActiveApp = (flags & SDL_WINDOW_INPUT_FOCUS) != 0;
 #endif

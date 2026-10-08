@@ -77,6 +77,9 @@ union SDL_Event;
 typedef struct {
 	qbool grab, raw, keyboard_grab, show_cursor, text_entry;
 	int disable_win_keys;
+	/* A new nonzero sequence requests one cursor restore from the owner. */
+	unsigned int cursor_sequence;
+	int cursor_x, cursor_y;
 } session_input_settings_t;
 qbool CL_SessionWindowIsFocused(void);
 qbool CL_SessionsForwardInput(const union SDL_Event *event);
