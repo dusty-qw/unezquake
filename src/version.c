@@ -134,7 +134,7 @@ char *VersionStringColour(void)
 {
 	static char str[64];
 
-	snprintf (str, sizeof(str), "&caf1%s&r %s", VERSION_NUMBER, VERSION);
+	snprintf (str, sizeof(str), "&c6ff%s&r %s", VERSION_NUMBER, VERSION);
 
 	return str;
 }
