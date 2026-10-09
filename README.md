@@ -16,9 +16,22 @@ create or select the corresponding session. You can also use console commands
 or bind your own keys, for example `bind F2 "session 2"`.
 
  * `session <1-9>` - Select a session, creating it if needed
- * `session_list` - List sessions with server address, map name, and player count; `*` marks the selected session
+ * `session_list` - List the current sessions
  * `close` - Close the current session
- * `session_close [number]` - Close a specific session, or the current one if no number is given
+ * `session_close [1-9]` - Close a specific session, or the current one if no number is given
+
+### Menu Overhaul
+
+A redesigned menu brings Quick Play, server browsing, demos, and searchable
+settings into a modern interface. Quick Play lists active servers with the
+lowest ping first, while the server browser lets you search by server, map, or
+player. The main menu features an animated map background, and the in-game menu
+includes quick access to Resume, Disconnect, and Join/Observe controls.
+
+ * `menu_scale` - Adjust menu size on top of automatic window scaling (0.5 to 3)
+ * `menu_background` - Enable or disable the main menu's map background
+ * `menu_background_map` - Space-separated list of background maps to be picked at random
+ * `menu_classic` - Set to `1` to use the classic menus, or `0` for the new menus (default)
 
 ### EZCSQC Antilag Support
 unezQuake supports **NEW** EZCSQC antilag and extended prediction functionality, including enhanced weapon prediction, audio prediction, smoothing, and high-confidence explosion prediction. The default values are highly recommended.
