@@ -793,6 +793,101 @@ void BrowserHeader(const char *title, const char *subtitle)
 // quick play
 //=============================================================================
 
+// colour chip (shirt over pants) like in the player table
+void DrawPlayerChip(ImDrawList *dl, const mui_player_t &p, ImVec2 pos, float w, float h)
+{
+	unsigned int top = MUI_PaletteColor(p.top_color), bottom = MUI_PaletteColor(p.bottom_color);
+	dl->AddRectFilled(pos, ImVec2(pos.x + w, pos.y + h * 0.5f), IM_COL32((top >> 16) & 255, (top >> 8) & 255, top & 255, 255), S(2), ImDrawFlags_RoundCornersTop);
+	dl->AddRectFilled(ImVec2(pos.x, pos.y + h * 0.5f), ImVec2(pos.x + w, pos.y + h), IM_COL32((bottom >> 16) & 255, (bottom >> 8) & 255, bottom & 255, 255), S(2), ImDrawFlags_RoundCornersBottom);
+}
+
+// Names of the players in game, on a dark panel over the middle of the preview. Two teams get a
+// column each, otherwise the names flow into a second column when one isn't enough. Whatever
+// doesn't fit ends in a "+N more" line.
+void DrawCardPlayers(ImDrawList *dl, const std::vector<const mui_player_t *> &players, ImVec2 min, ImVec2 max)
+{
+	float fs = S(FONT_SMALL);
+	float line_h = fs * 1.25f;
+	ImVec2 pad(S(8), S(5));
+	int rows = (int)((max.y - min.y - pad.y * 2) / line_h);
+
+	if (players.empty() || rows < 1) {
+		return;
+	}
+
+	// split by team when there are exactly two
+	std::vector<std::vector<const mui_player_t *>> columns;
+	for (const mui_player_t *p : players) {
+		if (!p->team[0]) {
+			columns.clear();
+			break;
+		}
+		size_t i;
+		for (i = 0; i < columns.size() && strcmp(columns[i][0]->team, p->team); i++)
+			;
+		if (i == columns.size()) {
+			columns.emplace_back();
+		}
+		columns[i].push_back(p);
+	}
+	if (columns.size() != 2) {
+		columns.clear();
+		int ncols = (int)players.size() > rows ? 2 : 1;
+		int per_col = ncols == 1 ? rows : std::max(rows, (int)(players.size() + 1) / 2);
+		for (size_t i = 0; i < players.size(); i++) {
+			if (i % per_col == 0) {
+				columns.emplace_back();
+			}
+			columns.back().push_back(players[i]);
+		}
+		// a third column means it overflowed, fold the rest into "+N more" below
+		while (columns.size() > 2) {
+			columns[1].insert(columns[1].end(), columns.back().begin(), columns.back().end());
+			columns.pop_back();
+		}
+	}
+
+	int used_rows = 0;
+	for (const auto &col : columns) {
+		used_rows = std::max(used_rows, std::min((int)col.size(), rows));
+	}
+
+	float chip_w = S(8), gap = S(6), col_gap = S(14);
+	float max_col_w = (max.x - min.x - pad.x * 2 - col_gap * (columns.size() - 1)) / columns.size();
+	float col_w = 0;
+	for (const auto &col : columns) {
+		for (const mui_player_t *p : col) {
+			col_w = std::max(col_w, chip_w + gap + backend.font->CalcTextSizeA(fs, FLT_MAX, 0, p->name).x);
+		}
+	}
+	col_w = std::min(col_w, max_col_w);
+
+	float panel_w = col_w * columns.size() + col_gap * (columns.size() - 1) + pad.x * 2;
+	float panel_h = used_rows * line_h + pad.y * 2;
+	ImVec2 panel_min(min.x + (max.x - min.x - panel_w) * 0.5f, min.y + (max.y - min.y - panel_h) * 0.5f);
+	dl->AddRectFilled(panel_min, ImVec2(panel_min.x + panel_w, panel_min.y + panel_h), IM_COL32(0, 0, 0, 165), S(6));
+
+	for (size_t c = 0; c < columns.size(); c++) {
+		const auto &col = columns[c];
+		float x = panel_min.x + pad.x + c * (col_w + col_gap);
+		float y = panel_min.y + pad.y;
+		int shown = (int)col.size() > rows ? rows - 1 : (int)col.size();
+
+		for (int i = 0; i < shown; i++) {
+			const mui_player_t *p = col[i];
+			DrawPlayerChip(dl, *p, ImVec2(x, y + line_h * 0.15f), chip_w, line_h * 0.7f);
+			ImVec4 clip(x, y, x + col_w, y + line_h);
+			dl->AddText(backend.font, fs, ImVec2(x + chip_w + gap, y + (line_h - fs) * 0.5f), Col(COLOR_TEXT), p->name, nullptr, 0, &clip);
+			y += line_h;
+		}
+		if (shown < (int)col.size()) {
+			char more[32];
+			snprintf(more, sizeof(more), "+%d more", (int)col.size() - shown);
+			dl->AddText(backend.font, fs, ImVec2(x + chip_w + gap, y + (line_h - fs) * 0.5f), Col(COLOR_TEXT_DIM), more);
+		}
+	}
+}
+
 void QuickPlayCard(const mui_server_t &s, float width, float height)
 {
 	ImDrawList *dl = ImGui::GetWindowDrawList();
@@ -810,8 +905,20 @@ void QuickPlayCard(const mui_server_t &s, float width, float height)
 	// buttons must stay up until the click completes
 	bool hovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem) && ImGui::IsMouseHoveringRect(pos, max);
 
+	// players in game, best first
+	std::vector<const mui_player_t *> players;
+	for (int i = 0; i < s.player_count; i++) {
+		if (!s.player[i].spectator) {
+			players.push_back(&s.player[i]);
+		}
+	}
+	std::stable_sort(players.begin(), players.end(), [](const mui_player_t *a, const mui_player_t *b) {
+		return a->frags > b->frags;
+	});
+
 	dl->AddRectFilled(pos, max, hovered ? IM_COL32(255, 255, 255, 20) : IM_COL32(255, 255, 255, 10), rounding);
-	DrawMapPreview(dl, s.map, pos, ImVec2(max.x, pos.y + preview_h), rounding, ImDrawFlags_RoundCornersTop, true);
+	// the placeholder's big map name would sit under the player names, the card shows the map name anyway
+	DrawMapPreview(dl, s.map, pos, ImVec2(max.x, pos.y + preview_h), rounding, ImDrawFlags_RoundCornersTop, players.empty());
 	dl->AddRectFilledMultiColor(ImVec2(pos.x, pos.y + preview_h * 0.55f), ImVec2(max.x, pos.y + preview_h),
 		IM_COL32(0, 0, 0, 0), IM_COL32(0, 0, 0, 0), IM_COL32(0, 0, 0, 190), IM_COL32(0, 0, 0, 190));
 	if (hovered) {
@@ -833,10 +940,12 @@ void QuickPlayCard(const mui_server_t &s, float width, float height)
 		DrawBadge(dl, ImVec2(max.x - pw - S(10), pos.y + S(10)), ping, IM_COL32(0, 0, 0, 170), Col(PingColor(s.ping)));
 	}
 
-	// map name over the bottom of the preview
+	// map name over the bottom of the preview, player names between it and the badges
 	{
 		std::string map = ToUpper(s.map);
 		float fs = S(FONT_LARGE * 1.1f);
+		float badges_bottom = pos.y + S(10) + S(FONT_SMALL) + S(3) * 2;
+		DrawCardPlayers(dl, players, ImVec2(pos.x + S(10), badges_bottom + S(6)), ImVec2(max.x - S(10), pos.y + preview_h - fs - S(16)));
 		dl->AddText(backend.font, fs, ImVec2(pos.x + S(12), pos.y + preview_h - fs - S(10)), IM_COL32_WHITE, map.c_str());
 	}
 
