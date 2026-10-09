@@ -35,6 +35,7 @@ See the GNU General Public License for more details.
 #include <cstdio>
 #include <cstring>
 #include <ctime>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -899,79 +900,197 @@ void QuickPlayCard(const mui_server_t &s, float width, float height)
 
 void DrawQuickPlay()
 {
-	if (!BeginPage("##quickplay")) {
+	if (!BeginPage("##quickplay"))
+	{
 		EndPage();
 		return;
 	}
 
-	std::vector<const mui_server_t *> list;
+	static char selected_mode[24] = "";
+
+	std::vector<const mui_server_t*> list;
+	std::set<std::string> modes;
+
 	int players_online = 0;
-	for (const mui_server_t &s : browser.servers) {
-		if (!s.proxy && s.ping >= 0) {
-			players_online += s.players;
+
+	// build list from available modes
+	for (const mui_server_t& s : browser.servers)
+	{
+		if (s.proxy || s.ping < 0)
+		{
+			continue;
 		}
-		if (!s.proxy && s.ping >= 0 && s.players > 0) {
-			list.push_back(&s);
+
+		if (s.players > 0)
+		{
+			if (s.mode[0] != '\0')
+			{
+				modes.insert(ToUpper(s.mode));
+			}
+
+			if (selected_mode[0] == '\0' ||
+				std::string(ToUpper(s.mode)) == selected_mode)
+			{
+				list.push_back(&s);
+				players_online += s.players;
+			}
 		}
 	}
-	std::stable_sort(list.begin(), list.end(), [](const mui_server_t *a, const mui_server_t *b) {
-		return a->ping < b->ping;
-	});
+
+	std::stable_sort(list.begin(), list.end(),[](const mui_server_t* a, const mui_server_t* b) { return a->ping < b->ping; });
 
 	char subtitle[128];
 	snprintf(subtitle, sizeof(subtitle), "%d servers with players  -  %d players online  -  closest first", (int)list.size(), players_online);
+
 	BrowserHeader("Quick Play", subtitle);
 
-	// best match: closest server with room
-	const mui_server_t *best = nullptr;
-	for (const mui_server_t *s : list) {
-		if (!ServerIsFull(*s)) {
-			best = s;
-			break;
+	const mui_server_t* best = nullptr;
+
+	if (!list.empty())
+	{
+		best = list.front();
+
+		for (const mui_server_t* s : list)
+		{
+			if (!ServerIsFull(*s))
+			{
+				best = s;
+				break;
+			}
 		}
-	}
-	if (best) {
-		char label[160];
-		snprintf(label, sizeof(label), "Play now: %s  (%s, %d ms)", best->map, best->mode, best->ping);
-		if (AccentButton(label, ImVec2(0, S(36)))) {
-			MUI_Browser_Join(best->address);
-		}
-		ImGui::Spacing();
 	}
 
+	if (best)
+	{
+		char label[160];
+
+		snprintf(label, sizeof(label), "Play now: %s  (%s, %d ms)", best->map, best->mode, best->ping);
+
+		if (AccentButton(label, ImVec2(0, S(36))))
+		{
+			MUI_Browser_Join(best->address);
+		}
+	}
+
+	if (!modes.empty())
+	{
+		if (best)
+		{
+			ImGui::SameLine(0, S(6));
+		}
+
+		ImDrawList* dl = ImGui::GetWindowDrawList();
+
+		std::vector<std::string> badge_modes;
+		badge_modes.push_back("ALL");
+
+		for (const std::string& mode : modes)
+		{
+			badge_modes.push_back(mode);
+		}
+
+		for (size_t i = 0; i < badge_modes.size(); ++i)
+		{
+			if (i > 0)
+			{
+				ImGui::SameLine(0, S(6));
+			}
+
+			const std::string& mode = badge_modes[i];
+			const bool is_all = (mode == "ALL");
+			const bool selected = is_all ? selected_mode[0] == '\0' : std::string(selected_mode) == mode;
+
+			ImVec2 badge_size;
+
+			{
+				FontSize fs(FONT_SMALL);
+				badge_size = ImGui::CalcTextSize(mode.c_str());
+			}
+
+			badge_size.x += S(14);
+			badge_size.y += S(6);
+			ImVec2 pos = ImGui::GetCursorScreenPos();
+			
+			ImGui::PushID(mode.c_str());
+			
+			bool clicked = ImGui::InvisibleButton("##mode", ImVec2(badge_size.x, S(36)));
+			bool hovered = ImGui::IsItemHovered();
+			pos.y += (S(36) - badge_size.y) * 0.5f;
+			
+			ImU32 bg = selected ? Col(COLOR_ACCENT) : Col(COLOR_ACCENT, hovered ? 0.9f : 0.55f);
+			
+			DrawBadge(dl, pos, mode.c_str(), bg, IM_COL32(20, 12, 6, 255));
+
+			if (clicked)
+			{
+				if (is_all || selected)
+				{
+					selected_mode[0] = '\0';
+				} else {
+					snprintf(selected_mode, sizeof(selected_mode), "%s", mode.c_str());
+				}
+			}
+
+			ImGui::PopID();
+		}
+	}
+
+	ImGui::Spacing();
+
 	ImGui::BeginChild("##cards", ImVec2(0, 0), ImGuiChildFlags_None, ImGuiWindowFlags_NoBackground);
-	if (list.empty()) {
+
+	if (list.empty())
+	{
 		ImGui::Dummy(ImVec2(0, S(40)));
 		FontSize fs(FONT_LARGE);
-		if (browser.status.refreshing || !browser.have_snapshot) {
+
+		if (browser.status.refreshing || !browser.have_snapshot)
+		{
 			TextDim("Looking for servers...");
 		}
-		else {
-			TextDim("No servers with players right now. Try refreshing, or browse all servers.");
-			if (ImGui::Button("Browse servers")) {
+		else
+		{
+			if (selected_mode[0] == '\0')
+			{
+				TextDim("No servers with players right now. Try refreshing, or browse all servers.");
+			}
+			else
+			{
+				TextDim("No servers with players for this mode. Select ALL to see other servers.");
+			}
+
+			if (ImGui::Button("Browse servers"))
+			{
 				SetPage(MUI_PAGE_SERVERS);
 			}
 		}
 	}
-	else {
+	else
+	{
 		float spacing = S(16);
 		float avail = ImGui::GetContentRegionAvail().x;
 		int columns = std::max(1, (int)((avail + spacing) / (S(300) + spacing)));
 		float card_w = (avail - spacing * (columns - 1)) / columns;
 		float card_h = card_w * 9.0f / 16.0f + S(78);
 
-		for (size_t i = 0; i < list.size(); i++) {
-			if (i % columns != 0) {
+		for (size_t i = 0; i < list.size(); ++i)
+		{
+			if (i % columns != 0)
+			{
 				ImGui::SameLine(0, spacing);
 			}
+
 			QuickPlayCard(*list[i], card_w, card_h);
-			if (i % columns == (size_t)columns - 1) {
-				ImGui::Dummy(ImVec2(0, spacing - ImGui::GetStyle().ItemSpacing.y));
+
+			if (i % columns == (size_t)columns - 1)
+			{
+				ImGui::Dummy(
+					ImVec2(0, spacing - ImGui::GetStyle().ItemSpacing.y));
 			}
 		}
 	}
-	ImGui::EndChild();
 
+	ImGui::EndChild();
 	EndPage();
 }
 
