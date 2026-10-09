@@ -711,6 +711,16 @@ void DrawTopBar()
 				MUI_CloseMenu();
 			}
 		}
+		if (strcmp(client.server, "local") != 0)
+		{
+			ImGui::SameLine();
+			ImGui::SetCursorPosY(button_y);
+
+			if (ImGui::Button("Copy to clipboard"))
+			{
+				ImGui::SetClipboardText(client.server);
+			}
+		}
 		ImGui::SameLine(0, S(14));
 		char where[256];
 		snprintf(where, sizeof(where), client.map[0] ? "%s  %s" : "%s", client.server, client.map);
