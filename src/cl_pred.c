@@ -243,7 +243,43 @@ void CL_InitWepSounds(void)
 	cl_sfx_hook = S_PrecacheSound("weapons/chain1.wav");
 }
 
+static qbool CL_PredictSoundStartsOnGround(void)
+{
+	vec3_t end;
+	trace_t trace;
+
+	if (movevars.pground) {
+		return pmove.onground;
+	}
+
+	// Legacy server states may omit onground; check support at the input origin.
+	VectorCopy(pmove.origin, end);
+	end[2] -= 1;
+	trace = PM_PlayerTrace(pmove.origin, end);
+	return trace.fraction < 1 && trace.plane.normal[2] >= MIN_STEP_NORMAL;
+}
+
+static void CL_FilterPredictedLandingSounds(prediction_event_sound_t *previous_events)
+{
+	prediction_event_sound_t **link = &p_event_sound;
+
+	// Only inspect this command's events, including each half of a split command.
+	while (*link != previous_events) {
+		prediction_event_sound_t *event = *link;
+		if (event->chan == 2 && (event->sample == cl_sfx_land || event->sample == cl_sfx_land2)) {
+			*link = event->next;
+			free(event);
+		}
+		else {
+			link = &event->next;
+		}
+	}
+}
+
 void CL_PredictUsercmd (player_state_t *from, player_state_t *to, usercmd_t *u, int local) {
+	prediction_event_sound_t *previous_events;
+	qbool suppress_landing_sound;
+
 	// split up very long moves
 	if (u->msec > 50) {
 		player_state_t temp;
@@ -304,7 +340,13 @@ void CL_PredictUsercmd (player_state_t *from, player_state_t *to, usercmd_t *u, 
 	movevars.maxspeed = cl.maxspeed;
 	movevars.bunnyspeedcap = cl.bunnyspeedcap;
 
+	previous_events = p_event_sound;
+	suppress_landing_sound = cl_predict_sound.integer && pmove.velocity[2] < -300 && CL_PredictSoundStartsOnGround();
 	PM_PlayerMove();
+	if (suppress_landing_sound) {
+		// Downward rocket knockback on the floor must not predict a landing thud.
+		CL_FilterPredictedLandingSounds(previous_events);
+	}
 
 	if (local)
 	{
