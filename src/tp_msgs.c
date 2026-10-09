@@ -89,9 +89,7 @@ LOCAL void OnChange_TeamInlay_Message(cvar_t *var, char *value, qbool *cancel)
 
 LOCAL void TP_SetInlayMessageWithDuration(int duration, const char* msg)
 {
-	inlay_last_message_update_time = r_refdef2.time;
-
-	teaminlay_msg.string = (char*)msg;
+	Cvar_Set(&teaminlay_msg, (char*)msg);
 	teaminlay_msg_duration.integer = duration;
 
 	TP_Msg_Report_Inlay_f();
@@ -207,8 +205,8 @@ LOCAL char* TP_MSG_Build_Inlay_String(void)
 				message = teaminlay_msg.string;
 			} else {
 				// Message has expired, clear it.
+				Cvar_Set(&teaminlay_msg, "");
 				inlay_last_message_update_time = 0;
-				teaminlay_msg.string = Q_strdup("");
 			}
 		}
 	}
