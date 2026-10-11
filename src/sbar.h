@@ -49,6 +49,22 @@ void Sbar_DrawNum (int x, int y, int num, int digits, int color);
 // covert quake pallete color number to rgb color
 int Sbar_ColorForMap (int m);
 
+// Player colors: 0..15 palette ranges, 16 black, 17.. extended RGB colors (other clients clamp these)
+#define SBAR_COLOR_PALETTE_COUNT	17
+#define SBAR_COLOR_EXTENDED_FIRST	17
+#define SBAR_COLOR_EXTENDED_COUNT	18
+#define SBAR_COLOR_MAX				(SBAR_COLOR_EXTENDED_FIRST + SBAR_COLOR_EXTENDED_COUNT - 1)
+
+qbool Sbar_ColorIsExtended(int m);
+const char *Sbar_ColorName(int m);
+void Sbar_ColorToRGB(int m, byte rgb[3]);
+void Sbar_FillMap(int x, int y, int w, int h, int m);
+void Sbar_AlphaFillMap(float x, float y, float w, float h, int m, float alpha);
+int Sbar_TopMap(player_info_t *player);
+int Sbar_BottomMap(player_info_t *player);
+int Sbar_TopMapScoreboard(player_info_t *player);
+int Sbar_BottomMapScoreboard(player_info_t *player);
+
 #define STAT_MINUS		10	// num frame for '-' stats digit
 
 void Sbar_DrawPic(int x, int y, mpic_t *pic);

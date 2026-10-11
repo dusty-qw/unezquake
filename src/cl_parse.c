@@ -2722,10 +2722,12 @@ char *CL_Color2ConColor(int color)
 	static char buf[6] = "&c000";
 	const char hexc[] = "0123456789abcdefffffffffffffffff";
 	// For some reason my palette doesn't give higher number then 127, those Fs are there for palettes that give higher than that
-	int x = Sbar_ColorForMap(color);
-	buf[2] = hexc[host_basepal[x * 3 + 0] / 8];
-	buf[3] = hexc[host_basepal[x * 3 + 1] / 8];
-	buf[4] = hexc[host_basepal[x * 3 + 2] / 8];
+	byte rgb[3];
+
+	Sbar_ColorToRGB(color, rgb);
+	buf[2] = hexc[rgb[0] / 8];
+	buf[3] = hexc[rgb[1] / 8];
+	buf[4] = hexc[rgb[2] / 8];
 	return buf;
 }
 
@@ -2942,6 +2944,7 @@ static void FlushString (const wchar *s, int level, qbool team, int offset)
 
 	if (level == PRINT_CHAT) {
 		text = CL_ApplyNickOverrideToChat(text, s0);
+		text = CL_Emoticons_Replace(text);
 	}
 
 	/* FIXME
@@ -3241,6 +3244,7 @@ void CL_ProcessPrint (int level, char* s0)
 	qbool suppress_talksound;
 	wchar *s, str[2048], *p, check_flood;
 	char *qtvtmp, qtvstr[2048];
+	char emoticon_buf[2048];
 	int flags = 0, offset = 0;
 	size_t len;
 
@@ -3284,6 +3288,10 @@ void CL_ProcessPrint (int level, char* s0)
 		s0 = qtvstr;
 	}
 	// }
+
+	if (level == PRINT_CHAT) {
+		s0 = CL_Emoticons_PreDecode(s0, emoticon_buf, sizeof(emoticon_buf));
+	}
 
 	s = decode_string (s0);
 

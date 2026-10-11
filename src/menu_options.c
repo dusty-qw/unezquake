@@ -33,6 +33,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "quakedef.h"
+#include "sbar.h"
 #include "settings.h"
 #include "settings_page.h"
 #include "Ctrl_EditBox.h"

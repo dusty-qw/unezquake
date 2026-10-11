@@ -43,8 +43,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define MAX_USER_CHARSETS 0xE0
 
 #define PRIVATE_USE_TRACKERIMAGES_CHARSET 0xE0
+#define PRIVATE_USE_EMOTICONS_CHARSET 0xE1
 // reservations:
 //   0xE000 - 0xE0FF = Tracker weapon images
+//   0xE100 - 0xE1FF = Chat emoticons (square images)
+//   0xE200 - 0xE2FF = Chat emoticons (wide images, flags)
 
 typedef struct charset_s {
 	mpic_t glyphs[256];
