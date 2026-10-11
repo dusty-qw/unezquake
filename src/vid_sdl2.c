@@ -522,6 +522,7 @@ static void IN_Frame(void)
 		settings.show_cursor = (!IN_IsFullscreen() || M_ImGui_IsOpen()) && !mouse_active;
 		settings.text_entry = key_dest == key_console || key_dest == key_message || M_ImGui_IsOpen();
 		settings.disable_win_keys = (int)Cvar_Value("sys_disableWinKeys");
+		settings.session_hotkeys = Cvar_Value("cl_session_hotkeys") != 0;
 		settings.capture_mouse = menu.capture_mouse;
 		settings.text_input = key_dest == key_console || key_dest == key_message || menu.text_input;
 		settings.cursor_shape = menu.cursor_shape;

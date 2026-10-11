@@ -41,6 +41,7 @@ static SDL_Window *session_window;
 static qbool worker_window_fullscreen;
 static qbool worker_window_minimized;
 static qbool worker_window_focused;
+static cvar_t cl_session_hotkeys = { "cl_session_hotkeys", "1" };
 
 qbool CL_SessionWindowIsFocused(void)
 {
@@ -214,6 +215,8 @@ static SDL_Event input_queue[SESSION_INPUT_QUEUE];
 static unsigned int input_head, input_count, input_generation;
 static qbool input_reset, input_settings_pending, input_settings_valid;
 static session_input_settings_t input_settings;
+static qbool session_hotkeys_enabled = true;
+static qbool session_hotkey_down[CL_MAX_SESSIONS];
 
 static enum { VIDEO_IDLE, VIDEO_DETACHING, VIDEO_ATTACHING } video_phase;
 static unsigned int video_generation;
@@ -355,9 +358,31 @@ static qbool Session_InputEnabled(void)
 
 static void Session_ResetInput(void)
 {
+	/* Shortcut releases belong to the coordinator and must survive switches. */
 	input_head = input_count = 0;
 	input_reset = true;
 	VID_SessionInputSettings(NULL);
+}
+
+static qbool Session_Hotkey(const SDL_KeyboardEvent *event)
+{
+	int slot = event->keysym.scancode - SDL_SCANCODE_1;
+	if (slot < 0 || slot >= CL_MAX_SESSIONS)
+		return false;
+	/* Consume the complete press even if Ctrl was released, the selected
+	 * session changed, or its hotkey preference is now disabled. */
+	if (session_hotkey_down[slot]) {
+		if (event->type == SDL_KEYUP)
+			session_hotkey_down[slot] = false;
+		return true;
+	}
+	if (event->type != SDL_KEYDOWN || event->repeat || !session_hotkeys_enabled ||
+		!(event->keysym.mod & KMOD_CTRL) || (event->keysym.mod & (KMOD_ALT | KMOD_SHIFT | KMOD_GUI)) ||
+		!Session_InputEnabled() || !CL_SessionWindowIsFocused() || CL_SessionWindowIsMinimized())
+		return false;
+	session_hotkey_down[slot] = true;
+	CL_SessionSelect(slot + 1);
+	return true;
 }
 
 qbool CL_SessionsForwardInput(const SDL_Event *event)
@@ -368,6 +393,8 @@ qbool CL_SessionsForwardInput(const SDL_Event *event)
 	memset(&copy, 0, sizeof(copy));
 	switch (event->type) {
 	case SDL_WINDOWEVENT:
+		if (event->window.event == SDL_WINDOWEVENT_FOCUS_LOST || event->window.event == SDL_WINDOWEVENT_MINIMIZED)
+			memset(session_hotkey_down, 0, sizeof(session_hotkey_down));
 		if (event->window.event == SDL_WINDOWEVENT_FOCUS_LOST ||
 			event->window.event == SDL_WINDOWEVENT_FOCUS_GAINED ||
 			event->window.event == SDL_WINDOWEVENT_MINIMIZED ||
@@ -379,7 +406,11 @@ qbool CL_SessionsForwardInput(const SDL_Event *event)
 			return false; /* Owner handles geometry/focus; workers receive resets. */
 		copy.window = event->window;
 		break;
-	case SDL_KEYDOWN: case SDL_KEYUP: copy.key = event->key; break;
+	case SDL_KEYDOWN: case SDL_KEYUP:
+		if (Session_Hotkey(&event->key))
+			return true;
+		copy.key = event->key;
+		break;
 	case SDL_TEXTINPUT: copy.text = event->text; break;
 	case SDL_TEXTEDITING: copy.edit = event->edit; break;
 	case SDL_MOUSEMOTION: copy.motion = event->motion; break;
@@ -1285,8 +1316,10 @@ void CL_SessionsFrame(void)
 				continue;
 			switch (message.type) {
 			case SESSION_INPUT_SETTINGS:
-				if (i + 1 == selected_slot && Session_InputEnabled() && message.generation == input_generation)
+				if (i + 1 == selected_slot && Session_InputEnabled() && message.generation == input_generation) {
+					session_hotkeys_enabled = message.input_settings.session_hotkeys;
 					VID_SessionInputSettings(&message.input_settings);
+				}
 				break;
 			case SESSION_CAPTION:
 				if (i + 1 == selected_slot) {
@@ -1526,6 +1559,9 @@ static void Session_List_f(void)
 void CL_SessionsInit(void)
 {
 	atexit(CL_SessionsShutdown);
+	Cvar_SetCurrentGroup(CVAR_GROUP_INPUT_KEYBOARD);
+	Cvar_Register(&cl_session_hotkeys);
+	Cvar_ResetCurrentGroup();
 	Cmd_AddCommand("session", Session_Select_f);
 	Cmd_AddCommand("close", Session_CloseCurrent_f);
 	Cmd_AddCommand("session_close", Session_Close_f);

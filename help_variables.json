@@ -2861,6 +2861,13 @@
         }
       ]
     },
+    "cl_session_hotkeys": {
+      "default": "1",
+      "desc": "Enable Ctrl+1 through Ctrl+9 on the top-row number keys to create or select sessions.",
+      "group-id": "9",
+      "remarks": "Does not change vid_grab_keyboard; operating-system shortcuts may take precedence. Additional Alt, Shift, or Windows modifiers bypass these shortcuts.",
+      "type": "boolean"
+    },
     "cl_shownet": {
       "default": "0",
       "desc": "This variable toggles the display of current net info.",

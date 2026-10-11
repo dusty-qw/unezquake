@@ -77,6 +77,7 @@ union SDL_Event;
 typedef struct {
 	qbool grab, raw, keyboard_grab, show_cursor, text_entry;
 	qbool capture_mouse, text_input;
+	qbool session_hotkeys;
 	int cursor_shape;
 	int ime_x, ime_y, ime_w, ime_h;
 	int disable_win_keys;
