@@ -345,12 +345,10 @@ qbool IN_QuakeMouseCursorRequired(void)
 	return mouse_active && IN_MouseTrackingRequired() && !IN_OSMouseCursorRequired();
 }
 
-static int session_cursor_x, session_cursor_y;
-static qbool session_cursor_valid, session_cursor_pending;
-
 static int session_mouse_x, session_mouse_y;
-static unsigned int session_cursor_sequence, coordinator_cursor_sequence;
-static int session_cursor_restore_x, session_cursor_restore_y;
+static int coordinator_cursor_x, coordinator_cursor_y;
+static qbool coordinator_cursor_valid, coordinator_cursor_restore_pending, coordinator_cursor_sync_pending;
+static qbool coordinator_input_valid;
 static session_input_settings_t coordinator_input, coordinator_applied_input;
 static qbool coordinator_input_applied;
 static SDL_Cursor *coordinator_cursors[SDL_NUM_SYSTEM_CURSORS];
@@ -480,36 +478,12 @@ void IN_DeactivateMouse(void)
 	IN_SetKeyboardGrab(false);
 }
 
-static void IN_RestoreSessionCursor(void)
-{
-	int width, height;
-	if (!session_cursor_pending || !CL_SessionIsActive() || !ActiveApp || Minimized || mouse_active ||
-		!IN_OSMouseCursorRequired())
-		return;
-	SDL_GetWindowSize(sdl_window, &width, &height);
-	if (width <= 0 || height <= 0)
-		return;
-	session_cursor_x = bound(0, session_cursor_x, width - 1);
-	session_cursor_y = bound(0, session_cursor_y, height - 1);
-	if (CL_SessionIsWorker()) {
-		session_cursor_restore_x = session_cursor_x;
-		session_cursor_restore_y = session_cursor_y;
-		if (++session_cursor_sequence == 0)
-			++session_cursor_sequence;
-	}
-	else
-		SDL_WarpMouseInWindow(sdl_window, session_cursor_x, session_cursor_y);
-	session_cursor_pending = false;
-}
-
 static void IN_Frame(void)
 {
 	if (!sdl_window) {
 		return;
 	}
 
-	/* Restore before draining motion events from the newly selected session. */
-	IN_RestoreSessionCursor();
 	HandleEvents();
 
 	if (CL_SessionIsWorker()) {
@@ -535,9 +509,6 @@ static void IN_Frame(void)
 			settings.show_cursor = menu.show_cursor;
 		settings.ime_x = menu.ime_x; settings.ime_y = menu.ime_y;
 		settings.ime_w = menu.ime_w; settings.ime_h = menu.ime_h;
-		settings.cursor_sequence = session_cursor_sequence;
-		settings.cursor_x = session_cursor_restore_x;
-		settings.cursor_y = session_cursor_restore_y;
 		CL_SessionInputSettings(&settings);
 		VID_PublishSessionGamma();
 		mx = mouse_active ? session_mouse_x : 0;
@@ -1060,20 +1031,6 @@ static void mouse_wheel_event(SDL_MouseWheelEvent *event)
 static void HandleInputEvent(SDL_Event event)
 {
 	qbool track_movement_through_state = mouse_active && !SDL_GetRelativeMouseMode();
-	/* Record absolute window coordinates before the menu consumes motion.
-	 * Never replace a saved position with relative mouse-look input or with
-	 * the cursor inherited from another session while a restore is pending. */
-	if ((event.type == SDL_MOUSEMOTION || event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP) &&
-		CL_SessionIsWorker() && CL_SessionIsActive() &&
-		ActiveApp && !Minimized && !mouse_active && IN_OSMouseCursorRequired() &&
-		!session_cursor_pending) {
-		Uint32 which = event.type == SDL_MOUSEMOTION ? event.motion.which : event.button.which;
-		if (which != SDL_TOUCH_MOUSEID || !in_ignore_touch_events.integer) {
-			session_cursor_x = event.type == SDL_MOUSEMOTION ? event.motion.x : event.button.x;
-			session_cursor_y = event.type == SDL_MOUSEMOTION ? event.motion.y : event.button.y;
-			session_cursor_valid = true;
-		}
-	}
 	if (CL_SessionIsWorker() && (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP))
 		Key_SetModifiers(event.key.keysym.mod);
 	/* Both native SDL input and forwarded session input must reach the menu
@@ -1187,17 +1144,10 @@ void VID_SessionInputEvent(const SDL_Event *event)
 	HandleInputEvent(local_event);
 }
 
-void VID_SessionInputSettings(const session_input_settings_t *settings)
+static void VID_ApplySessionInputSettings(void)
 {
 	session_input_settings_t effective;
-	qbool focused;
-	if (settings)
-		coordinator_input = *settings;
-	else {
-		memset(&coordinator_input, 0, sizeof(coordinator_input));
-		coordinator_input.show_cursor = true;
-		coordinator_cursor_sequence = 0;
-	}
+	qbool focused, visible;
 	if (!sdl_window)
 		return;
 	focused = (SDL_GetWindowFlags(sdl_window) & SDL_WINDOW_INPUT_FOCUS) &&
@@ -1210,9 +1160,22 @@ void VID_SessionInputSettings(const session_input_settings_t *settings)
 	effective.text_entry = effective.text_entry && focused;
 	effective.text_input = effective.text_input && focused;
 	effective.show_cursor = effective.show_cursor || !focused;
+	visible = coordinator_input_valid && focused && effective.show_cursor && !effective.grab;
+	if (!focused)
+		coordinator_cursor_sync_pending = true;
+	if (coordinator_input_valid && focused && (coordinator_input.grab || !coordinator_input.show_cursor)) {
+		/* Seed once before capture can recenter the pointer. Subsequent
+		 * mouse-look motion must never replace the shared UI position. */
+		if (!coordinator_cursor_valid) {
+			SDL_GetMouseState(&coordinator_cursor_x, &coordinator_cursor_y);
+			coordinator_cursor_valid = true;
+		}
+		coordinator_cursor_restore_pending = true;
+	}
 	if (!focused)
 		effective.disable_win_keys = 0;
-	if (coordinator_input_applied && !memcmp(&effective, &coordinator_applied_input, sizeof(effective)))
+	if (coordinator_input_applied && !memcmp(&effective, &coordinator_applied_input, sizeof(effective)) &&
+		!(visible && (coordinator_cursor_restore_pending || coordinator_cursor_sync_pending)))
 		return;
 #if SDL_VERSION_ATLEAST(2, 0, 16)
 	SDL_SetWindowMouseGrab(sdl_window, effective.grab ? SDL_TRUE : SDL_FALSE);
@@ -1242,14 +1205,30 @@ void VID_SessionInputSettings(const session_input_settings_t *settings)
 	}
 	else
 		SDL_StopTextInput();
-	if (focused && effective.show_cursor && !effective.grab && effective.cursor_sequence &&
-		effective.cursor_sequence != coordinator_cursor_sequence) {
+	if (visible && (coordinator_cursor_restore_pending || coordinator_cursor_sync_pending)) {
+		SDL_Event motion;
 		int width, height;
 		SDL_GetWindowSize(sdl_window, &width, &height);
 		if (width > 0 && height > 0) {
-			SDL_WarpMouseInWindow(sdl_window, bound(0, effective.cursor_x, width - 1),
-				bound(0, effective.cursor_y, height - 1));
-			coordinator_cursor_sequence = effective.cursor_sequence;
+			if (!coordinator_cursor_restore_pending)
+				SDL_GetMouseState(&coordinator_cursor_x, &coordinator_cursor_y);
+			coordinator_cursor_x = bound(0, coordinator_cursor_x, width - 1);
+			coordinator_cursor_y = bound(0, coordinator_cursor_y, height - 1);
+			if (coordinator_cursor_restore_pending) {
+				/* Discard queued recenter/relative motion from mouse look. */
+				SDL_FlushEvent(SDL_MOUSEMOTION);
+				SDL_WarpMouseInWindow(sdl_window, coordinator_cursor_x, coordinator_cursor_y);
+			}
+			/* A newly selected menu needs a position even if the mouse hasn't
+			 * moved. Do not depend on SDL producing an event for a no-op warp. */
+			memset(&motion, 0, sizeof(motion));
+			motion.type = SDL_MOUSEMOTION;
+			motion.motion.windowID = SDL_GetWindowID(sdl_window);
+			motion.motion.x = coordinator_cursor_x;
+			motion.motion.y = coordinator_cursor_y;
+			CL_SessionsForwardInput(&motion);
+			coordinator_cursor_valid = true;
+			coordinator_cursor_restore_pending = coordinator_cursor_sync_pending = false;
 		}
 	}
 #if defined(_WIN32) && !defined(WITHOUT_WINKEYHOOK)
@@ -1257,6 +1236,19 @@ void VID_SessionInputSettings(const session_input_settings_t *settings)
 #endif
 	coordinator_applied_input = effective;
 	coordinator_input_applied = true;
+}
+
+void VID_SessionInputSettings(const session_input_settings_t *settings)
+{
+	coordinator_input_valid = settings != NULL;
+	if (settings)
+		coordinator_input = *settings;
+	else {
+		memset(&coordinator_input, 0, sizeof(coordinator_input));
+		coordinator_input.show_cursor = true;
+		coordinator_cursor_sync_pending = true;
+	}
+	VID_ApplySessionInputSettings();
 }
 
 static void HandleEvents(void)
@@ -1270,6 +1262,18 @@ static void HandleEvents(void)
 			event.window.windowID != SDL_GetWindowID(sdl_window))
 			continue;
 		if (CL_SessionIsCoordinator()) {
+			/* Track only visible native UI input, before a worker/menu consumes
+			 * it. Ignore capture, inactive handoffs and synthetic touch input. */
+			if (coordinator_input_valid && coordinator_applied_input.show_cursor && !coordinator_applied_input.grab &&
+				!coordinator_cursor_restore_pending && CL_SessionWindowIsFocused() && !CL_SessionWindowIsMinimized() &&
+				(event.type == SDL_MOUSEMOTION || event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP)) {
+				Uint32 which = event.type == SDL_MOUSEMOTION ? event.motion.which : event.button.which;
+				if (which != SDL_TOUCH_MOUSEID) {
+					coordinator_cursor_x = event.type == SDL_MOUSEMOTION ? event.motion.x : event.button.x;
+					coordinator_cursor_y = event.type == SDL_MOUSEMOTION ? event.motion.y : event.button.y;
+					coordinator_cursor_valid = true;
+				}
+			}
 			/* SDL normally minimizes grabbed fullscreen windows from inside its
 			 * low-level keyboard hook. Defer that until the hook has returned:
 			 * the owner has cross-process child windows, so activation can wait
@@ -2056,9 +2060,7 @@ void VID_SessionActivate(void)
 {
 	/* Discard the render window's native events before accepting owner input. */
 	HandleEvents();
-	session_cursor_pending = session_cursor_valid;
 	session_mouse_x = session_mouse_y = 0;
-	session_cursor_sequence = 0;
 	scr_skipupdate = 0;
 	r_swapInterval.modified = true;
 }
@@ -2939,9 +2941,9 @@ void VID_CoordinatorInit(void)
 void VID_CoordinatorFrame(void)
 {
 	/* Only workers execute bindings/gameplay; the owner handles native input. */
-	VID_SessionInputSettings(&coordinator_input);
+	VID_ApplySessionInputSettings();
 	HandleEvents();
-	VID_SessionInputSettings(&coordinator_input);
+	VID_ApplySessionInputSettings();
 	if (coordinator_applied_input.grab && !coordinator_applied_input.raw) {
 		SDL_Event event;
 		int x, y, width, height;
