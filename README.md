@@ -10,10 +10,10 @@ Connect to up to nine servers at once in a single client window. Each session ha
 its own connection, console, command history, and game state. Switching sessions
 keeps the others connected.
 
-Press **Ctrl+2** to open a fresh console, then connect to another server as usual.
-Press **Ctrl+1** to return to your original session. **Ctrl+1 through Ctrl+9**
-create or select the corresponding session. You can also use console commands
-or bind your own keys, for example `bind F2 "session 2"`.
+Use `session 2` to open a fresh console, then connect to another server as usual.
+Use `session 1` to return to your original session. `session 1` through `session 9`
+create or select the corresponding session. Bind your preferred keys, for example
+`bind F1 "session 1"` and `bind F2 "session 2"`.
 
  * `session <1-9>` - Select a session, creating it if needed
  * `session_list` - List the current sessions

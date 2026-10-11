@@ -343,20 +343,17 @@ qbool IN_QuakeMouseCursorRequired(void)
 static int session_cursor_x, session_cursor_y;
 static qbool session_cursor_valid, session_cursor_pending;
 
-#ifdef _WIN32
 static int session_mouse_x, session_mouse_y;
 static unsigned int session_cursor_sequence, coordinator_cursor_sequence;
 static int session_cursor_restore_x, session_cursor_restore_y;
 static session_input_settings_t coordinator_input, coordinator_applied_input;
 static qbool coordinator_input_applied;
-#endif
+static SDL_Cursor *coordinator_cursors[SDL_NUM_SYSTEM_CURSORS];
 
 static void IN_SnapMouseBackToCentre(void)
 {
-#ifdef _WIN32
 	if (CL_SessionIsWorker())
 		return;
-#endif
 	SDL_WarpMouseInWindow(sdl_window, glConfig.vidWidth / 2, glConfig.vidHeight / 2);
 	old_x = glConfig.vidWidth / 2;
 	old_y = glConfig.vidHeight / 2;
@@ -390,13 +387,11 @@ static void GrabMouse(qbool grab, qbool raw)
 		grab = 0;
 	}
 
-#ifdef _WIN32
 	if (CL_SessionIsWorker()) {
 		mouse_active = grab;
 		session_mouse_x = session_mouse_y = 0;
 		return;
 	}
-#endif
 
 	// set initial position
 	if (!raw && grab) {
@@ -460,11 +455,9 @@ static qbool IN_KeyboardGrabRequired(void)
 static void IN_SetKeyboardGrab(qbool grab)
 {
 #if SDL_VERSION_ATLEAST(2, 0, 16)
-#ifdef _WIN32
-	/* The coordinator owns keyboard capture for Windows workers. */
+	/* Only the coordinator owns native capture for session workers. */
 	if (CL_SessionIsWorker())
 		return;
-#endif
 	if (sdl_window)
 		SDL_SetWindowKeyboardGrab(sdl_window, grab ? SDL_TRUE : SDL_FALSE);
 #endif
@@ -493,16 +486,14 @@ static void IN_RestoreSessionCursor(void)
 		return;
 	session_cursor_x = bound(0, session_cursor_x, width - 1);
 	session_cursor_y = bound(0, session_cursor_y, height - 1);
-#ifdef _WIN32
-	/* Windows workers render offscreen; the owner must move the real cursor
-	 * after applying this session's mouse capture/visibility settings. */
-	session_cursor_restore_x = session_cursor_x;
-	session_cursor_restore_y = session_cursor_y;
-	if (++session_cursor_sequence == 0)
-		++session_cursor_sequence;
-#else
-	SDL_WarpMouseInWindow(sdl_window, session_cursor_x, session_cursor_y);
-#endif
+	if (CL_SessionIsWorker()) {
+		session_cursor_restore_x = session_cursor_x;
+		session_cursor_restore_y = session_cursor_y;
+		if (++session_cursor_sequence == 0)
+			++session_cursor_sequence;
+	}
+	else
+		SDL_WarpMouseInWindow(sdl_window, session_cursor_x, session_cursor_y);
 	session_cursor_pending = false;
 }
 
@@ -516,9 +507,10 @@ static void IN_Frame(void)
 	IN_RestoreSessionCursor();
 	HandleEvents();
 
-#ifdef _WIN32
 	if (CL_SessionIsWorker()) {
 		session_input_settings_t settings;
+		menu_ui_input_policy_t menu;
+		MenuUI_InputPolicy(&menu);
 		if (!CL_SessionIsActive() || !ActiveApp || Minimized || IN_OSMouseCursorRequired())
 			IN_DeactivateMouse();
 		else
@@ -530,6 +522,13 @@ static void IN_Frame(void)
 		settings.show_cursor = (!IN_IsFullscreen() || M_ImGui_IsOpen()) && !mouse_active;
 		settings.text_entry = key_dest == key_console || key_dest == key_message || M_ImGui_IsOpen();
 		settings.disable_win_keys = (int)Cvar_Value("sys_disableWinKeys");
+		settings.capture_mouse = menu.capture_mouse;
+		settings.text_input = key_dest == key_console || key_dest == key_message || menu.text_input;
+		settings.cursor_shape = menu.cursor_shape;
+		if (M_ImGui_IsOpen())
+			settings.show_cursor = menu.show_cursor;
+		settings.ime_x = menu.ime_x; settings.ime_y = menu.ime_y;
+		settings.ime_w = menu.ime_w; settings.ime_h = menu.ime_h;
 		settings.cursor_sequence = session_cursor_sequence;
 		settings.cursor_x = session_cursor_restore_x;
 		settings.cursor_y = session_cursor_restore_y;
@@ -539,7 +538,6 @@ static void IN_Frame(void)
 		session_mouse_x = session_mouse_y = 0;
 		return;
 	}
-#endif
 	if (!CL_SessionIsActive() || !ActiveApp || Minimized || IN_OSMouseCursorRequired()) {
 		/* Menus need an unconfined pointer, but must retain the configured
 		 * keyboard grab so window-manager shortcuts don't steal their keys. */
@@ -547,12 +545,6 @@ static void IN_Frame(void)
 		IN_SetKeyboardGrab(IN_KeyboardGrabRequired());
 		if (CL_SessionIsActive() && M_ImGui_IsOpen()) {
 			SDL_ShowCursor(SDL_ENABLE);
-			/* SDL/ImGui cache cursor state per process, but X11 stores the
-			 * cursor on our shared window. Another session can replace it
-			 * without invalidating this worker's cache. NULL reapplies the
-			 * current cursor even when SDL already considers it visible. */
-			if (CL_SessionIsWorker())
-				SDL_SetCursor(NULL);
 		}
 		return;
 	}
@@ -746,12 +738,10 @@ static void window_event(SDL_WindowEvent *event)
 {
 	extern qbool scr_skipupdate;
 	int flags = SDL_GetWindowFlags(sdl_window);
-#ifdef _WIN32
 	if (CL_SessionIsWorker() && (event->event == SDL_WINDOWEVENT_FOCUS_GAINED ||
 		event->event == SDL_WINDOWEVENT_FOCUS_LOST || event->event == SDL_WINDOWEVENT_RESTORED ||
 		event->event == SDL_WINDOWEVENT_MINIMIZED))
 		return;
-#endif
 
 	MenuUI_ProcessEvent(&(SDL_Event) { .window = *event });
 
@@ -786,7 +776,7 @@ static void window_event(SDL_WindowEvent *event)
 			/* Fall through */
 		case SDL_WINDOWEVENT_RESTORED:
 			Minimized = CL_SessionIsWorker() && CL_SessionWindowIsMinimized();
-			ActiveApp = true;
+			ActiveApp = (flags & SDL_WINDOW_INPUT_FOCUS) && !Minimized;
 			scr_skipupdate = 0;
 #ifdef X11_GAMMA_WORKAROUND
 			if (vid_gamma_workaround.integer) {
@@ -957,36 +947,8 @@ static void keyb_textinputevent(char* text)
 static void keyb_event(SDL_KeyboardEvent *event)
 {
 	byte result = Key_ScancodeToQuakeCode(event->keysym.scancode);
-	static qbool session_keys[CL_MAX_SESSIONS];
-	int slot = event->keysym.scancode - SDL_SCANCODE_1;
 	if (!CL_SessionIsActive())
 		return;
-	/* SDL's normal fullscreen/grabbed Alt+Tab fallback minimizes its window.
-	 * A worker must request that action from the owner instead of letting SDL
-	 * manage fullscreen through a foreign-window wrapper. Keep delivering the
-	 * key event normally, just as SDL does before applying its fallback. */
-	if (CL_SessionIsWorker() && session_alt_tab_enabled && !event->repeat &&
-		event->state == SDL_PRESSED && event->keysym.sym == SDLK_TAB &&
-		(event->keysym.mod & KMOD_ALT) && IN_IsFullscreen()) {
-#if SDL_VERSION_ATLEAST(2, 0, 16)
-		if (SDL_GetWindowKeyboardGrab(sdl_window))
-#else
-		if (SDL_GetWindowGrab(sdl_window) && SDL_GetHintBoolean(SDL_HINT_GRAB_KEYBOARD, SDL_FALSE))
-#endif
-			VID_Minimize();
-	}
-	if (slot >= 0 && slot < CL_MAX_SESSIONS) {
-		if (event->state && (event->keysym.mod & KMOD_CTRL) && !(event->keysym.mod & KMOD_ALT)) {
-			session_keys[slot] = true;
-			if (!event->repeat)
-				CL_SessionSelect(slot + 1);
-			return;
-		}
-		if (session_keys[slot] && !event->state) {
-			session_keys[slot] = false;
-			return;
-		}
-	}
 
 #ifdef __APPLE__
 	if (in_ignore_deadkeys.integer) {
@@ -1017,6 +979,9 @@ static void keyb_event(SDL_KeyboardEvent *event)
 	}
 #endif
 	Key_Event(result, event->state);
+	/* Reconcile left/right modifiers after Key_Event updates aggregate keys. */
+	if (CL_SessionIsWorker())
+		Key_SetModifiers(event->keysym.mod);
 }
 
 static void mouse_button_event(SDL_MouseButtonEvent *event)
@@ -1100,14 +1065,14 @@ static void HandleInputEvent(SDL_Event event)
 			session_cursor_valid = true;
 		}
 	}
+	if (CL_SessionIsWorker() && (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP))
+		Key_SetModifiers(event.key.keysym.mod);
 	/* Both native SDL input and forwarded session input must reach the menu
 	 * before the game. The menu lets releases through to clear held keys. */
 	if (MenuUI_ProcessEvent(&event))
 		return;
-#ifdef _WIN32
 	if (CL_SessionIsWorker())
 		track_movement_through_state = false;
-#endif
 	switch (event.type) {
 		case SDL_KEYDOWN:
 		case SDL_KEYUP:
@@ -1123,12 +1088,10 @@ static void HandleInputEvent(SDL_Event event)
 			break;
 		case SDL_MOUSEMOTION:
 			if (event.motion.which != SDL_TOUCH_MOUSEID || !in_ignore_touch_events.integer) {
-#ifdef _WIN32
 				if (CL_SessionIsWorker() && mouse_active) {
 					session_mouse_x += event.motion.xrel;
 					session_mouse_y += event.motion.yrel;
 				}
-#endif
 #ifdef __APPLE__
 				if (developer.integer == 2) {
 					Con_Printf("motion event, which=%d\n", event.motion.which);
@@ -1164,34 +1127,29 @@ static void HandleInputEvent(SDL_Event event)
 	}
 }
 
-#ifdef _WIN32
-void VID_SessionInputState(qbool focused, qbool minimized, qbool reset)
+unsigned int VID_InputModifiers(void)
 {
-	qbool gained = !ActiveApp && focused && !minimized;
-	if (sdl_window && (reset || ActiveApp != (focused && !minimized))) {
-		SDL_Event event;
-		memset(&event, 0, sizeof(event));
-		event.type = SDL_WINDOWEVENT;
-		event.window.windowID = SDL_GetWindowID(sdl_window);
-		/* Reset ImGui's held buttons and keys along with the engine's input. */
-		event.window.event = SDL_WINDOWEVENT_FOCUS_LOST;
-		MenuUI_ProcessEvent(&event);
-		if (focused && !minimized) {
-			event.window.event = SDL_WINDOWEVENT_FOCUS_GAINED;
-			MenuUI_ProcessEvent(&event);
-		}
-	}
-	if (reset || (ActiveApp && (!focused || minimized))) {
+	return SDL_GetModState();
+}
+
+void VID_SessionInputState(qbool focused, qbool minimized, qbool reset, unsigned int modifiers)
+{
+	qbool eligible = CL_SessionIsActive() && focused && !minimized;
+	qbool gained = !ActiveApp && eligible;
+	if (reset || ActiveApp != eligible) {
 		Key_ClearStates();
 		CL_ClearSessionInput();
 		session_mouse_x = session_mouse_y = mx = my = 0;
+		wheelup_deferred = wheeldown_deferred = false;
+		MenuUI_ResetInput(eligible, eligible ? modifiers : 0);
 	}
-	ActiveApp = focused && !minimized;
+	if (reset || gained)
+		Key_SetModifiers(eligible ? modifiers : 0);
+	ActiveApp = eligible;
 	Minimized = minimized;
 	if (gained) {
 		scr_skipupdate = false;
-		if (CL_SessionIsActive())
-			TP_ExecTrigger("f_focusgained");
+		TP_ExecTrigger("f_focusgained");
 	}
 }
 
@@ -1208,6 +1166,11 @@ void VID_SessionInputEvent(const SDL_Event *event)
 	switch (local_event.type) {
 	case SDL_KEYDOWN: case SDL_KEYUP: local_event.key.windowID = window_id; break;
 	case SDL_TEXTINPUT: local_event.text.windowID = window_id; break;
+	case SDL_TEXTEDITING: local_event.edit.windowID = window_id; break;
+	case SDL_WINDOWEVENT:
+		local_event.window.windowID = window_id;
+		MenuUI_ProcessEvent(&local_event);
+		return;
 	case SDL_MOUSEMOTION: local_event.motion.windowID = window_id; break;
 	case SDL_MOUSEBUTTONDOWN: case SDL_MOUSEBUTTONUP: local_event.button.windowID = window_id; break;
 	case SDL_MOUSEWHEEL: local_event.wheel.windowID = window_id; break;
@@ -1234,6 +1197,9 @@ void VID_SessionInputSettings(const session_input_settings_t *settings)
 	effective.grab = effective.grab && focused;
 	effective.keyboard_grab = effective.keyboard_grab && focused;
 	effective.raw = effective.raw && effective.grab;
+	effective.capture_mouse = effective.capture_mouse && focused && !effective.grab;
+	effective.text_entry = effective.text_entry && focused;
+	effective.text_input = effective.text_input && focused;
 	effective.show_cursor = effective.show_cursor || !focused;
 	if (!focused)
 		effective.disable_win_keys = 0;
@@ -1254,8 +1220,19 @@ void VID_SessionInputSettings(const session_input_settings_t *settings)
 		SDL_GetWindowSize(sdl_window, &width, &height);
 		SDL_WarpMouseInWindow(sdl_window, width / 2, height / 2);
 	}
+	SDL_CaptureMouse(effective.capture_mouse ? SDL_TRUE : SDL_FALSE);
+	int cursor = bound(0, effective.cursor_shape, SDL_NUM_SYSTEM_CURSORS - 1);
+	if (!coordinator_cursors[cursor])
+		coordinator_cursors[cursor] = SDL_CreateSystemCursor((SDL_SystemCursor)cursor);
+	SDL_SetCursor(coordinator_cursors[cursor]);
 	SDL_ShowCursor(effective.show_cursor ? SDL_ENABLE : SDL_DISABLE);
-	SDL_SetCursor(NULL);
+	if (effective.text_input) {
+		SDL_Rect rect = { effective.ime_x, effective.ime_y, effective.ime_w, effective.ime_h };
+		SDL_StartTextInput();
+		SDL_SetTextInputRect(&rect);
+	}
+	else
+		SDL_StopTextInput();
 	if (focused && effective.show_cursor && !effective.grab && effective.cursor_sequence &&
 		effective.cursor_sequence != coordinator_cursor_sequence) {
 		int width, height;
@@ -1266,42 +1243,12 @@ void VID_SessionInputSettings(const session_input_settings_t *settings)
 			coordinator_cursor_sequence = effective.cursor_sequence;
 		}
 	}
-#ifndef WITHOUT_WINKEYHOOK
+#if defined(_WIN32) && !defined(WITHOUT_WINKEYHOOK)
 	Sys_SessionInputPolicy(effective.disable_win_keys, CL_SessionWindowIsFullscreen(), effective.text_entry);
 #endif
 	coordinator_applied_input = effective;
 	coordinator_input_applied = true;
 }
-#endif
-
-#if defined(_WIN32) && !defined(WITHOUT_WINKEYHOOK)
-static void HandleWindowsKeyboardEvents(unsigned int flags, qbool down)
-{
-	static const struct { unsigned int mask; int key; SDL_Scancode scancode; } keys[] = {
-		{ WINDOWS_LWINDOWSKEY, K_LWIN, SDL_SCANCODE_LGUI },
-		{ WINDOWS_RWINDOWSKEY, K_RWIN, SDL_SCANCODE_RGUI },
-		{ WINDOWS_MENU, K_MENU, SDL_SCANCODE_APPLICATION },
-		{ WINDOWS_PRINTSCREEN, K_PRINTSCR, SDL_SCANCODE_PRINTSCREEN },
-		{ WINDOWS_CAPSLOCK, K_CAPSLOCK, SDL_SCANCODE_CAPSLOCK }
-	};
-	int i;
-	for (i = 0; i < sizeof(keys) / sizeof(keys[0]); ++i) {
-		if (!(flags & keys[i].mask))
-			continue;
-		if (CL_SessionIsCoordinator()) {
-			SDL_Event event;
-			memset(&event, 0, sizeof(event));
-			event.type = down ? SDL_KEYDOWN : SDL_KEYUP;
-			event.key.state = down ? SDL_PRESSED : SDL_RELEASED;
-			event.key.keysym.scancode = keys[i].scancode;
-			event.key.keysym.mod = SDL_GetModState();
-			CL_SessionsForwardInput(&event);
-		}
-		else if (!CL_SessionIsWorker())
-			Key_Event(keys[i].key, down);
-	}
-}
-#endif
 
 static void HandleEvents(void)
 {
@@ -1313,17 +1260,35 @@ static void HandleEvents(void)
 		if (event.type == SDL_WINDOWEVENT &&
 			event.window.windowID != SDL_GetWindowID(sdl_window))
 			continue;
-#ifdef _WIN32
 		if (CL_SessionIsCoordinator()) {
+			/* SDL normally minimizes grabbed fullscreen windows from inside its
+			 * low-level keyboard hook. Defer that until the hook has returned:
+			 * the owner has cross-process child windows, so activation can wait
+			 * on another thread's input queue. Handle this before forwarding to
+			 * a worker or menu, using the owner's grab and focus state. */
+			if (session_alt_tab_initialized && event.type == SDL_KEYDOWN && !event.key.repeat &&
+				event.key.windowID == SDL_GetWindowID(sdl_window) &&
+				event.key.keysym.sym == SDLK_TAB && (event.key.keysym.mod & KMOD_ALT) &&
+				session_alt_tab_enabled && coordinator_applied_input.keyboard_grab &&
+				(SDL_GetWindowFlags(sdl_window) & SDL_WINDOW_INPUT_FOCUS) &&
+				!(SDL_GetWindowFlags(sdl_window) & SDL_WINDOW_MINIMIZED)) {
+				/* Also allow escape from a grabbed windowed/borderless window. */
+				VID_Minimize();
+				continue;
+			}
 			/* Non-raw capture is sampled and recentered once per pump below. */
 			if (event.type == SDL_MOUSEMOTION && coordinator_applied_input.grab && !coordinator_applied_input.raw)
 				continue;
 			if (CL_SessionsForwardInput(&event))
 				continue;
 		}
-		if (CL_SessionIsWorker() && event.type != SDL_WINDOWEVENT && event.type != SDL_QUIT && event.type != SDL_DROPFILE)
-			continue;
-#endif
+		if (CL_SessionIsWorker()) {
+			if (event.type == SDL_DROPFILE)
+				SDL_free(event.drop.file);
+			if (event.type != SDL_WINDOWEVENT || (event.window.event != SDL_WINDOWEVENT_RESIZED &&
+				event.window.event != SDL_WINDOWEVENT_SIZE_CHANGED))
+				continue;
+		}
 		if (!CL_SessionIsActive() && event.type != SDL_WINDOWEVENT && event.type != SDL_QUIT &&
 			!(CL_SessionIsCoordinator() && event.type == SDL_DROPFILE)) {
 			if (event.type == SDL_DROPFILE)
@@ -1349,19 +1314,8 @@ static void HandleEvents(void)
 		}
 	}
 
-/* Pumping SDL can dispatch low-level keyboard hooks. Drain them before the
-	 * coordinator waits, even if they suppressed the native key message. */
-#if defined(_WIN32) && !defined(WITHOUT_WINKEYHOOK)
-	HandleWindowsKeyboardEvents(windows_keys_down, true);
-	HandleWindowsKeyboardEvents(windows_keys_up, false);
-
-	windows_keys_down = windows_keys_up = 0;
-#endif
-
-#ifdef _WIN32
 	if (CL_SessionIsWorker())
 		return;
-#endif
 	if (track_movement_through_state) {
 		float factor = (IN_MouseTrackingRequired() ? cursor_sensitivity.value : 1);
 		int pos_x, pos_y;
@@ -1388,6 +1342,7 @@ void VID_SoftRestart(void)
 
 void VID_Shutdown(qbool restart)
 {
+	int i;
 	// the menus own GL objects and textures, release them while the context still exists
 	M_ImGui_VidReady(false);
 	MenuUI_VidShutdown();
@@ -1399,7 +1354,13 @@ void VID_Shutdown(qbool restart)
 	session_swap_msc = NULL;
 #endif
 
-	SDL_StopTextInput();
+	if (!CL_SessionIsWorker())
+		SDL_StopTextInput();
+	for (i = 0; i < SDL_NUM_SYSTEM_CURSORS; ++i) {
+		if (coordinator_cursors[i])
+			SDL_FreeCursor(coordinator_cursors[i]);
+		coordinator_cursors[i] = NULL;
+	}
 
 #ifdef X11_GAMMA_WORKAROUND
 	if (vid_gamma_workaround.integer) {
@@ -1449,7 +1410,8 @@ static int VID_SDL_InitSubSystem(void)
 		}
 	}
 
-	SDL_StartTextInput();
+	if (!CL_SessionIsWorker())
+		SDL_StartTextInput();
 
 	return 0;
 }
@@ -1858,18 +1820,24 @@ static void VID_SDL_Init(void)
 
 	SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS,
 		CL_SessionIsWorker() ||
-		(CL_SessionIsCoordinator() && strcmp(SDL_GetCurrentVideoDriver(), "windows")) ||
 		vid_minimize_on_focus_loss.integer == 0 ? "0" : "1");
 #ifdef __APPLE__
 	SDL_SetHint(SDL_HINT_VIDEO_MAC_FULLSCREEN_SPACES, "0");
 #endif
-	SDL_SetHint(SDL_HINT_GRAB_KEYBOARD, vid_grab_keyboard.integer == 0 ? "0" : "1");
-	if (CL_SessionIsWorker() && !session_alt_tab_initialized &&
-		!strcmp(SDL_GetCurrentVideoDriver(), "x11")) {
-		/* Preserve the user's Alt+Tab policy, but perform SDL's usual action
-		 * through the coordinator. The keyboard grab itself is unchanged. */
-		session_alt_tab_enabled = SDL_GetHintBoolean("SDL_ALLOW_ALT_TAB_WHILE_GRABBED", SDL_TRUE);
-		session_alt_tab_initialized = true;
+	SDL_SetHint(SDL_HINT_GRAB_KEYBOARD, CL_SessionIsWorker() || vid_grab_keyboard.integer == 0 ? "0" : "1");
+	if (CL_SessionIsWorker()) {
+		SDL_SetHintWithPriority(SDL_HINT_MOUSE_AUTO_CAPTURE, "0", SDL_HINT_OVERRIDE);
+		SDL_StopTextInput();
+	}
+	else
+		SDL_SetHint(SDL_HINT_IME_SHOW_UI, "1");
+	if (CL_SessionIsCoordinator() && !strcmp(SDL_GetCurrentVideoDriver(), "windows")) {
+		/* Preserve the user's policy across vid_restart; defer minimizing out
+		 * of SDL's low-level Windows keyboard hook. */
+		if (!session_alt_tab_initialized) {
+			session_alt_tab_enabled = SDL_GetHintBoolean("SDL_ALLOW_ALT_TAB_WHILE_GRABBED", SDL_TRUE) == SDL_TRUE;
+			session_alt_tab_initialized = true;
+		}
 		SDL_SetHintWithPriority("SDL_ALLOW_ALT_TAB_WHILE_GRABBED", "0", SDL_HINT_OVERRIDE);
 	}
 	SDL_SetHintWithPriority(SDL_HINT_MOUSE_RELATIVE_MODE_WARP, "0", SDL_HINT_OVERRIDE);
@@ -2000,8 +1968,8 @@ static void VID_SDL_Init(void)
 	if (!CL_SessionIsCoordinator())
 		R_Initialise();
 
-	if (!M_ClassicMenus()) {
-		MenuUI_VidInit(sdl_window, sdl_context, glConfig.majorVersion);
+	if (!CL_SessionIsCoordinator() && !M_ClassicMenus()) {
+		MenuUI_VidInit(sdl_window, sdl_context, glConfig.majorVersion, CL_SessionIsWorker());
 		M_ImGui_VidReady(true);
 	}
 
@@ -2018,13 +1986,10 @@ static void VID_SDL_Init(void)
 	if (CL_SessionIsWorker())
 		SDL_GetWindowSize(sdl_window, &glConfig.vidWidth, &glConfig.vidHeight);
 	CL_SessionsAttachWindow(sdl_window);
-#ifdef _WIN32
 	if (CL_SessionIsCoordinator()) {
 		coordinator_input_applied = false;
 		VID_SessionInputSettings(NULL);
-		SDL_StartTextInput();
 	}
-#endif
 }
 
 static void VID_SwapBuffers (void)
@@ -2070,35 +2035,20 @@ static void VID_SwapBuffers (void)
 
 void VID_SessionRelease(void)
 {
-#ifndef _WIN32
-	/* Capture even a stationary cursor; Windows uses forwarded motion above. */
-	if (CL_SessionIsActive() && ActiveApp && !Minimized && !mouse_active &&
-		!session_cursor_pending && IN_OSMouseCursorRequired()) {
-		SDL_GetMouseState(&session_cursor_x, &session_cursor_y);
-		session_cursor_valid = true;
-	}
-#endif
-	/* Finish the old context's writes before another process uses the drawable. */
+	/* Release logical input before waiting for the renderer. Only the owner
+	 * ever releases native capture. Keep this worker's saved cursor position. */
+	VID_SessionInputState(false, CL_SessionWindowIsMinimized(), true, 0);
 	glFinish();
 }
 
 void VID_SessionActivate(void)
 {
-	int flags;
-	/* Discard queued input from the previous owner while we are still inactive. */
+	/* Discard the render window's native events before accepting owner input. */
 	HandleEvents();
 	session_cursor_pending = session_cursor_valid;
-	flags = SDL_GetWindowFlags(sdl_window);
-#ifdef _WIN32
-	ActiveApp = CL_SessionIsWorker() ? CL_SessionWindowIsFocused() : (flags & SDL_WINDOW_INPUT_FOCUS) != 0;
 	session_mouse_x = session_mouse_y = 0;
 	session_cursor_sequence = 0;
-#else
-	ActiveApp = (flags & SDL_WINDOW_INPUT_FOCUS) != 0;
-#endif
-	Minimized = CL_SessionWindowIsMinimized();
 	scr_skipupdate = 0;
-	/* GLX swap interval belongs to the shared drawable, not the engine. */
 	r_swapInterval.modified = true;
 }
 
@@ -2239,6 +2189,22 @@ void VID_Minimize (void)
 		return;
 	}
 
+	if (CL_SessionIsCoordinator()) {
+		/* Release native capture before entering the shared window's focus
+		 * transition. Keep the requested settings for the next activation. */
+#if SDL_VERSION_ATLEAST(2, 0, 16)
+		SDL_SetWindowKeyboardGrab(sdl_window, SDL_FALSE);
+		SDL_SetWindowMouseGrab(sdl_window, SDL_FALSE);
+#else
+		SDL_SetWindowGrab(sdl_window, SDL_FALSE);
+#endif
+		SDL_SetRelativeMouseMode(SDL_FALSE);
+		SDL_CaptureMouse(SDL_FALSE);
+#if defined(_WIN32) && !defined(WITHOUT_WINKEYHOOK)
+		Sys_SessionInputPolicy(0, CL_SessionWindowIsFullscreen(), false);
+#endif
+		coordinator_input_applied = false;
+	}
 	SDL_MinimizeWindow(sdl_window);
 }
 
@@ -2648,12 +2614,9 @@ void VID_CoordinatorInit(void)
 
 void VID_CoordinatorFrame(void)
 {
-	/* The Windows owner captures input; only workers execute bindings/gameplay. */
-#ifdef _WIN32
+	/* Only workers execute bindings/gameplay; the owner handles native input. */
 	VID_SessionInputSettings(&coordinator_input);
-#endif
 	HandleEvents();
-#ifdef _WIN32
 	VID_SessionInputSettings(&coordinator_input);
 	if (coordinator_applied_input.grab && !coordinator_applied_input.raw) {
 		SDL_Event event;
@@ -2670,7 +2633,6 @@ void VID_CoordinatorFrame(void)
 		}
 	}
 	SDL_GetRelativeMouseState(NULL, NULL);
-#endif
 }
 
 int VID_ScaledWidth3D(void)

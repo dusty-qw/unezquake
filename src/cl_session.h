@@ -52,6 +52,7 @@ qbool CL_SessionVideoSuspended(void);
 qbool CL_SessionWindowIsFullscreen(void);
 qbool CL_SessionWindowIsMinimized(void);
 qbool CL_SessionRequestWindowAction(qbool restore);
+qbool CL_SessionRequestDeadKeyCancel(void);
 qbool CL_SessionSetCaption(const char *caption);
 void CL_SessionDropFile(const char *path);
 qbool CL_SessionRequestQuit(qbool window_close);
@@ -72,10 +73,12 @@ void CL_SessionsEarlyInit(void);
 void CL_SessionsInit(void);
 void CL_SessionsFrame(void);
 void CL_SessionsWait(void);
-#ifdef _WIN32
 union SDL_Event;
 typedef struct {
 	qbool grab, raw, keyboard_grab, show_cursor, text_entry;
+	qbool capture_mouse, text_input;
+	int cursor_shape;
+	int ime_x, ime_y, ime_w, ime_h;
 	int disable_win_keys;
 	/* A new nonzero sequence requests one cursor restore from the owner. */
 	unsigned int cursor_sequence;
@@ -86,8 +89,8 @@ qbool CL_SessionsForwardInput(const union SDL_Event *event);
 void CL_SessionInputSettings(const session_input_settings_t *settings);
 void VID_SessionInputSettings(const session_input_settings_t *settings);
 void VID_SessionInputEvent(const union SDL_Event *event);
-void VID_SessionInputState(qbool focused, qbool minimized, qbool reset);
-#endif
+void VID_SessionInputState(qbool focused, qbool minimized, qbool reset, unsigned int modifiers);
+unsigned int VID_InputModifiers(void);
 void CL_SessionsShutdown(void);
 void CL_SessionsAttachWindow(struct SDL_Window *window);
 struct SDL_Window *CL_SessionCreateWindow(void);

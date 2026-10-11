@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <wchar.h>
 #include "quakedef.h"
+#include <SDL.h>
 #include "cl_session.h"
 #include "textencoding.h"
 #include "menu.h"
@@ -2404,6 +2405,24 @@ void Key_Event_TextInput(wchar unichar)
 			Key_Console_Backspace();
 		Key_Console(lastKeyDown, unichar);
 	}
+}
+
+/* Synchronize logical modifiers without firing bindings for keys that were
+ * already held when a session acquired input. */
+void Key_SetModifiers(unsigned int modifiers)
+{
+	keydown[K_LCTRL] = (modifiers & KMOD_LCTRL) != 0;
+	keydown[K_RCTRL] = (modifiers & KMOD_RCTRL) != 0;
+	keydown[K_CTRL] = (modifiers & KMOD_CTRL) != 0;
+	keydown[K_LSHIFT] = (modifiers & KMOD_LSHIFT) != 0;
+	keydown[K_RSHIFT] = (modifiers & KMOD_RSHIFT) != 0;
+	keydown[K_SHIFT] = (modifiers & KMOD_SHIFT) != 0;
+	keydown[K_LALT] = (modifiers & KMOD_LALT) != 0;
+	keydown[K_RALT] = (modifiers & KMOD_RALT) != 0;
+	keydown[K_ALT] = (modifiers & KMOD_ALT) != 0;
+	keydown[K_LWIN] = (modifiers & KMOD_LGUI) != 0;
+	keydown[K_RWIN] = (modifiers & KMOD_RGUI) != 0;
+	keydown[K_WIN] = (modifiers & KMOD_GUI) != 0;
 }
 
 void Key_ClearStates (void) 

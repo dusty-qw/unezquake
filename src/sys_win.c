@@ -20,6 +20,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 #include <windows.h>
+#include <SDL.h>
+#include <SDL_syswm.h>
 #include <commctrl.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -87,8 +89,6 @@ typedef HRESULT (WINAPI *SetProcessDpiAwarenessFunc)(_In_ DWORD value);
 #define WH_KEYBOARD_LL 13
 #endif
 
-unsigned int windows_keys_down, windows_keys_up;
-
 static HHOOK WinKeyHook;
 static qbool WinKeyHook_isActive;
 static qbool ScreenSaver_isDisabled = false;
@@ -105,7 +105,13 @@ static qbool session_input_fullscreen, session_text_entry;
 
 static qbool Sys_InputOwnerActive(void)
 {
-	return ActiveApp && !CL_SessionIsWorker();
+	SDL_SysWMinfo wm;
+	SDL_Window *window = SDL_GetKeyboardFocus();
+	if (CL_SessionIsWorker() || !window)
+		return false;
+	SDL_VERSION(&wm.version);
+	return SDL_GetWindowWMInfo(window, &wm) && wm.subsystem == SDL_SYSWM_WINDOWS &&
+		GetForegroundWindow() == wm.info.win.window && !IsIconic(wm.info.win.window);
 }
 
 static void ReleaseKeyHook (void)
@@ -113,6 +119,9 @@ static void ReleaseKeyHook (void)
 	if (WinKeyHook_isActive) {
 		UnhookWindowsHookEx (WinKeyHook);
 		WinKeyHook_isActive = false;
+		/* Intercepted GUI presses bypass SDL's physical key array. Their
+		 * later native releases may be ignored after capture ends. */
+		SDL_SetModState(SDL_GetModState() & ~KMOD_GUI);
 	}
 }
 
@@ -151,37 +160,47 @@ void OnChange_sys_disableWinKeys(cvar_t *var, char *string, qbool *cancel)
 	}
 }
 
-LRESULT CALLBACK LLWinKeyHook(int Code, WPARAM wParam, LPARAM lParam) 
+LRESULT CALLBACK LLWinKeyHook(int Code, WPARAM wParam, LPARAM lParam)
 {
-	if (Code < 0 || !Sys_InputOwnerActive())
+	if (Code != HC_ACTION || !Sys_InputOwnerActive())
 		return CallNextHookEx(NULL, Code, wParam, lParam);
-	PKBDLLHOOKSTRUCT p = (PKBDLLHOOKSTRUCT) lParam;
-	unsigned int* flags = (p->flags & LLKHF_UP) ? &windows_keys_up : &windows_keys_down;
-
-	switch (p->vkCode)
-	{
-		case VK_LWIN:
-			*flags |= WINDOWS_LWINDOWSKEY;
-			return 1;
-		case VK_RWIN:
-			*flags |= WINDOWS_RWINDOWSKEY;
-			return 1;
-		case VK_APPS:
-			*flags |= WINDOWS_MENU;
-			return 1;
-		case VK_SNAPSHOT:
-			*flags |= WINDOWS_PRINTSCREEN;
-			return 1;
-		case VK_CAPITAL:
-			if (CL_SessionIsCoordinator() ? !session_text_entry : (key_dest != key_console && key_dest != key_message)) {
-				// Don't toggle capslock when in game
-				*flags |= WINDOWS_CAPSLOCK;
-				return 1;
-			}
-			break;
+	PKBDLLHOOKSTRUCT p = (PKBDLLHOOKSTRUCT)lParam;
+	SDL_Scancode scancode;
+	SDL_Keymod modifier = KMOD_NONE;
+	switch (p->vkCode) {
+	case VK_LWIN: scancode = SDL_SCANCODE_LGUI; modifier = KMOD_LGUI; break;
+	case VK_RWIN: scancode = SDL_SCANCODE_RGUI; modifier = KMOD_RGUI; break;
+	case VK_APPS: scancode = SDL_SCANCODE_APPLICATION; break;
+	case VK_SNAPSHOT: scancode = SDL_SCANCODE_PRINTSCREEN; break;
+	case VK_CAPITAL:
+		if (CL_SessionIsCoordinator() ? session_text_entry : (key_dest == key_console || key_dest == key_message))
+			return CallNextHookEx(NULL, Code, wParam, lParam);
+		scancode = SDL_SCANCODE_CAPSLOCK;
+		break;
+	default:
+		return CallNextHookEx(NULL, Code, wParam, lParam);
 	}
-
-	return CallNextHookEx(NULL, Code, wParam, lParam);
+	/* Join SDL's event queue at the source instead of batching down/up masks
+	 * after the pump. Preserve key identity, order, and modifiers for both the
+	 * game and menu. Hooks must not perform any window/capture operations. */
+	SDL_Event event;
+	SDL_Window *window = SDL_GetKeyboardFocus();
+	qbool down = !(p->flags & LLKHF_UP);
+	SDL_Keymod mods = SDL_GetModState();
+	if (modifier) {
+		mods = down ? (mods | modifier) : (mods & ~modifier);
+		SDL_SetModState(mods);
+	}
+	memset(&event, 0, sizeof(event));
+	event.type = down ? SDL_KEYDOWN : SDL_KEYUP;
+	event.key.timestamp = SDL_GetTicks();
+	event.key.windowID = window ? SDL_GetWindowID(window) : 0;
+	event.key.state = down ? SDL_PRESSED : SDL_RELEASED;
+	event.key.keysym.scancode = scancode;
+	event.key.keysym.sym = SDL_GetKeyFromScancode(scancode);
+	event.key.keysym.mod = mods;
+	SDL_PushEvent(&event);
+	return 1;
 }
 
 void Sys_SessionInputPolicy(int disable_win_keys, qbool fullscreen, qbool text_entry)
@@ -1647,6 +1666,8 @@ void *Sys_GetAddressForName(dllhandle_t *module, const char *exportname)
 // See: https://github.com/flibitijibibo/FNA-MGHistory/issues/277
 void Sys_CancelDeadKey (void)
 {
+	if (CL_SessionRequestDeadKeyCancel() || !CL_SessionWindowIsFocused() || CL_SessionWindowIsMinimized())
+		return;
 	INPUT input[2] = { { 0 } };
 	input[0].type = input[1].type = INPUT_KEYBOARD;
 	input[0].ki.wVk = input[1].ki.wVk = VK_BACK;

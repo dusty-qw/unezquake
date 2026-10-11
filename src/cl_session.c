@@ -40,6 +40,13 @@ static SDL_atomic_t active = { 1 }; /* Also read by the audio callback. */
 static SDL_Window *session_window;
 static qbool worker_window_fullscreen;
 static qbool worker_window_minimized;
+static qbool worker_window_focused;
+
+qbool CL_SessionWindowIsFocused(void)
+{
+	return session_worker ? worker_window_focused :
+		(session_window && (SDL_GetWindowFlags(session_window) & SDL_WINDOW_INPUT_FOCUS));
+}
 
 int CL_SessionSelected(void) { return selected_slot; }
 int CL_SessionNumber(void) { return local_slot; }
@@ -118,6 +125,7 @@ qbool CL_SessionInfo(int slot, cl_session_info_t *info)
 #include <errno.h>
 #include <dirent.h>
 #include <fcntl.h>
+#include <poll.h>
 #include <signal.h>
 #include <spawn.h>
 #include <sys/socket.h>
@@ -138,7 +146,7 @@ enum { SESSION_READY = 1, SESSION_SELECT, SESSION_SLEEP, SESSION_ASLEEP,
 	SESSION_VIDEO_REQUEST, SESSION_VIDEO_DETACH, SESSION_VIDEO_DETACHED,
 	SESSION_VIDEO_ATTACH, SESSION_VIDEO_ATTACHED,
 	SESSION_QUIT, SESSION_WINDOW_QUIT, SESSION_SHUTDOWN, SESSION_DROP_FILE,
-	SESSION_QUIT_SAVE, SESSION_NOTICE, SESSION_CAPTION, SESSION_INPUT, SESSION_INPUT_SETTINGS };
+	SESSION_QUIT_SAVE, SESSION_NOTICE, SESSION_CAPTION, SESSION_INPUT, SESSION_INPUT_SETTINGS, SESSION_CANCEL_DEADKEY };
 #define SESSION_NOTICE_HISTORY 64
 #define SESSION_NOTICE_LENGTH 1024
 typedef struct {
@@ -146,10 +154,9 @@ typedef struct {
 	unsigned int generation;
 	qbool fullscreen;
 	qbool minimized;
-#ifdef _WIN32
 	qbool focused;
+	unsigned int modifiers;
 	session_input_settings_t input_settings;
-#endif
 	int x, y, width, height;
 	uintptr_t window;
 	char path[MAX_OSPATH];
@@ -185,19 +192,11 @@ static double quit_started;
 static Display *display;
 static void *xlib;
 static int (*session_XSelectInput)(Display *, Window, long);
-static Status (*session_XGetWindowAttributes)(Display *, Window, XWindowAttributes *);
-static long session_events;
 static int (*session_XSync)(Display *, Bool);
+static int (*session_XPending)(Display *);
 static int (*session_XPutBackEvent)(Display *, XEvent *);
-static void *xilib;
-static int (*session_XISelectEvents)(Display *, Window, XIEventMask *, int);
-static XIEventMask *(*session_XIGetSelectedEvents)(Display *, Window, int *);
-static int (*session_XFree)(void *);
-static qbool session_xi_available, session_xi2_pointer;
-#define SESSION_XI2_ENV "EZQUAKE_SESSION_XI2"
-enum { SESSION_XI2_DETACH, SESSION_XI2_IDLE, SESSION_XI2_ACTIVE };
-static void Session_XISelectPointer(int level);
-#else
+static void Session_DisableNativeInput(void);
+#endif
 static char pending_caption[SESSION_NOTICE_LENGTH];
 static qbool caption_pending;
 #define SESSION_INPUT_BATCH 64
@@ -207,6 +206,7 @@ typedef struct {
 	int type;
 	unsigned int generation, count;
 	qbool focused, minimized, reset;
+	unsigned int modifiers;
 	SDL_Event events[SESSION_INPUT_BATCH];
 } session_input_message_t;
 typedef char session_input_packet_fits[(sizeof(session_input_message_t) <= sizeof(session_message_t)) ? 1 : -1];
@@ -214,9 +214,6 @@ static SDL_Event input_queue[SESSION_INPUT_QUEUE];
 static unsigned int input_head, input_count, input_generation;
 static qbool input_reset, input_settings_pending, input_settings_valid;
 static session_input_settings_t input_settings;
-static qbool worker_window_focused;
-
-#endif
 
 static enum { VIDEO_IDLE, VIDEO_DETACHING, VIDEO_ATTACHING } video_phase;
 static unsigned int video_generation;
@@ -231,9 +228,8 @@ static void Session_WindowState(session_message_t *message)
 {
 	message->fullscreen = CL_SessionWindowIsFullscreen();
 	message->minimized = CL_SessionWindowIsMinimized();
-#ifdef _WIN32
 	message->focused = CL_SessionWindowIsFocused();
-#endif
+	message->modifiers = VID_InputModifiers();
 	if (session_window) {
 		SDL_GetWindowPosition(session_window, &message->x, &message->y);
 		SDL_GetWindowSize(session_window, &message->width, &message->height);
@@ -253,10 +249,8 @@ static void Session_ApplyWindowState(const session_message_t *message)
 	if (Minimized && !worker_window_minimized)
 		scr_skipupdate = false;
 	Minimized = worker_window_minimized;
-#ifdef _WIN32
 	worker_window_focused = message->focused;
-	VID_SessionInputState(worker_window_focused, worker_window_minimized, false);
-#endif
+	VID_SessionInputState(worker_window_focused, worker_window_minimized, false, message->modifiers);
 	if (!message->fullscreen && !message->minimized && message->width > 0 && message->height > 0 &&
 		(message->x != last_x || message->y != last_y ||
 		 message->width != last_width || message->height != last_height)) {
@@ -344,21 +338,12 @@ static qbool Session_Reap(session_worker_t *worker, qbool wait)
 
 qbool CL_SessionSetCaption(const char *caption)
 {
-#ifdef _WIN32
 	if (session_worker) {
 		strlcpy(pending_caption, caption, sizeof(pending_caption));
 		caption_pending = true;
 		return true;
 	}
-#endif
 	return false;
-}
-
-#ifdef _WIN32
-qbool CL_SessionWindowIsFocused(void)
-{
-	return session_worker ? worker_window_focused :
-		(session_window && (SDL_GetWindowFlags(session_window) & SDL_WINDOW_INPUT_FOCUS));
 }
 
 static qbool Session_InputEnabled(void)
@@ -390,9 +375,13 @@ qbool CL_SessionsForwardInput(const SDL_Event *event)
 			input_head = input_count = 0;
 			input_reset = true;
 		}
-		return false; /* The coordinator still processes its own window events. */
+		if (event->window.event != SDL_WINDOWEVENT_ENTER && event->window.event != SDL_WINDOWEVENT_LEAVE)
+			return false; /* Owner handles geometry/focus; workers receive resets. */
+		copy.window = event->window;
+		break;
 	case SDL_KEYDOWN: case SDL_KEYUP: copy.key = event->key; break;
 	case SDL_TEXTINPUT: copy.text = event->text; break;
+	case SDL_TEXTEDITING: copy.edit = event->edit; break;
 	case SDL_MOUSEMOTION: copy.motion = event->motion; break;
 	case SDL_MOUSEBUTTONDOWN: case SDL_MOUSEBUTTONUP: copy.button = event->button; break;
 	case SDL_MOUSEWHEEL: copy.wheel = event->wheel; break;
@@ -426,10 +415,16 @@ static void Session_FlushInput(void)
 		packet.focused = CL_SessionWindowIsFocused();
 		packet.minimized = CL_SessionWindowIsMinimized();
 		packet.reset = input_reset;
+		packet.modifiers = VID_InputModifiers();
 		for (i = 0; i < packet.count; ++i)
 			packet.events[i] = input_queue[(input_head + i) % SESSION_INPUT_QUEUE];
-		if (!Session_WinSend(workers[selected_slot - 1].fd, &packet,
-			offsetof(session_input_message_t, events) + packet.count * sizeof(SDL_Event)))
+		int size = offsetof(session_input_message_t, events) + packet.count * sizeof(SDL_Event);
+#ifdef _WIN32
+		qbool sent = Session_WinSend(workers[selected_slot - 1].fd, &packet, size);
+#else
+		qbool sent = send(workers[selected_slot - 1].fd, &packet, size, MSG_DONTWAIT | MSG_NOSIGNAL) == size;
+#endif
+		if (!sent)
 			break; /* Retain the complete ordered batch until the pipe has space. */
 		input_head = (input_head + packet.count) % SESSION_INPUT_QUEUE;
 		input_count -= packet.count;
@@ -470,26 +465,41 @@ static void Session_ReceiveInput(const session_message_t *message, int bytes)
 		return;
 	worker_window_focused = packet.focused;
 	worker_window_minimized = packet.minimized;
-	VID_SessionInputState(packet.focused, packet.minimized, packet.reset);
+	VID_SessionInputState(packet.focused, packet.minimized, packet.reset, packet.modifiers);
 	if (packet.focused && !packet.minimized)
 		for (i = 0; i < packet.count; ++i)
 			VID_SessionInputEvent(&packet.events[i]);
 }
-#endif
 
 void CL_SessionsWait(void)
 {
+	if (SDL_HasEvents(SDL_FIRSTEVENT, SDL_LASTEVENT))
+		return;
 #ifdef _WIN32
 	intptr_t processes[CL_MAX_SESSIONS];
 	int i, count = 0;
-	if (SDL_HasEvents(SDL_FIRSTEVENT, SDL_LASTEVENT))
-		return;
 	for (i = 0; i < CL_MAX_SESSIONS; ++i)
 		if (workers[i].pid > 0)
 			processes[count++] = workers[i].pid;
 	Session_WinWait(processes, count, Session_InputEnabled() && (input_count || input_reset) ? 1 : 50);
 #else
-	SDL_Delay(1);
+	struct pollfd descriptors[CL_MAX_SESSIONS + 1];
+	int i, count = 0;
+	if (display) {
+		/* A synchronous SDL/Xlib call can already have read the socket into
+		 * Xlib's queue. Do not sleep waiting for those bytes a second time. */
+		if (session_XPending(display))
+			return;
+		descriptors[count].fd = ConnectionNumber(display);
+		descriptors[count++].events = POLLIN;
+	}
+	for (i = 0; i < CL_MAX_SESSIONS; ++i) {
+		if (workers[i].fd >= 0) {
+			descriptors[count].fd = workers[i].fd;
+			descriptors[count++].events = POLLIN;
+		}
+	}
+	poll(descriptors, count, Session_InputEnabled() && (input_count || input_reset) ? 1 : 50);
 #endif
 }
 
@@ -536,20 +546,34 @@ static qbool Session_Control(intptr_t fd, int type, int slot)
 		Session_WindowState(&message);
 	if (type == SESSION_WAKE) {
 		VID_SessionWindowSettings(&message.video, false);
-#ifdef _WIN32
 		message.generation = input_generation;
-#endif
 	}
 	return Session_Send(fd, &message);
 }
 
-qbool CL_SessionRequestWindowAction(qbool restore)
+static qbool Session_RequestInputAction(int type)
 {
 	if (!CL_SessionIsWorker())
 		return false;
-	if (!Session_Control(coordinator_fd, restore ? SESSION_RESTORE : SESSION_MINIMIZE, local_slot))
+	if (!CL_SessionIsActive())
+		return true;
+	session_message_t message;
+	memset(&message, 0, sizeof(message));
+	message.type = type;
+	message.generation = input_generation;
+	if (!Session_Send(coordinator_fd, &message))
 		Session_Printf("Window request could not be queued.\n");
 	return true;
+}
+
+qbool CL_SessionRequestWindowAction(qbool restore)
+{
+	return Session_RequestInputAction(restore ? SESSION_RESTORE : SESSION_MINIMIZE);
+}
+
+qbool CL_SessionRequestDeadKeyCancel(void)
+{
+	return Session_RequestInputAction(SESSION_CANCEL_DEADKEY);
 }
 
 void CL_SessionDropFile(const char *path)
@@ -571,18 +595,10 @@ static void Session_ReleaseInput(void)
 {
 	VID_SessionRelease();
 	SDL_AtomicSet(&active, 0);
-	Key_ClearStates();
-	CL_ClearSessionInput();
 	IN_DeactivateMouse();
 	S_StopAllSounds();
 #ifdef _WIN32
 	Session_WinSetActive(session_window, false);
-#else
-	if (display && session_window) {
-		session_XSelectInput(display, parent_window, session_events & ~ButtonPressMask);
-		Session_XISelectPointer(SESSION_XI2_IDLE);
-		session_XSync(display, False);
-	}
 #endif
 }
 
@@ -595,11 +611,10 @@ void CL_SessionsDetachWindow(void)
 		 * hides the native window and waits synchronously for UnmapNotify, which
 		 * requires StructureNotifyMask. Clearing that mask strands it forever. */
 		session_XSelectInput(display, parent_window, 0);
-		Session_XISelectPointer(SESSION_XI2_DETACH);
+		Session_DisableNativeInput();
 		session_XSync(display, False);
 	}
 	display = NULL;
-	session_xi_available = false;
 #endif
 	session_window = NULL;
 }
@@ -659,123 +674,23 @@ SDL_Window *CL_SessionCreateWindow(void)
 }
 
 #ifndef _WIN32
-static qbool Session_LoadXI(void)
+static void Session_DisableNativeInput(void)
 {
-	/* Xlib retains extension callbacks, so keep libXi loaded like libX11. */
-	if (!xilib)
-		xilib = SDL_LoadObject("libXi.so.6");
-	if (!xilib) {
-		Session_Printf("Sessions: cannot inspect XInput2 subscriptions: %s\n", SDL_GetError());
-		return false;
+	/* Foreign render wrappers must not participate in input. Clear any XI2
+	 * subscriptions selected by SDL2 or sdl2-compat as well as core events. */
+	static void *xi;
+	if (!xi)
+		xi = SDL_LoadObject("libXi.so.6");
+	if (xi) {
+		int (*select_events)(Display *, Window, XIEventMask *, int) = SDL_LoadFunction(xi, "XISelectEvents");
+		XIEventMask masks[] = { { XIAllDevices, 0, NULL }, { XIAllMasterDevices, 0, NULL } };
+		if (select_events)
+			select_events(display, parent_window, masks, 2);
+		/* Xlib may retain extension callbacks until SDL closes this display.
+		 * Keep the module loaded for the lifetime of the process. */
 	}
-	session_XISelectEvents = SDL_LoadFunction(xilib, "XISelectEvents");
-	session_XIGetSelectedEvents = SDL_LoadFunction(xilib, "XIGetSelectedEvents");
-	session_XFree = SDL_LoadFunction(xlib, "XFree");
-	if (!session_XISelectEvents || !session_XIGetSelectedEvents || !session_XFree) {
-		Session_Printf("Sessions: missing XInput2 subscription functions.\n");
-		return false;
-	}
-	return true;
-}
-
-static qbool Session_XIMaskHas(const XIEventMask *mask, int event)
-{
-	return mask->mask_len > event / 8 && XIMaskIsSet(mask->mask, event);
-}
-
-static XIEventMask *Session_XIGetMasks(int *count)
-{
-	XIEventMask *masks = session_XIGetSelectedEvents(display, parent_window, count);
-	if (*count < 0)
-		Session_Printf("Sessions: cannot read XInput2 subscriptions.\n");
-	return masks;
-}
-
-static void Session_XISelectMask(const XIEventMask *original, int level)
-{
-	XIEventMask mask = *original;
-	mask.mask_len = max(original->mask_len, XIMaskLen(XI_LASTEVENT));
-	mask.mask = Q_malloc(mask.mask_len);
-	memset(mask.mask, 0, mask.mask_len);
-	if (original->mask_len)
-		memcpy(mask.mask, original->mask, original->mask_len);
-
-	if (level == SESSION_XI2_DETACH) {
-		/* This foreign wrapper is about to be destroyed. */
-		mask.mask_len = 0;
-	}
-	else if (!session_xi2_pointer) {
-		/* Native SDL2 selects XI_Motion on the owner's window, but not on
-		 * foreign wrappers. Stop it suppressing workers' core MotionNotify. */
-		XIClearMask(mask.mask, XI_Motion);
-	}
-	else {
-		if (session_worker && mask.deviceid == XIAllDevices) {
-			/* SDL3/sdl2-compat uses XI2 for pointer input. Ensure workers have
-			 * its pointer selection even if foreign-window setup omitted it.
-			 * Retain any keyboard, touch, or other bits SDL already selected. */
-			XISetMask(mask.mask, XI_Motion);
-			XISetMask(mask.mask, XI_ButtonRelease);
-			XISetMask(mask.mask, XI_Enter);
-			XISetMask(mask.mask, XI_Leave);
-			XISetMask(mask.mask, XI_DeviceChanged);
-			XISetMask(mask.mask, XI_HierarchyChanged);
-			XISetMask(mask.mask, XI_PropertyEvent);
-			if (level == SESSION_XI2_ACTIVE)
-				XISetMask(mask.mask, XI_ButtonPress);
-		}
-		if (level != SESSION_XI2_ACTIVE)
-			XIClearMask(mask.mask, XI_ButtonPress);
-	}
-	if (session_XISelectEvents(display, parent_window, &mask, 1) != Success)
-		Session_Printf("Sessions: cannot update XInput2 subscriptions (device %d).\n", mask.deviceid);
-	Q_free(mask.mask);
-}
-
-static void Session_XISelectPointer(int level)
-{
-	XIEventMask *masks;
-	qbool all_devices = false;
-	int i, count = 0;
-	if (!session_xi_available || !display ||
-		(session_worker && !session_xi2_pointer && level != SESSION_XI2_DETACH))
-		return;
-	masks = Session_XIGetMasks(&count);
-	for (i = 0; masks && i < count; ++i) {
-		all_devices |= masks[i].deviceid == XIAllDevices;
-		Session_XISelectMask(&masks[i], level);
-	}
-	if (count >= 0 && session_worker && session_xi2_pointer && !all_devices && level != SESSION_XI2_DETACH) {
-		XIEventMask mask = { XIAllDevices, 0, NULL };
-		Session_XISelectMask(&mask, level);
-	}
-	if (masks)
-		session_XFree(masks);
-}
-
-static void Session_AttachXI(void)
-{
-	XIEventMask *masks;
-	const char *inherited = session_worker ? getenv(SESSION_XI2_ENV) : NULL;
-	int i, count = 0;
-	session_xi2_pointer = inherited && !strcmp(inherited, "1");
-	session_xi_available = Session_LoadXI();
-	if (!session_xi_available)
-		return;
-	masks = Session_XIGetMasks(&count);
-	/* Detect the actual SDL backend, not the headers used to build us:
-	 * SDL2 selects motion/touch on XIAllMasterDevices; SDL3 also selects
-	 * buttons on XIAllDevices. Motion alone doesn't imply XI2 buttons. */
-	for (i = 0; masks && i < count; ++i)
-		if (Session_XIMaskHas(&masks[i], XI_Motion) && Session_XIMaskHas(&masks[i], XI_ButtonPress))
-			session_xi2_pointer = true;
-	if (masks)
-		session_XFree(masks);
-	if (count < 0) {
-		session_xi_available = false;
-		return;
-	}
-	Session_XISelectPointer(SESSION_XI2_IDLE);
+	session_XSelectInput(display, parent_window, 0);
+	session_XSync(display, False);
 }
 #endif
 
@@ -787,7 +702,6 @@ void CL_SessionsAttachWindow(SDL_Window *window)
 		parent_window = Session_WinWindowHandle(window);
 #else
 	SDL_SysWMinfo wm;
-	XWindowAttributes attributes;
 	session_window = window;
 	SDL_VERSION(&wm.version);
 	if (!SDL_GetWindowWMInfo(window, &wm) || wm.subsystem != SDL_SYSWM_X11) {
@@ -804,32 +718,14 @@ void CL_SessionsAttachWindow(SDL_Window *window)
 	if (!xlib)
 		Sys_Error("Sessions: cannot load libX11");
 	SESSION_X_LOAD(XSelectInput);
-	SESSION_X_LOAD(XGetWindowAttributes);
 	SESSION_X_LOAD(XSync);
+	SESSION_X_LOAD(XPending);
 	SESSION_X_LOAD(XPutBackEvent);
 #undef SESSION_X_LOAD
 	display = wm.info.x11.display;
 	parent_window = wm.info.x11.window;
-	if (CL_SessionIsWorker()) {
-		session_events = FocusChangeMask | EnterWindowMask | LeaveWindowMask |
-			ExposureMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask |
-			KeyPressMask | KeyReleaseMask | KeymapStateMask;
-		/* Only the coordinator may process map/unmap and WM-state events.
-		 * SDL otherwise lets every foreign wrapper restore fullscreen using its
-		 * own display/placement state, racing the real window owner. Geometry
-		 * and visibility are forwarded in session messages instead. */
-		/* ButtonPress is exclusive to one X client. Acquire it only on WAKE. */
-		session_XSelectInput(display, parent_window, session_events & ~ButtonPressMask);
-	}
-	else {
-		session_XGetWindowAttributes(display, parent_window, &attributes);
-		session_events = attributes.your_event_mask;
-		/* The owner never takes button input, including after vid_restart. */
-		if (session_coordinator)
-			session_XSelectInput(display, parent_window, session_events & ~ButtonPressMask);
-	}
-	if (session_coordinator || session_worker)
-		Session_AttachXI();
+	if (CL_SessionIsWorker())
+		Session_DisableNativeInput();
 	session_XSync(display, False);
 #endif
 }
@@ -915,12 +811,9 @@ static qbool Session_Start(int slot)
 	for (env_count = 0; environ[env_count]; ++env_count) { }
 	child_env = Q_malloc((env_count + 3) * sizeof(*child_env));
 	for (result = 0, env_count = 0; environ[result]; ++result)
-		if (strncmp(environ[result], "SDL_VIDEODRIVER=", 16) &&
-			strncmp(environ[result], SESSION_XI2_ENV "=", sizeof(SESSION_XI2_ENV)))
+		if (strncmp(environ[result], "SDL_VIDEODRIVER=", 16))
 			child_env[env_count++] = environ[result];
 	child_env[env_count++] = "SDL_VIDEODRIVER=x11";
-	if (session_xi2_pointer)
-		child_env[env_count++] = SESSION_XI2_ENV "=1";
 	child_env[env_count] = NULL;
 	result = posix_spawn(&worker->pid, "/proc/self/exe", &actions, NULL, argv, child_env);
 	Q_free(argv);
@@ -982,10 +875,8 @@ qbool CL_SessionsInitCoordinator(void)
 
 static void Session_Activate(int slot)
 {
-#ifdef _WIN32
 	Session_ResetInput();
 	++input_generation;
-#endif
 	selected_slot = slot;
 	sleeping_slot = 0;
 	/* Every numbered slot is an engine worker; the owner never takes input. */
@@ -1018,9 +909,7 @@ static void Session_BeginVideoRestart(int slot, const session_video_settings_t *
 			return;
 		}
 	}
-#ifdef _WIN32
 	Session_ResetInput();
-#endif
 	video_settings = *settings;
 	video_requester = slot;
 	requested_slot = selected_slot;
@@ -1138,9 +1027,7 @@ static void Session_Remove(int slot)
 	if (requested_slot == slot)
 		requested_slot = Session_FallbackSlot();
 	if (selected_slot == slot) {
-#ifdef _WIN32
 		Session_ResetInput();
-#endif
 		selected_slot = 0;
 		if (!sleeping_slot)
 			requested_slot = Session_FallbackSlot();
@@ -1262,12 +1149,10 @@ void CL_SessionsFrame(void)
 		return;
 	if (CL_SessionIsWorker()) {
 		while ((bytes = Session_Receive(coordinator_fd, &message)) > 0) {
-#ifdef _WIN32
 			if (message.type == SESSION_INPUT) {
 				Session_ReceiveInput(&message, bytes);
 				continue;
 			}
-#endif
 			if (bytes != sizeof(message))
 				continue;
 			switch (message.type) {
@@ -1310,22 +1195,16 @@ void CL_SessionsFrame(void)
 					break;
 				VID_SessionSyncWindowSettings(&message.video);
 				Session_ApplyWindowState(&message);
-#ifdef _WIN32
 				input_generation = message.generation;
 				input_settings_valid = false;
+#ifdef _WIN32
 				Session_WinSetActive(session_window, true);
 #endif
 				VID_SessionActivate();
-#ifndef _WIN32
-				session_XSelectInput(display, parent_window, session_events);
-				Session_XISelectPointer(SESSION_XI2_ACTIVE);
-				session_XSync(display, False);
-#endif
 				selected_slot = local_slot;
-				Key_ClearStates();
-				CL_ClearSessionInput();
 				S_StopAllSounds();
 				SDL_AtomicSet(&active, 1);
+				VID_SessionInputState(message.focused, message.minimized, true, message.modifiers);
 				/* Another engine may have changed the shared title since we last
 				 * ran, even if our cached server status is unchanged. */
 				CL_UpdateCaption(true);
@@ -1352,7 +1231,6 @@ void CL_SessionsFrame(void)
 			Host_QuitSession(false);
 			return;
 		}
-#ifdef _WIN32
 		if (CL_SessionIsActive() && session_window) {
 			if (caption_pending) {
 				memset(&message, 0, sizeof(message));
@@ -1362,7 +1240,6 @@ void CL_SessionsFrame(void)
 					caption_pending = false;
 			}
 		}
-#endif
 		if (local_quit_request && Session_Control(coordinator_fd, local_quit_request, local_slot))
 			local_quit_request = 0;
 		if (startup_video_restart && CL_SessionIsActive() && host_everything_loaded) {
@@ -1407,12 +1284,10 @@ void CL_SessionsFrame(void)
 			if (bytes != sizeof(message))
 				continue;
 			switch (message.type) {
-#ifdef _WIN32
 			case SESSION_INPUT_SETTINGS:
 				if (i + 1 == selected_slot && Session_InputEnabled() && message.generation == input_generation)
 					VID_SessionInputSettings(&message.input_settings);
 				break;
-#endif
 			case SESSION_CAPTION:
 				if (i + 1 == selected_slot) {
 					message.notice[sizeof(message.notice) - 1] = 0;
@@ -1451,38 +1326,42 @@ void CL_SessionsFrame(void)
 				Session_Close(message.slot);
 				break;
 			case SESSION_MINIMIZE:
-				VID_Minimize();
-				break;
 			case SESSION_RESTORE:
-				VID_Restore();
+			case SESSION_CANCEL_DEADKEY:
+				if (i + 1 == selected_slot && Session_InputEnabled() && message.generation == input_generation) {
+					if (message.type == SESSION_MINIMIZE)
+						VID_Minimize();
+					else if (message.type == SESSION_RESTORE)
+						VID_Restore();
+#ifdef _WIN32
+					else if (CL_SessionWindowIsFocused() && !CL_SessionWindowIsMinimized())
+						Sys_CancelDeadKey();
+#endif
+				}
 				break;
 			}
 		}
 		if (bytes == 0) {
-			/* EOF precedes SDL teardown. Wait for process exit before handing
-			 * input to another engine; the old SDL instance may still ungrab. */
+			/* EOF precedes renderer teardown. Wait for process exit before
+			 * selecting a replacement that uses the same drawable. */
 			Session_ClosePipe(worker->fd);
 			worker->fd = -1;
 			if (!worker->closing_started)
 				worker->closing_started = now;
-#ifdef _WIN32
 			if (i + 1 == selected_slot)
 				Session_ResetInput();
-#endif
 			continue;
 		}
 		if (!sessions[i].ready && now - worker->started > 30) {
-			/* Keep its slot until reaped: SDL must finish releasing any grab
-			 * before another engine can take input ownership. */
+			/* Keep its slot until reaped, so a late startup cannot reuse the
+			 * same drawable after a replacement has been selected. */
 			Session_Terminate(worker->pid, now - worker->started > 35);
 		}
 	}
 	for (i = 0; i < CL_MAX_SESSIONS; ++i)
 		Session_FlushNotices(&workers[i]);
 	if (quit_slot) {
-#ifdef _WIN32
 		Session_ResetInput();
-#endif
 		Session_QuitFrame(now);
 		return;
 	}
@@ -1501,18 +1380,14 @@ void CL_SessionsFrame(void)
 		else if (Session_Control(workers[selected_slot - 1].fd, SESSION_SLEEP, selected_slot)) {
 			sleeping_slot = selected_slot;
 			switch_started = now;
-#ifdef _WIN32
 			Session_ResetInput();
-#endif
 		}
 	}
 	if (sleeping_slot && now - switch_started > 5) {
 		/* Never let an unresponsive renderer retain input ownership. */
 		Session_Terminate(workers[sleeping_slot - 1].pid, now - switch_started > 10);
 	}
-#ifdef _WIN32
 	Session_FlushInput();
-#endif
 	if (now >= next_status) {
 		memset(&message, 0, sizeof(message));
 		message.type = SESSION_SNAPSHOT;
@@ -1570,8 +1445,11 @@ void CL_SessionsShutdown(void)
 }
 
 #else
+qbool CL_SessionsForwardInput(const SDL_Event *event) { return false; }
+void CL_SessionInputSettings(const session_input_settings_t *settings) { }
 qbool CL_SessionSetCaption(const char *caption) { return false; }
 qbool CL_SessionRequestWindowAction(qbool restore) { return false; }
+qbool CL_SessionRequestDeadKeyCancel(void) { return false; }
 void CL_SessionDropFile(const char *path) { Session_LocalDropFile(path); }
 qbool CL_SessionRequestQuit(qbool window_close) { return false; }
 qbool CL_SessionRestartVideo(void) { return false; }

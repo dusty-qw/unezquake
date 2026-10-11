@@ -276,6 +276,7 @@ void Key_Shutdown(void);
 void Key_SetBinding (int keynum, const char *binding);
 void Key_Unbind (int keynum);
 void Key_ClearStates (void);
+void Key_SetModifiers(unsigned int modifiers);
 int	 Key_StringToKeynum (const char *str);
 char *Key_KeynumToString (int keynum);
 void Key_Unbindall_f (void);
@@ -295,16 +296,6 @@ extern cvar_t	con_bindphysical;
 #define CONSOLE_LINE_EMPTY() (!key_lines[edit_line][1])
 
 // }
-
-#if defined(_WIN32) && !defined(WITHOUT_WINKEYHOOK)
-#define WINDOWS_LWINDOWSKEY (1 << 0)
-#define WINDOWS_RWINDOWSKEY (1 << 1)
-#define WINDOWS_MENU        (1 << 2)
-#define WINDOWS_PRINTSCREEN (1 << 3)
-#define WINDOWS_CAPSLOCK    (1 << 4)
-
-extern unsigned int windows_keys_down, windows_keys_up;
-#endif
 
 qbool Key_IsConsoleToggle(int key);
 

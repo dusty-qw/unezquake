@@ -235,7 +235,15 @@ enum {
 	MUI_PAGE_QUIT
 };
 
-void MenuUI_VidInit(void *sdl_window, void *gl_context, int gl_major_version);
+typedef struct {
+	mui_bool show_cursor, capture_mouse, text_input;
+	int cursor_shape;
+	int ime_x, ime_y, ime_w, ime_h;
+} menu_ui_input_policy_t;
+
+void MenuUI_VidInit(void *sdl_window, void *gl_context, int gl_major_version, mui_bool forwarded_input);
+void MenuUI_ResetInput(mui_bool focused, unsigned int modifiers);
+void MenuUI_InputPolicy(menu_ui_input_policy_t *policy);
 void MenuUI_VidShutdown(void);
 // returns true if the event was consumed by the menu and must not reach the game
 mui_bool MenuUI_ProcessEvent(const void *sdl_event);

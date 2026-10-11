@@ -40,11 +40,14 @@ See the GNU General Public License for more details.
 #include <vector>
 
 #include "imgui.h"
+#include "imgui_internal.h"
 #include "imgui_impl_sdl2.h"
 #include "imgui_impl_opengl2.h"
 #include "imgui_impl_opengl3.h"
 
 #include "menu_ui_bridge.h"
+
+ImGuiKey ImGui_ImplSDL2_KeyEventToImGuiKey(SDL_Keycode keycode, SDL_Scancode scancode);
 
 #ifndef GL_FRAMEBUFFER_SRGB
 #define GL_FRAMEBUFFER_SRGB 0x8DB9
@@ -103,6 +106,11 @@ typedef void (APIENTRY *glActiveTexture_t)(GLenum texture);
 typedef void (APIENTRY *glBindSampler_t)(GLuint unit, GLuint sampler);
 
 struct Backend {
+	bool forwarded_input = false;
+	SDL_Window *window = nullptr;
+	Uint64 input_time = 0;
+	std::string clipboard;
+	SDL_Rect ime_rect = { 0, 0, 1, 1 };
 	bool initialised = false;
 	bool modern = false;           // OpenGL3 backend (GL 3.0+), otherwise OpenGL2 fixed function
 	bool was_open = false;
@@ -2388,13 +2396,113 @@ void RenderDrawData()
 	}
 }
 
+// Session workers use ImGui as an event consumer, never as an SDL input owner.
+// Keep rendering and read-only window sizing local; publish native UI requests
+// through MenuUI_InputPolicy for the coordinator to apply.
+void ForwardedModifiers(unsigned int modifiers)
+{
+	ImGuiIO &io = ImGui::GetIO();
+	io.AddKeyEvent(ImGuiMod_Ctrl, (modifiers & KMOD_CTRL) != 0);
+	io.AddKeyEvent(ImGuiMod_Shift, (modifiers & KMOD_SHIFT) != 0);
+	io.AddKeyEvent(ImGuiMod_Alt, (modifiers & KMOD_ALT) != 0);
+	io.AddKeyEvent(ImGuiMod_Super, (modifiers & KMOD_GUI) != 0);
+}
+
+const char *ForwardedClipboardGet(ImGuiContext *)
+{
+	char *text = SDL_GetClipboardText();
+	backend.clipboard = text ? text : "";
+	SDL_free(text);
+	return backend.clipboard.c_str();
+}
+
+void ForwardedClipboardSet(ImGuiContext *, const char *text)
+{
+	SDL_SetClipboardText(text);
+}
+
+void ForwardedIme(ImGuiContext *, ImGuiViewport *, ImGuiPlatformImeData *data)
+{
+	backend.ime_rect = { (int)data->InputPos.x, (int)data->InputPos.y, 1, (int)data->InputLineHeight };
+}
+
+void ForwardedEvent(const SDL_Event *event)
+{
+	ImGuiIO &io = ImGui::GetIO();
+	switch (event->type) {
+	case SDL_KEYDOWN:
+	case SDL_KEYUP: {
+		ForwardedModifiers(event->key.keysym.mod);
+		ImGuiKey key = ImGui_ImplSDL2_KeyEventToImGuiKey(event->key.keysym.sym, event->key.keysym.scancode);
+		if (key != ImGuiKey_None) {
+			io.AddKeyEvent(key, event->type == SDL_KEYDOWN);
+			io.SetKeyEventNativeData(key, event->key.keysym.sym, event->key.keysym.scancode, event->key.keysym.scancode);
+		}
+		break;
+	}
+	case SDL_TEXTINPUT:
+		io.AddInputCharactersUTF8(event->text.text);
+		break;
+	case SDL_MOUSEMOTION:
+		io.AddMouseSourceEvent(event->motion.which == SDL_TOUCH_MOUSEID ? ImGuiMouseSource_TouchScreen : ImGuiMouseSource_Mouse);
+		io.AddMousePosEvent((float)event->motion.x, (float)event->motion.y);
+		break;
+	case SDL_MOUSEBUTTONDOWN:
+	case SDL_MOUSEBUTTONUP: {
+		int button = -1;
+		switch (event->button.button) {
+		case SDL_BUTTON_LEFT: button = 0; break;
+		case SDL_BUTTON_RIGHT: button = 1; break;
+		case SDL_BUTTON_MIDDLE: button = 2; break;
+		case SDL_BUTTON_X1: button = 3; break;
+		case SDL_BUTTON_X2: button = 4; break;
+		}
+		io.AddMouseSourceEvent(event->button.which == SDL_TOUCH_MOUSEID ? ImGuiMouseSource_TouchScreen : ImGuiMouseSource_Mouse);
+		io.AddMousePosEvent((float)event->button.x, (float)event->button.y);
+		if (button >= 0)
+			io.AddMouseButtonEvent(button, event->type == SDL_MOUSEBUTTONDOWN);
+		break;
+	}
+	case SDL_MOUSEWHEEL:
+#if SDL_VERSION_ATLEAST(2, 0, 18)
+		io.AddMouseWheelEvent(-event->wheel.preciseX, event->wheel.preciseY);
+#else
+		io.AddMouseWheelEvent(-(float)event->wheel.x, (float)event->wheel.y);
+#endif
+		break;
+	case SDL_WINDOWEVENT:
+		if (event->window.event == SDL_WINDOWEVENT_FOCUS_GAINED)
+			io.AddFocusEvent(true);
+		else if (event->window.event == SDL_WINDOWEVENT_FOCUS_LOST)
+			io.AddFocusEvent(false);
+		else if (event->window.event == SDL_WINDOWEVENT_LEAVE && !ImGui::IsAnyMouseDown())
+			io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
+		break;
+	}
+}
+
+void ForwardedNewFrame()
+{
+	ImGuiIO &io = ImGui::GetIO();
+	int width, height, drawable_width, drawable_height;
+	SDL_GetWindowSize(backend.window, &width, &height);
+	SDL_GL_GetDrawableSize(backend.window, &drawable_width, &drawable_height);
+	io.DisplaySize = ImVec2((float)width, (float)height);
+	if (width > 0 && height > 0)
+		io.DisplayFramebufferScale = ImVec2((float)drawable_width / width, (float)drawable_height / height);
+	Uint64 now = SDL_GetPerformanceCounter();
+	io.DeltaTime = backend.input_time && now > backend.input_time ?
+		(float)((double)(now - backend.input_time) / SDL_GetPerformanceFrequency()) : 1.0f / 60.0f;
+	backend.input_time = now;
+}
+
 } // namespace
 
 //=============================================================================
 // interface
 //=============================================================================
 
-void MenuUI_VidInit(void *sdl_window, void *gl_context, int gl_major_version)
+void MenuUI_VidInit(void *sdl_window, void *gl_context, int gl_major_version, mui_bool forwarded_input)
 {
 	if (backend.initialised) {
 		MenuUI_VidShutdown();
@@ -2424,7 +2532,19 @@ void MenuUI_VidInit(void *sdl_window, void *gl_context, int gl_major_version)
 	// sampler objects are GL 3.3, a legacy context may hand out a stub
 	backend.BindSampler = gl_major_version >= 3 ? (glBindSampler_t)SDL_GL_GetProcAddress("glBindSampler") : nullptr;
 
-	ImGui_ImplSDL2_InitForOpenGL((SDL_Window *)sdl_window, gl_context);
+	backend.forwarded_input = forwarded_input != 0;
+	backend.window = (SDL_Window *)sdl_window;
+	backend.input_time = 0;
+	if (backend.forwarded_input) {
+		io.BackendPlatformName = "unezquake_session";
+		io.BackendFlags |= ImGuiBackendFlags_HasMouseCursors;
+		ImGuiPlatformIO &platform = ImGui::GetPlatformIO();
+		platform.Platform_GetClipboardTextFn = ForwardedClipboardGet;
+		platform.Platform_SetClipboardTextFn = ForwardedClipboardSet;
+		platform.Platform_SetImeDataFn = ForwardedIme;
+	}
+	else
+		ImGui_ImplSDL2_InitForOpenGL((SDL_Window *)sdl_window, gl_context);
 	if (!backend.modern || !ImGui_ImplOpenGL3_Init(nullptr)) {
 		backend.modern = false;
 		ImGui_ImplOpenGL2_Init();
@@ -2448,7 +2568,8 @@ void MenuUI_VidShutdown(void)
 	else {
 		ImGui_ImplOpenGL2_Shutdown();
 	}
-	ImGui_ImplSDL2_Shutdown();
+	if (!backend.forwarded_input)
+		ImGui_ImplSDL2_Shutdown();
 	ImGui::DestroyContext();
 	backend.initialised = false;
 	backend.font = nullptr;
@@ -2458,12 +2579,24 @@ mui_bool MenuUI_ProcessEvent(const void *sdl_event)
 {
 	const SDL_Event *event = (const SDL_Event *)sdl_event;
 
-	if (!backend.initialised || !MUI_MenuIsOpen() || MUI_Settings_IsBinding()) {
+	if (!backend.initialised)
+		return false;
+	if (event->type == SDL_WINDOWEVENT) {
+		if (backend.forwarded_input)
+			ForwardedEvent(event);
+		else
+			ImGui_ImplSDL2_ProcessEvent(event);
+		return false;
+	}
+	if (!MUI_MenuIsOpen() || MUI_Settings_IsBinding()) {
 		// the game gets everything (and so does key binding)
 		return false;
 	}
 
-	ImGui_ImplSDL2_ProcessEvent(event);
+	if (backend.forwarded_input)
+		ForwardedEvent(event);
+	else
+		ImGui_ImplSDL2_ProcessEvent(event);
 	ImGuiIO &io = ImGui::GetIO();
 
 	// Releases always reach the game too, otherwise its key state would think the
@@ -2484,6 +2617,48 @@ mui_bool MenuUI_ProcessEvent(const void *sdl_event)
 		default:
 			return false;
 	}
+}
+
+void MenuUI_ResetInput(mui_bool focused, unsigned int modifiers)
+{
+	if (!backend.initialised)
+		return;
+	ImGuiIO &io = ImGui::GetIO();
+	io.ClearEventsQueue();
+	io.ClearInputKeys();
+	io.ClearInputMouse();
+	ImGui::ClearActiveID();
+	io.AddFocusEvent(focused != 0);
+	ForwardedModifiers(modifiers);
+	MUI_Settings_CancelBinding();
+}
+
+void MenuUI_InputPolicy(menu_ui_input_policy_t *policy)
+{
+	memset(policy, 0, sizeof(*policy));
+	policy->show_cursor = true;
+	policy->cursor_shape = SDL_SYSTEM_CURSOR_ARROW;
+	policy->ime_w = policy->ime_h = 1;
+	if (!backend.initialised || !MUI_MenuIsOpen())
+		return;
+	ImGuiIO &io = ImGui::GetIO();
+	ImGuiMouseCursor cursor = ImGui::GetMouseCursor();
+	policy->show_cursor = !io.MouseDrawCursor && cursor != ImGuiMouseCursor_None;
+	switch (cursor) {
+	case ImGuiMouseCursor_TextInput: policy->cursor_shape = SDL_SYSTEM_CURSOR_IBEAM; break;
+	case ImGuiMouseCursor_ResizeAll: policy->cursor_shape = SDL_SYSTEM_CURSOR_SIZEALL; break;
+	case ImGuiMouseCursor_ResizeNS: policy->cursor_shape = SDL_SYSTEM_CURSOR_SIZENS; break;
+	case ImGuiMouseCursor_ResizeEW: policy->cursor_shape = SDL_SYSTEM_CURSOR_SIZEWE; break;
+	case ImGuiMouseCursor_ResizeNESW: policy->cursor_shape = SDL_SYSTEM_CURSOR_SIZENESW; break;
+	case ImGuiMouseCursor_ResizeNWSE: policy->cursor_shape = SDL_SYSTEM_CURSOR_SIZENWSE; break;
+	case ImGuiMouseCursor_Hand: policy->cursor_shape = SDL_SYSTEM_CURSOR_HAND; break;
+	case ImGuiMouseCursor_NotAllowed: policy->cursor_shape = SDL_SYSTEM_CURSOR_NO; break;
+	default: break;
+	}
+	policy->capture_mouse = ImGui::IsAnyMouseDown();
+	policy->text_input = io.WantTextInput;
+	policy->ime_x = backend.ime_rect.x; policy->ime_y = backend.ime_rect.y;
+	policy->ime_w = backend.ime_rect.w; policy->ime_h = backend.ime_rect.h;
 }
 
 void MenuUI_SetPage(int page)
@@ -2521,7 +2696,10 @@ void MenuUI_Render(void)
 	else {
 		ImGui_ImplOpenGL2_NewFrame();
 	}
-	ImGui_ImplSDL2_NewFrame();
+	if (backend.forwarded_input)
+		ForwardedNewFrame();
+	else
+		ImGui_ImplSDL2_NewFrame();
 	UpdateScale();
 	ImGui::NewFrame();
 
