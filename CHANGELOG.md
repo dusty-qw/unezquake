@@ -1,10 +1,25 @@
 # unezQuake Changelog
 
-## Unreleased
+## Version 2.1.0 - 2026-10-08
 
 ### New Features
-- Added chat emoticons: `cl_emoticon 1` replaces text smileys (`:)` `;)` `^^` `<3` ...) and `:name:` codes (`:fire:` `:skull:` ...) in chat messages with small images. The country flags of `scoreboard_flags.pk3` work too (`:br:` `:us:` ...). The images come from `emoticons.pk3` (see `misc/emoticons`), nothing is embedded in the client. Default is `0` (text is left untouched)
-- `color` now accepts 17-34: 18 extra vibrant colors (Lime, Neon Green, Cyan, Magenta, Hot Pink, Gold, ...). Other clients clamp unknown values and show a normal palette color
+
+- Added session support to connect to up to nine servers at once in a single client window. Each session has its own connection, console, command history, and game state. Switching sessions keeps the others connected.
+  - Press Ctrl+2 or bind a key to `session 2` to start a second session.
+  - Press Ctrl+1 or bind a key to `session 1` to return to the original session.
+  - Use `close` to exit the current session and `session_list` to list active sessions.
+- Added a redesigned menu with Quick Play, server browsing, demos, and searchable settings (credit Bance). See the [menu overview video](https://www.youtube.com/watch?v=lEW17AqjkmY).
+  - Use `menu_background 0` to disable the new map background.
+  - Use `menu_classic 1` to use the original classic menu.
+- Added `cl_ping` to replace `cl_delay_packet` and `cl_delay_packet_target`, which incorrectly delayed only incoming packets instead of both incoming and outgoing packets.
+
+### Bug fixes
+
+- Added Shift+Esc as an alternative way to open the console when tilde does not work
+- Added support for 1024-byte serverinfo in the client
+- Fixed broken LG animation at high pings
+- Fixed an invalid pointer free on shutdown (credit omicron)
+- Fixed various sound prediction issues
 
 ## Version 2.0.5 - 2026-08-02
 
