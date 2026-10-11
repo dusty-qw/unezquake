@@ -147,7 +147,8 @@ enum { SESSION_READY = 1, SESSION_SELECT, SESSION_SLEEP, SESSION_ASLEEP,
 	SESSION_VIDEO_REQUEST, SESSION_VIDEO_DETACH, SESSION_VIDEO_DETACHED,
 	SESSION_VIDEO_ATTACH, SESSION_VIDEO_ATTACHED,
 	SESSION_QUIT, SESSION_WINDOW_QUIT, SESSION_SHUTDOWN, SESSION_DROP_FILE,
-	SESSION_QUIT_SAVE, SESSION_NOTICE, SESSION_CAPTION, SESSION_INPUT, SESSION_INPUT_SETTINGS, SESSION_CANCEL_DEADKEY };
+	SESSION_QUIT_SAVE, SESSION_NOTICE, SESSION_CAPTION, SESSION_INPUT, SESSION_INPUT_SETTINGS, SESSION_CANCEL_DEADKEY,
+	SESSION_GAMMA_SETTINGS, SESSION_GAMMA_RESULT };
 #define SESSION_NOTICE_HISTORY 64
 #define SESSION_NOTICE_LENGTH 1024
 typedef struct {
@@ -158,6 +159,9 @@ typedef struct {
 	qbool focused;
 	unsigned int modifiers;
 	session_input_settings_t input_settings;
+	session_gamma_settings_t gamma_settings;
+	int gamma_result;
+	unsigned int gamma_revision;
 	int x, y, width, height;
 	uintptr_t window;
 	char path[MAX_OSPATH];
@@ -215,6 +219,10 @@ static SDL_Event input_queue[SESSION_INPUT_QUEUE];
 static unsigned int input_head, input_count, input_generation;
 static qbool input_reset, input_settings_pending, input_settings_valid;
 static session_input_settings_t input_settings;
+static session_gamma_settings_t gamma_settings;
+static qbool gamma_settings_valid, gamma_settings_pending;
+static int gamma_result_sent = -2;
+static unsigned int gamma_revision, gamma_revision_received, gamma_revision_sent;
 static qbool session_hotkeys_enabled = true;
 static qbool session_hotkey_down[CL_MAX_SESSIONS];
 
@@ -362,6 +370,9 @@ static void Session_ResetInput(void)
 	input_head = input_count = 0;
 	input_reset = true;
 	VID_SessionInputSettings(NULL);
+	VID_SessionGammaSettings(NULL);
+	gamma_result_sent = -2;
+	gamma_revision_received = gamma_revision_sent = 0;
 }
 
 static qbool Session_Hotkey(const SDL_KeyboardEvent *event)
@@ -461,6 +472,27 @@ static void Session_FlushInput(void)
 		input_count -= packet.count;
 		input_reset = false;
 	}
+}
+
+void CL_SessionGammaSettings(const session_gamma_settings_t *settings)
+{
+	session_message_t message;
+	if (!session_worker || !CL_SessionIsActive())
+		return;
+	if (!gamma_settings_valid || memcmp(&gamma_settings, settings, sizeof(*settings))) {
+		gamma_settings = *settings;
+		gamma_settings_pending = gamma_settings_valid = true;
+		++gamma_revision;
+	}
+	if (!gamma_settings_pending)
+		return;
+	memset(&message, 0, sizeof(message));
+	message.type = SESSION_GAMMA_SETTINGS;
+	message.generation = input_generation;
+	message.gamma_settings = gamma_settings;
+	message.gamma_revision = gamma_revision;
+	if (Session_Send(coordinator_fd, &message))
+		gamma_settings_pending = false;
 }
 
 void CL_SessionInputSettings(const session_input_settings_t *settings)
@@ -811,7 +843,6 @@ static qbool Session_Start(int slot)
 	/* Append internal arguments so positional demo/QTV launches keep argv[1]. */
 	argv[argc++] = "-session-worker";
 	argv[argc++] = "3"; argv[argc++] = number; argv[argc++] = parent;
-	argv[argc++] = "-nohwgamma";
 	argv[argc++] = "+set"; argv[argc++] = "sys_inactivesleep"; argv[argc++] = "0";
 	argv[argc] = NULL;
 	/* Only stdio and the private control socket cross exec; exclude the
@@ -1228,6 +1259,8 @@ void CL_SessionsFrame(void)
 				Session_ApplyWindowState(&message);
 				input_generation = message.generation;
 				input_settings_valid = false;
+				gamma_settings_valid = false;
+				VID_SessionGammaResult(0);
 #ifdef _WIN32
 				Session_WinSetActive(session_window, true);
 #endif
@@ -1239,6 +1272,11 @@ void CL_SessionsFrame(void)
 				/* Another engine may have changed the shared title since we last
 				 * ran, even if our cached server status is unchanged. */
 				CL_UpdateCaption(true);
+				break;
+			case SESSION_GAMMA_RESULT:
+				if (CL_SessionIsActive() && !video_detached && message.generation == input_generation &&
+					message.gamma_revision == gamma_revision)
+					VID_SessionGammaResult(message.gamma_result);
 				break;
 			case SESSION_SNAPSHOT:
 				Session_ApplyWindowState(&message);
@@ -1319,6 +1357,12 @@ void CL_SessionsFrame(void)
 				if (i + 1 == selected_slot && Session_InputEnabled() && message.generation == input_generation) {
 					session_hotkeys_enabled = message.input_settings.session_hotkeys;
 					VID_SessionInputSettings(&message.input_settings);
+				}
+				break;
+			case SESSION_GAMMA_SETTINGS:
+				if (i + 1 == selected_slot && Session_InputEnabled() && message.generation == input_generation) {
+					VID_SessionGammaSettings(&message.gamma_settings);
+					gamma_revision_received = message.gamma_revision;
 				}
 				break;
 			case SESSION_CAPTION:
@@ -1421,6 +1465,20 @@ void CL_SessionsFrame(void)
 		Session_Terminate(workers[sleeping_slot - 1].pid, now - switch_started > 10);
 	}
 	Session_FlushInput();
+	if (Session_InputEnabled()) {
+		int result = VID_SessionGammaUpdate();
+		if (result != gamma_result_sent || gamma_revision_received != gamma_revision_sent) {
+			memset(&message, 0, sizeof(message));
+			message.type = SESSION_GAMMA_RESULT;
+			message.generation = input_generation;
+			message.gamma_result = result;
+			message.gamma_revision = gamma_revision_received;
+			if (Session_Send(workers[selected_slot - 1].fd, &message)) {
+				gamma_result_sent = result;
+				gamma_revision_sent = gamma_revision_received;
+			}
+		}
+	}
 	if (now >= next_status) {
 		memset(&message, 0, sizeof(message));
 		message.type = SESSION_SNAPSHOT;
@@ -1448,6 +1506,7 @@ void CL_SessionsShutdown(void)
 	}
 	if (!session_coordinator)
 		return;
+	VID_SessionGammaSettings(NULL);
 	for (i = 0; i < CL_MAX_SESSIONS; ++i) {
 		if (workers[i].pid > 0) {
 			Session_Control(workers[i].fd, SESSION_SHUTDOWN, i + 1);
@@ -1480,6 +1539,7 @@ void CL_SessionsShutdown(void)
 #else
 qbool CL_SessionsForwardInput(const SDL_Event *event) { return false; }
 void CL_SessionInputSettings(const session_input_settings_t *settings) { }
+void CL_SessionGammaSettings(const session_gamma_settings_t *settings) { }
 qbool CL_SessionSetCaption(const char *caption) { return false; }
 qbool CL_SessionRequestWindowAction(qbool restore) { return false; }
 qbool CL_SessionRequestDeadKeyCancel(void) { return false; }

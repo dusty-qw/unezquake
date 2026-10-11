@@ -45,10 +45,10 @@ static texture_ref non_framebuffer_screen_texture;
 
 qbool GLC_CompilePostProcessProgram(void)
 {
-	extern cvar_t vid_software_palette, vid_framebuffer;
+	extern cvar_t vid_framebuffer;
 	int fxaa_preset = GL_FramebufferFxaaPreset();
 	int post_process_flags =
-		(vid_software_palette.integer ? POST_PROCESS_PALETTE : 0) |
+		(VID_UseSoftwarePalette() ? POST_PROCESS_PALETTE : 0) |
 		(vid_framebuffer.integer == USE_FRAMEBUFFER_3DONLY ? POST_PROCESS_3DONLY : 0) |
 		(fxaa_preset > 0 ? POST_PROCESS_FXAA : 0) | (fxaa_preset << 4); // mix in preset to detect change
 

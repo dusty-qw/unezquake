@@ -242,7 +242,6 @@ qbool Session_WinStart(int slot, uintptr_t parent, SDL_Window *window, intptr_t 
 	arguments[argc++] = "-session-worker";
 	arguments[argc++] = pipe_arg; arguments[argc++] = number; arguments[argc++] = parent_arg;
 	arguments[argc++] = "-session-wake"; arguments[argc++] = wake_arg;
-	arguments[argc++] = "-nohwgamma";
 	arguments[argc++] = "+set"; arguments[argc++] = "sys_inactivesleep"; arguments[argc++] = "0";
 	for (i = 0; i < argc; ++i)
 		if (!Session_WinArgument(command, 32768, arguments[i]))

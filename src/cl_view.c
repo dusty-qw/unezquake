@@ -19,6 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "quakedef.h"
+#include "cl_session.h"
 #include "ezcsqc.h"
 #include "vx_stuff.h"
 #include "gl_model.h"
@@ -644,6 +645,9 @@ void V_UpdatePalette (void)
 	// whether or not to include content/damage palette shifts as part of the hw gamma
 	qbool change_palette = (vid_hwgamma_enabled && gl_hwblend.value && !cl.teamfortress);
 	int change_flags = 0;
+	/* Workers publish their gamma policy to the window owner separately. */
+	if (CL_SessionIsWorker())
+		return;
 
 	if (change_palette) {
 		memcpy(hw_vblend, v_blend, sizeof(hw_vblend));

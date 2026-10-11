@@ -75,6 +75,14 @@ void CL_SessionsFrame(void);
 void CL_SessionsWait(void);
 union SDL_Event;
 typedef struct {
+	qbool enabled;
+	float gamma, contrast, blend[4];
+} session_gamma_settings_t;
+void CL_SessionGammaSettings(const session_gamma_settings_t *settings);
+void VID_SessionGammaSettings(const session_gamma_settings_t *settings);
+int VID_SessionGammaUpdate(void);
+void VID_SessionGammaResult(int result);
+typedef struct {
 	qbool grab, raw, keyboard_grab, show_cursor, text_entry;
 	qbool capture_mouse, text_input;
 	qbool session_hotkeys;
