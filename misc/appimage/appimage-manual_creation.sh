@@ -36,21 +36,26 @@ int main(){
 '
 
 QUAKE_SCRIPT='#!/usr/bin/env bash
-export LD_LIBRARY_PATH="${APPIMAGE_LIBRARY_PATH}:${APPDIR}/usr/lib:${LD_LIBRARY_PATH}"
+appimage_library_path="${APPIMAGE_LIBRARY_PATH}:${APPDIR}/usr/lib:${LD_LIBRARY_PATH}"
+# Workers must repeat the chosen launch, since /proc/self/exe points to the
+# dynamic loader when AppRun invokes it explicitly.
+export UNEZQUAKE_SESSION_EXECUTABLE="${APPDIR}/usr/bin/unezquake-linux-'$ARCH'"
+unset UNEZQUAKE_SESSION_LOADER
 if [ ! -e "$OWD/id1" ];then
 	cd "$(dirname "$APPIMAGE")"
 else
 	cd "$OWD"
 fi
-"${APPDIR}/usr/bin/test"  >/dev/null 2>&1 |:
+LD_LIBRARY_PATH="$appimage_library_path" "${APPDIR}/usr/bin/test" >/dev/null 2>&1 |:
 FAIL=${PIPESTATUS[0]}
 if [ $FAIL -eq 0 ];then
 	echo "executing with native libc"
-	"${APPDIR}/usr/bin/unezquake-linux-'$ARCH'" $*
+	LD_LIBRARY_PATH="$appimage_library_path" "$UNEZQUAKE_SESSION_EXECUTABLE" "$@"
 else
 	echo "executing with appimage libc"
-	export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${APPDIR}/usr/lib-override"
-	"${APPDIR}/usr/lib-override/ld-linux-'$ARCHDASH'.so.2" "${APPDIR}/usr/bin/unezquake-linux-'$ARCH'" $*
+	export UNEZQUAKE_SESSION_LOADER="${APPDIR}/usr/lib-override/ld-linux-'$ARCHDASH'.so.2"
+	LD_LIBRARY_PATH="${appimage_library_path}:${APPDIR}/usr/lib-override" \
+		"$UNEZQUAKE_SESSION_LOADER" "$UNEZQUAKE_SESSION_EXECUTABLE" "$@"
 fi
 exitstatus=$?
 if [ $exitstatus -eq 0 ];then

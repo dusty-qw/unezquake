@@ -808,11 +808,22 @@ static qbool Session_Start(int slot)
 #else
 	int sockets[2], width, height, result;
 	char number[24], parent[32], w[24], h[24];
+	char *executable = getenv("UNEZQUAKE_SESSION_EXECUTABLE");
+	char *loader = getenv("UNEZQUAKE_SESSION_LOADER");
 	char **argv;
 	char **child_env;
 	int argc = 0;
 	int env_count;
 	posix_spawn_file_actions_t actions;
+	if (loader && !*loader)
+		loader = NULL;
+	if (!executable || !*executable) {
+		if (loader) {
+			Session_Printf("Cannot start session: loader requires UNEZQUAKE_SESSION_EXECUTABLE.\n");
+			return false;
+		}
+		executable = "/proc/self/exe";
+	}
 	if (socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0, sockets)) {
 		Session_Printf("Cannot create session: %s\n", strerror(errno));
 		return false;
@@ -823,7 +834,12 @@ static qbool Session_Start(int slot)
 	snprintf(w, sizeof(w), "%d", width);
 	snprintf(h, sizeof(h), "%d", height);
 	argv = Q_malloc((COM_Argc() + 32) * sizeof(*argv));
-	argv[argc++] = "/proc/self/exe";
+	/* AppRun supplies both paths when using bundled libc. In that case
+	 * /proc/self/exe is ld-linux, which needs the actual client before its
+	 * arguments. Retain the inherited library environment for the worker. */
+	if (loader)
+		argv[argc++] = loader;
+	argv[argc++] = executable;
 	if (slot == 1) {
 		/* Preserve the user's launch, including config selection, +connect,
 		 * demos and terminal input. Only this engine runs startup actions. */
@@ -877,7 +893,7 @@ static qbool Session_Start(int slot)
 			child_env[env_count++] = environ[result];
 	child_env[env_count++] = "SDL_VIDEODRIVER=x11";
 	child_env[env_count] = NULL;
-	result = posix_spawn(&worker->pid, "/proc/self/exe", &actions, NULL, argv, child_env);
+	result = posix_spawn(&worker->pid, loader ? loader : executable, &actions, NULL, argv, child_env);
 	Q_free(argv);
 	Q_free(child_env);
 	posix_spawn_file_actions_destroy(&actions);
