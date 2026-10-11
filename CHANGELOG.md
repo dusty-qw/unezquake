@@ -1,5 +1,11 @@
 # unezQuake Changelog
 
+## Unreleased
+
+### New Features
+- Added chat emoticons: `cl_emoticon 1` replaces text smileys (`:)` `;)` `^^` `<3` ...) and `:name:` codes (`:fire:` `:skull:` ...) in chat messages with small images. The country flags of `scoreboard_flags.pk3` work too (`:br:` `:us:` ...). The images come from `emoticons.pk3` (see `misc/emoticons`), nothing is embedded in the client. Default is `0` (text is left untouched)
+- `color` now accepts 17-34: 18 extra vibrant colors (Lime, Neon Green, Cyan, Magenta, Hot Pink, Gold, ...). Other clients clamp unknown values and show a normal palette color
+
 ## Version 2.0.5 - 2026-08-02
 
 ### New Features

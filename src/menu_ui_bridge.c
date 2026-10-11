@@ -18,6 +18,7 @@ See the GNU General Public License for more details.
 // plain C data, plus the glue between menu.c's states and the new menus.
 
 #include "quakedef.h"
+#include "sbar.h"
 #include "keys.h"
 #include "menu.h"
 #include "menu_options.h"
@@ -585,11 +586,6 @@ int MUI_ListFiles(const char *dir, const char *extensions_regex, mui_file_t *out
 #define MUI_ENUM_NAME(s, i)  ((s)->named_ints[(i) * 2])
 #define MUI_ENUM_VALUE(s, i) ((s)->named_ints[(i) * 2 + 1])
 
-static const char *mui_color_names[17] = {
-	"White", "Brown", "Lavender", "Khaki", "Red", "Light Brown", "Peach", "Light Peach", "Purple",
-	"Dark Purple", "Tan", "Green", "Yellow", "Blue", "Orange", "Bright Red", "Black"
-};
-
 static struct {
 	qbool active;
 	int page, index;
@@ -650,7 +646,7 @@ void MUI_Settings_Info(int page, int index, mui_setting_info_t *out)
 		case stt_enum:        out->type = MUI_SETTING_ENUM; out->option_count = (int)s->max + 1; break;
 		case stt_action:      out->type = MUI_SETTING_ACTION; break;
 		case stt_string:      out->type = MUI_SETTING_STRING; break;
-		case stt_playercolor: out->type = MUI_SETTING_COLOR; out->option_count = 17; break;
+		case stt_playercolor: out->type = MUI_SETTING_COLOR; out->option_count = SBAR_COLOR_MAX + 1; break;
 		case stt_skin:        out->type = MUI_SETTING_SKIN; break;
 		case stt_bind:        out->type = MUI_SETTING_BIND; out->variable = s->varname; break;
 		default:              out->type = MUI_SETTING_IGNORED; break;
@@ -799,7 +795,7 @@ int MUI_Settings_GetOption(int page, int index)
 			return (int)bound(s->min, VARFVAL(s->cvar), s->max);
 		case stt_playercolor:
 			i = (int)VARFVAL(s->cvar);
-			return (i >= 0 && i <= 16) ? i : -1;
+			return (i >= 0 && i <= SBAR_COLOR_MAX) ? i : -1;
 		case stt_enum:
 			for (i = 0; i <= s->max; i++) {
 				if (!strcasecmp(VARSVAL(s->cvar), MUI_ENUM_VALUE(s, i))) {
@@ -847,7 +843,7 @@ const char *MUI_Settings_OptionName(int page, int index, int option)
 		case stt_enum:
 			return option <= s->max && s->named_ints ? MUI_ENUM_NAME(s, option) : "";
 		case stt_playercolor:
-			return option <= 16 ? mui_color_names[option] : "";
+			return Sbar_ColorName(option);
 		default:
 			return "";
 	}
@@ -863,10 +859,13 @@ unsigned int MUI_PaletteColor(int index)
 
 unsigned int MUI_Settings_PlayerColor(int color)
 {
-	if (color < 0 || color > 16) {
+	byte rgb[3];
+
+	if (color < 0 || color > SBAR_COLOR_MAX) {
 		return 0;
 	}
-	return MUI_PaletteColor(Sbar_ColorForMap(color));
+	Sbar_ColorToRGB(color, rgb);
+	return (rgb[0] << 16) | (rgb[1] << 8) | rgb[2];
 }
 
 const char *MUI_Settings_CustomValue(int page, int index)

@@ -1888,6 +1888,7 @@ static void CL_InitLocal(void)
 
 	Cvar_SetCurrentGroup(CVAR_GROUP_CHAT);
 	Cvar_Register(&cl_parseWhiteText);
+	CL_Emoticons_Init();
 	Cvar_Register(&cl_chatsound);
 	Cvar_Register(&cl_fakename);
 	Cvar_Register(&cl_fakename_suffix);
@@ -2162,6 +2163,7 @@ void GFX_Init (void)
 	Sbar_Init();
 	HUD_Editor_Init();	// Need to reload some textures.
 	VX_TrackerInit();
+	CL_Emoticons_LoadImages();
 
 	CachePics_CreateAtlas();
 }

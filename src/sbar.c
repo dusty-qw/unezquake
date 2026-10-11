@@ -53,6 +53,7 @@ ti_spec_t ti_specs[MAX_CLIENTS];
 typedef struct loginimage_s {
 	char name[16];
 	mpic_t pic;
+	char file[MAX_QPATH];	// texture path without extension
 } loginimage_t;
 
 static struct {
@@ -470,30 +471,164 @@ void Sbar_DrawNum (int x, int y, int num, int digits, int color) {
 	}
 }
 
+// Player colors 0..15 are the 16 ranges of the quake palette, 16 is black.
+// Values above that are extended colors, defined here as plain RGB so they can
+// be as vibrant as we want. Other clients clamp unknown values, so they simply
+// see a normal palette color.
+typedef struct {
+	const char *name;
+	byte rgb[3];
+} sbar_color_t;
+
+static const char *sbar_palette_names[SBAR_COLOR_PALETTE_COUNT] = {
+	"White", "Brown", "Lavender", "Khaki", "Red", "Light Brown", "Peach", "Light Peach",
+	"Purple", "Dark Purple", "Tan", "Green", "Yellow", "Blue", "Orange", "Bright Red", "Black"
+};
+
+static const sbar_color_t sbar_extended_colors[SBAR_COLOR_EXTENDED_COUNT] = {
+	{"Lime",         {191, 255,   0}},
+	{"Neon Green",   { 57, 255,  20}},
+	{"Spring Green", {  0, 255, 127}},
+	{"Cyan",         {  0, 255, 255}},
+	{"Sky Blue",     {  0, 191, 255}},
+	{"Azure",        {  0, 127, 255}},
+	{"Violet",       {148,   0, 211}},
+	{"Magenta",      {255,   0, 255}},
+	{"Hot Pink",     {255,  20, 147}},
+	{"Coral",        {255, 100,  80}},
+	{"Crimson",      {220,  20,  60}},
+	{"Gold",         {255, 215,   0}},
+	{"Teal",         {  0, 128, 128}},
+	{"Mint",         {152, 255, 152}},
+	{"Light Violet", {200, 162, 255}},
+	{"Navy",         {  0,   0, 128}},
+	{"Pure White",   {255, 255, 255}},
+	{"Silver",       {192, 192, 192}},
+};
+
+qbool Sbar_ColorIsExtended(int m)
+{
+	return m >= SBAR_COLOR_EXTENDED_FIRST && m < SBAR_COLOR_EXTENDED_FIRST + SBAR_COLOR_EXTENDED_COUNT;
+}
+
+const char *Sbar_ColorName(int m)
+{
+	if (Sbar_ColorIsExtended(m)) {
+		return sbar_extended_colors[m - SBAR_COLOR_EXTENDED_FIRST].name;
+	}
+	if (m >= 0 && m < SBAR_COLOR_PALETTE_COUNT) {
+		return sbar_palette_names[m];
+	}
+	return "";
+}
+
+// RGB of a player color value, using the real palette for 0..16
+void Sbar_ColorToRGB(int m, byte rgb[3])
+{
+	if (Sbar_ColorIsExtended(m)) {
+		memcpy(rgb, sbar_extended_colors[m - SBAR_COLOR_EXTENDED_FIRST].rgb, 3);
+	}
+	else {
+		int index = (m == 16) ? 0 : 16 * bound(0, m, 15) + 8;
+
+		rgb[0] = host_basepal[index * 3];
+		rgb[1] = host_basepal[index * 3 + 1];
+		rgb[2] = host_basepal[index * 3 + 2];
+	}
+}
+
+// Closest quake palette entry to an extended color, for code that can only draw palette indexes
+static int Sbar_NearestPaletteIndex(const byte rgb[3])
+{
+	int i, best = 0, best_dist = 0x7fffffff;
+
+	for (i = 0; i < 255; i++) { // 255 is transparent
+		int dr = host_basepal[i * 3] - rgb[0];
+		int dg = host_basepal[i * 3 + 1] - rgb[1];
+		int db = host_basepal[i * 3 + 2] - rgb[2];
+		int dist = dr * dr + dg * dg + db * db;
+
+		if (dist < best_dist) {
+			best_dist = dist;
+			best = i;
+		}
+	}
+	return best;
+}
+
 // this used to be static function
+// Always returns a palette index, extended colors map to the nearest palette entry.
+// Use Sbar_ColorToRGB when the exact color is needed.
 int	Sbar_ColorForMap (int m) {
+	if (Sbar_ColorIsExtended(m)) {
+		return Sbar_NearestPaletteIndex(sbar_extended_colors[m - SBAR_COLOR_EXTENDED_FIRST].rgb);
+	}
 	return m == 16 ? 0 : 16 * bound(0, m, 15) + 8;
+}
+
+void Sbar_AlphaFillMap(float x, float y, float w, float h, int m, float alpha)
+{
+	if (Sbar_ColorIsExtended(m)) {
+		byte rgb[3];
+
+		Sbar_ColorToRGB(m, rgb);
+		Draw_AlphaFillRGB(x, y, w, h, RGBA_TO_COLOR(rgb[0], rgb[1], rgb[2], (byte)(bound(0, alpha, 1) * 255)));
+	}
+	else {
+		Draw_AlphaFill(x, y, w, h, Sbar_ColorForMap(m), alpha);
+	}
+}
+
+void Sbar_FillMap(int x, int y, int w, int h, int m)
+{
+	if (Sbar_ColorIsExtended(m)) {
+		Sbar_AlphaFillMap(x, y, w, h, m, 1);
+	}
+	else {
+		Draw_Fill(x, y, w, h, Sbar_ColorForMap(m));
+	}
+}
+
+// Raw color values (before palette lookup), TF forces the known team colors
+int Sbar_TopMap(player_info_t *player)
+{
+	return cl.teamfortress ? player->known_team_color : player->topcolor;
+}
+
+int Sbar_BottomMap(player_info_t *player)
+{
+	return cl.teamfortress ? player->known_team_color : player->bottomcolor;
+}
+
+int Sbar_TopMapScoreboard(player_info_t *player)
+{
+	return cl.teamfortress ? player->known_team_color : (scr_scoreboard_forcecolors.integer ? player->topcolor : player->real_topcolor);
+}
+
+int Sbar_BottomMapScoreboard(player_info_t *player)
+{
+	return cl.teamfortress ? player->known_team_color : (scr_scoreboard_forcecolors.integer ? player->bottomcolor : player->real_bottomcolor);
 }
 
 // HUD -> hexum
 int Sbar_TopColor(player_info_t *player)
 {
-	return Sbar_ColorForMap(cl.teamfortress ? player->known_team_color : player->topcolor);
+	return Sbar_ColorForMap(Sbar_TopMap(player));
 }
 
 int Sbar_TopColorScoreboard(player_info_t* player)
 {
-	return Sbar_ColorForMap(cl.teamfortress ? player->known_team_color : (scr_scoreboard_forcecolors.integer ? player->topcolor : player->real_topcolor));
+	return Sbar_ColorForMap(Sbar_TopMapScoreboard(player));
 }
 
 int Sbar_BottomColor(player_info_t *player)
 {
-	return Sbar_ColorForMap(cl.teamfortress ? player->known_team_color : player->bottomcolor);
+	return Sbar_ColorForMap(Sbar_BottomMap(player));
 }
 
 int Sbar_BottomColorScoreboard(player_info_t* player)
 {
-	return Sbar_ColorForMap(cl.teamfortress ? player->known_team_color : (scr_scoreboard_forcecolors.integer ? player->bottomcolor : player->real_bottomcolor));
+	return Sbar_ColorForMap(Sbar_BottomMapScoreboard(player));
 }
 
 // ** HUD -> hexum
@@ -907,8 +1042,8 @@ static void Sbar_DrawFrags_DrawCellPlayer(int x, int y, player_info_t* player, i
 	char num[4];
 
 	// draw background
-	Draw_Fill (sbar_xofs + x * 8 + 10, y, 28, 4, Sbar_TopColorScoreboard(player));
-	Draw_Fill (sbar_xofs + x * 8 + 10, y + 4, 28, 3, Sbar_BottomColorScoreboard(player));
+	Sbar_FillMap(sbar_xofs + x * 8 + 10, y, 28, 4, Sbar_TopMapScoreboard(player));
+	Sbar_FillMap(sbar_xofs + x * 8 + 10, y + 4, 28, 3, Sbar_BottomMapScoreboard(player));
 
 	// draw number
 	snprintf (num, sizeof(num), "%3i", bound(-99, player->frags, 999));
@@ -933,8 +1068,8 @@ static void Sbar_DrawFrags_DrawTeamCell(int x, int y, team_t* team)
 	p.known_team_color = team->known_team_number;
 
 	// draw background
-	Draw_Fill(sbar_xofs + x * 8 + 10, y, 28, 4, Sbar_TopColorScoreboard(&p));
-	Draw_Fill(sbar_xofs + x * 8 + 10, y + 4, 28, 3, Sbar_BottomColorScoreboard(&p));
+	Sbar_FillMap(sbar_xofs + x * 8 + 10, y, 28, 4, Sbar_TopMapScoreboard(&p));
+	Sbar_FillMap(sbar_xofs + x * 8 + 10, y + 4, 28, 3, Sbar_BottomMapScoreboard(&p));
 
 	// draw number
 	snprintf(num, sizeof(num), "%3i", bound(-99, frags, 999));
@@ -1594,6 +1729,7 @@ static void Sbar_DeathmatchOverlay(int start)
 		color_t background;
 		float bk_alpha;
 		byte c;
+		int cmap = -1;
 		clrinfo_t color;
 		qbool istracking;
 
@@ -1644,11 +1780,18 @@ static void Sbar_DeathmatchOverlay(int start)
 			c = 2;
 		}
 		else {
-			c = Sbar_BottomColorScoreboard(s);
+			cmap = Sbar_BottomMapScoreboard(s);
+			c = Sbar_ColorForMap(cmap);
 		}
 
 		if (S_Voip_Speaking(k)) {
 			background = RGBA_TO_COLOR(0, 255, 0, (byte)(bk_alpha * 100));
+		}
+		else if (Sbar_ColorIsExtended(cmap)) {
+			byte rgb[3];
+
+			Sbar_ColorToRGB(cmap, rgb);
+			background = RGBA_TO_COLOR(rgb[0], rgb[1], rgb[2], (byte)(bk_alpha * 255));
 		}
 		else {
 			background = RGBA_TO_COLOR(host_basepal[c * 3], host_basepal[c * 3 + 1], host_basepal[c * 3 + 2], (byte)(bk_alpha * 255));
@@ -1826,8 +1969,8 @@ static void Sbar_DeathmatchOverlay(int start)
 
 		// print the shirt/pants colour bars
 		// use Draw_AlphaFill with additional alpha arg for wipeout deaths
-		Draw_AlphaFill(cl.teamplay ? tempx - 40 * scale: tempx * scale, y + (4 - colors_thickness) * scale, 40 * scale, colors_thickness * scale, Sbar_TopColorScoreboard(s), ca_alpha);
-		Draw_AlphaFill(cl.teamplay ? tempx - 40 * scale: tempx * scale, y + 4 * scale, 40 * scale, 4 * scale, Sbar_BottomColorScoreboard(s), ca_alpha);
+		Sbar_AlphaFillMap(cl.teamplay ? tempx - 40 * scale: tempx * scale, y + (4 - colors_thickness) * scale, 40 * scale, colors_thickness * scale, Sbar_TopMapScoreboard(s), ca_alpha);
+		Sbar_AlphaFillMap(cl.teamplay ? tempx - 40 * scale: tempx * scale, y + 4 * scale, 40 * scale, 4 * scale, Sbar_BottomMapScoreboard(s), ca_alpha);
 
 		// frags
 		if (Sbar_ShowScoreboardIndicator() && k == mynum) {
@@ -2345,8 +2488,8 @@ static void Sbar_MiniDeathmatchOverlay (void) {
 			continue;
 		}
 
-		Draw_Fill(x, y + 1, 40, 3, Sbar_TopColorScoreboard(s));
-		Draw_Fill(x, y + 4, 40, 4, Sbar_BottomColorScoreboard(s));
+		Sbar_FillMap(x, y + 1, 40, 3, Sbar_TopMapScoreboard(s));
+		Sbar_FillMap(x, y + 4, 40, 4, Sbar_BottomMapScoreboard(s));
 
 		// draw number
 		snprintf (num, sizeof(num), "%3i", bound(-99, s->frags, 999));
@@ -2411,8 +2554,8 @@ drawteams:
 		Draw_String(x, y, team);
 
 		// draw total
-		Draw_Fill(x + 40, y + 1, 48, 3, Sbar_ColorForMap(tm->topcolor));
-		Draw_Fill(x + 40, y + 4, 48, 4, Sbar_ColorForMap(tm->bottomcolor));
+		Sbar_FillMap(x + 40, y + 1, 48, 3, tm->topcolor);
+		Sbar_FillMap(x + 40, y + 4, 48, 4, tm->bottomcolor);
 		snprintf(num, sizeof(num), "%4i", bound(-999, tm->frags, 9999));
 		Draw_Character(x + 40 + 8, y, num[0]);
 		Draw_Character(x + 40 + 16, y, num[1]);
@@ -2659,6 +2802,27 @@ int CL_LoginImageBot(void)
 	return login_image_data.bot_image_index;
 }
 
+// Used by the chat emoticons to reuse the scoreboard flags
+int CL_LoginImageCount(void)
+{
+	return login_image_data.image_count;
+}
+
+const char *CL_LoginImageName(int index)
+{
+	return (index >= 0 && index < login_image_data.image_count) ? login_image_data.images[index].name : "";
+}
+
+const char *CL_LoginImageFile(int index)
+{
+	return (index >= 0 && index < login_image_data.image_count) ? login_image_data.images[index].file : "";
+}
+
+const mpic_t *CL_LoginImagePic(int index)
+{
+	return (index >= 0 && index < login_image_data.image_count) ? &login_image_data.images[index].pic : NULL;
+}
+
 qbool CL_LoginImageLoad(const char* path)
 {
 	json_error_t error;
@@ -2737,6 +2901,7 @@ qbool CL_LoginImageLoad(const char* path)
 		height = min(height, tex_height - y);
 
 		strlcpy(new_login_images[i].name, code, sizeof(new_login_images[i].name));
+		strlcpy(new_login_images[i].file, truepath, sizeof(new_login_images[i].file));
 		new_login_images[i].pic.width = width;
 		new_login_images[i].pic.height = height;
 		new_login_images[i].pic.texnum = texture;

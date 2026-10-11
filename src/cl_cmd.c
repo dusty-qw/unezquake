@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <time.h>
 #include "quakedef.h"
+#include "sbar.h"
 #include "sha1.h"
 #include "gl_model.h"
 #include "teamplay.h"
@@ -746,7 +747,7 @@ void CL_Color_f (void) {
 			Com_Printf ("\"color\" is \"%s %s\"\n",
 				Info_ValueForKey (cls.userinfo, "topcolor"),
 				Info_ValueForKey (cls.userinfo, "bottomcolor") );
-			Com_Printf ("color <0-16> [0-16]\n");
+			Com_Printf ("color <0-%d> [0-%d]\n", SBAR_COLOR_MAX, SBAR_COLOR_MAX);
 			return;
 		case 2:
 			top = bottom = Q_atoi(Cmd_Argv(1));
@@ -756,8 +757,8 @@ void CL_Color_f (void) {
 			bottom = Q_atoi(Cmd_Argv(2));
 	}
 
-	Cvar_SetValue (&topcolor, bound(0, top, 16));
-	Cvar_SetValue (&bottomcolor, bound(0, bottom, 16));
+	Cvar_SetValue (&topcolor, bound(0, top, SBAR_COLOR_MAX));
+	Cvar_SetValue (&bottomcolor, bound(0, bottom, SBAR_COLOR_MAX));
 }
 
 //usage: fullinfo \name\unnamed\topcolor\0\bottomcolor\1, etc

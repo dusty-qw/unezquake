@@ -57,17 +57,16 @@ filelist_t skins_filelist;
 
 static float SliderPos(float min, float max, float val) { return (val-min)/(max-min); }
 
-static const char* colors[17] = { "White", "Brown", "Lavender", "Khaki", "Red", "Light Brown", "Peach", "Light Peach", "Purple", "Dark Purple", "Tan", "Green", "Yellow", "Blue", "Orange", "Bright Red", "Black"};
-#define COLORNAME(x) colors[bound(0, ((int) x), sizeof(colors) / sizeof(char*) - 1)]
+#define COLORNAME(x) Sbar_ColorName(bound(0, ((int) x), SBAR_COLOR_MAX))
 
 char* SettingColorName(int color)
 {
 	static char tempBuffer[64];
 
-	if (color < 0 || color > sizeof(colors) / sizeof(colors[0]))
+	if (color < 0 || color > SBAR_COLOR_MAX)
 		Host_Error("SettingColorName(color %d) out of range.\n", color);
 
-	strlcpy(tempBuffer, colors[color], sizeof(tempBuffer));
+	strlcpy(tempBuffer, Sbar_ColorName(color), sizeof(tempBuffer));
 
 	return tempBuffer;
 }
@@ -214,7 +213,7 @@ static void Setting_DrawColor(int x, int y, int w, setting* set, qbool active)
 {
 	x = Setting_PrintLabel(x, y, w, set->label, active);
 	if (VARFVAL(set->cvar) >= 0) {
-		Draw_Fill(x, y, LETW*3, LINEHEIGHT, Sbar_ColorForMap(VARFVAL(set->cvar)));
+		Sbar_FillMap(x, y, LETW*3, LINEHEIGHT, (int) VARFVAL(set->cvar));
 		UI_Print(x + 4*LETW, y, va("%i (%s)", (int) VARFVAL(set->cvar), COLORNAME(VARFVAL(set->cvar))), active);
 	} else
 		UI_Print(x, y, "off", active);

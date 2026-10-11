@@ -23,6 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <string.h>
 #include <limits.h>
 #include "quakedef.h"
+#include "sbar.h"
 #include "ignore.h"
 #include "gl_model.h"
 #include "teamplay.h"
@@ -1984,8 +1985,8 @@ void TP_ColorForcing (cvar_t *topcolor, cvar_t *bottomcolor)
 		bottom = atoi(Cmd_Argv(2));
 	}
 
-	Cvar_SetValue(topcolor, bound(0, top, 16));
-	Cvar_SetValue(bottomcolor, bound(0, bottom, 16));
+	Cvar_SetValue(topcolor, bound(0, top, SBAR_COLOR_MAX));
+	Cvar_SetValue(bottomcolor, bound(0, bottom, SBAR_COLOR_MAX));
 
 	TP_RefreshSkins();
 }
