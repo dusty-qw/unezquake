@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Builds emoticons.pk3 for the chat emoticons (cl_emoticon 1).
+"""Builds emoticons.pk3 for the chat emoticons (cl_emoticons 1).
 
 Downloads the emoji from Google's Noto Emoji set, resizes them to 64x64 and writes a pk3
 (a zip) with textures/emoticons/emoticons.json. Needs Pillow.
@@ -42,7 +42,7 @@ EMOTICONS = [
     ("medal", "1f3c5", []), ("swords", "2694", []),
 ]
 
-README = """Chat emoticons for unezQuake (cl_emoticon 1).
+README = """Chat emoticons for unezQuake (cl_emoticons 1).
 Images: Noto Emoji by Google, resized to 64x64.
   Images are under the Apache License 2.0, the fonts under the SIL Open Font License 1.1.
   https://github.com/googlefonts/noto-emoji

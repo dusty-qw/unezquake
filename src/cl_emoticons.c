@@ -25,14 +25,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //   - textures/emoticons/emoticons.json (emoticons.pk3), same layout as the scoreboard flags
 //   - the scoreboard login flags (scoreboard_flags.pk3), as ":xx:" with the country code
 //
-// cl_emoticon 0 leaves the text untouched, which is also the fallback when nothing is loaded.
+// cl_emoticons 0 leaves the text untouched, which is also the fallback when nothing is loaded.
 
 #include "quakedef.h"
 #include <jansson.h>
 #include "r_texture.h"
 #include "r_renderer.h"
 
-cvar_t cl_emoticon = {"cl_emoticon", "0"};
+cvar_t cl_emoticons = {"cl_emoticons", "0"};
 
 #define EMOTICON_PAGES			2
 #define EMOTICON_MAX_CODE		24
@@ -309,7 +309,7 @@ const wchar *CL_Emoticons_Replace(const wchar *src)
 	int i;
 	qbool colored = false, replaced = false;
 
-	if (!cl_emoticon.integer || !emoticon_count) {
+	if (!cl_emoticons.integer || !emoticon_count) {
 		return src;
 	}
 
@@ -370,7 +370,7 @@ char *CL_Emoticons_PreDecode(char *src, char *dst, size_t size)
 	int i;
 	qbool changed = false;
 
-	if (!cl_emoticon.integer || !emoticon_count || !strstr(src, "^^")) {
+	if (!cl_emoticons.integer || !emoticon_count || !strstr(src, "^^")) {
 		return src;
 	}
 
@@ -403,6 +403,6 @@ char *CL_Emoticons_PreDecode(char *src, char *dst, size_t size)
 void CL_Emoticons_Init(void)
 {
 	Cvar_SetCurrentGroup(CVAR_GROUP_CHAT);
-	Cvar_Register(&cl_emoticon);
+	Cvar_Register(&cl_emoticons);
 	Cvar_ResetCurrentGroup();
 }
