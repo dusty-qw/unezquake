@@ -30,6 +30,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "gl_texture_internal.h"
 #include "r_renderer.h"
 #include "rulesets.h"
+#include "sbar.h"
 
 extern cvar_t vid_framebuffer;
 extern cvar_t vid_framebuffer_depthformat;
@@ -901,6 +902,8 @@ qbool GL_Framebuffer2DSwitch(void)
 			R_Viewport(0, 0, glConfig.vidWidth, glConfig.vidHeight);
 			R_ClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 			glClear(GL_COLOR_BUFFER_BIT);
+			// The cleared HUD target no longer contains the cached status bar.
+			Sbar_Changed();
 			return true;
 		}
 	}

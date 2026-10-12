@@ -1639,7 +1639,7 @@ void HUD_DrawObject(hud_t *hud)
 		if (cl.intermission == 1 && (hud->flags & HUD_ON_INTERMISSION))
 			draw = true;
 
-		else if (cl.intermission == 2 && !(hud->flags & HUD_ON_FINALE))
+		else if (cl.intermission == 2 && (hud->flags & HUD_ON_FINALE))
 			draw = true;
 
 		else if ((sb_showscores || sb_showteamscores) && (hud->flags & HUD_ON_SCORES))

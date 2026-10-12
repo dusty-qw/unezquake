@@ -820,23 +820,9 @@ void Cfg_GetConfigPath(char* path, size_t max_length, const char* name)
 	strlcat(path, name, max_length);
 }
 
-void DumpConfig(char *name)
+static void Config_WriteConfig(FILE *f)
 {
-	char outfile[MAX_OSPATH];
-	FILE* f;
-	char* newlines = "\n";
-
-	Cfg_GetConfigPath(outfile, sizeof(outfile) / sizeof(outfile[0]), name);
-
-	if (!(f	= fopen(outfile, "w"))) {
-		FS_CreatePath(outfile);
-		if (!(f	= fopen	(outfile, "w"))) {
-			Com_Printf ("Couldn't write	%s.\n",	name);
-			return;
-		}
-	}
-
-	Com_Printf("Saving configuration to %s\n", outfile);
+	const char *newlines = "\n";
 
 	Config_PrintPreamble(f);
 
@@ -880,8 +866,68 @@ void DumpConfig(char *name)
 		Config_PrintHeading(f, "K E Y   B I N D I N G S");
 		DumpBindings(f);
 	}
+}
 
+void DumpConfig(char *name)
+{
+	char outfile[MAX_OSPATH];
+	FILE* f;
+
+	Cfg_GetConfigPath(outfile, sizeof(outfile) / sizeof(outfile[0]), name);
+
+	if (!(f	= fopen(outfile, "w"))) {
+		FS_CreatePath(outfile);
+		if (!(f	= fopen	(outfile, "w"))) {
+			Com_Printf ("Couldn't write	%s.\n",	name);
+			return;
+		}
+	}
+
+	Com_Printf("Saving configuration to %s\n", outfile);
+
+	Config_WriteConfig(f);
 	fclose(f);
+}
+
+// Return an owned, process-local backup without exposing a shared config filename.
+char *Config_CreateSnapshot(void)
+{
+	FILE *f;
+	char *snapshot = NULL;
+	long length;
+#ifdef _WIN32
+	char directory[MAX_PATH], filename[MAX_PATH];
+	// Windows tmpfile() can require access to the drive root. Use the user's
+	// temporary directory and the CRT's delete-on-close mode instead.
+	if (COM_GetTempDir(directory, sizeof(directory)) < 0 ||
+		!GetTempFileNameA(directory, "uqh", 0, filename)) {
+		return NULL;
+	}
+	f = fopen(filename, "w+bD");
+	if (!f) {
+		DeleteFileA(filename);
+		return NULL;
+	}
+#else
+	f = tmpfile();
+#endif
+
+	if (!f) {
+		return NULL;
+	}
+	Config_WriteConfig(f);
+	if (fflush(f) == 0 && !ferror(f) && (length = ftell(f)) >= 0 && fseek(f, 0, SEEK_SET) == 0) {
+		snapshot = Q_malloc((size_t)length + 1);
+		if (fread(snapshot, 1, (size_t)length, f) == (size_t)length && !ferror(f)) {
+			snapshot[length] = '\0';
+		}
+		else {
+			Q_free(snapshot);
+			snapshot = NULL;
+		}
+	}
+	fclose(f);
+	return snapshot;
 }
 
 void DumpHUD(const char *name)
