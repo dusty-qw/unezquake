@@ -755,7 +755,9 @@ static void SCR_DrawElements(void)
 	{
 		SCR_UpdateCursor();
 
-		if( !(!scr_menudrawhud.integer && (m_state != m_none)) || (!scr_menudrawhud.integer && (m_state == m_proxy)) )
+		/* A remembered menu state can outlive the menu (for example after
+		 * leaving the HUD editor). Only an open menu may suppress the HUD. */
+		if (scr_menudrawhud.integer || key_dest != key_menu || m_state == m_none || m_state == m_proxy)
 		{
 			if (cl.intermission == 1) {
 				Sbar_IntermissionOverlay();
