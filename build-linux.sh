@@ -72,6 +72,30 @@ install_check_void() {
     sudo xbps-install -y $PKGS_VOID >>$BUILD_LOG 2>&1 || error "Failed to install required packages. Exiting."
 }
 
+# Fallback for unrecognized distros: let the user pick the distro family
+# whose package manager and package names are closest to their system.
+prompt_family() {
+	warn "Your dist '$ID' isn't explicitly supported by this script."
+	[ -t 0 ] || error "Cannot prompt for a distro family (not interactive). Exiting."
+
+	printf "Select the distro family closest to your system:\n"
+	printf "  1) arch  (pacman)\n"
+	printf "  2) deb   (apt)\n"
+	printf "  3) rpm   (yum)\n"
+	printf "  4) void  (xbps)\n"
+	printf "  q) quit\n"
+	printf "Choice [1-4/q]: "
+	read -r choice || error "No selection made. Exiting."
+
+	case $choice in
+		1|arch) install_check_arch ;;
+		2|deb) install_check_deb ;;
+		3|rpm) install_check_rpm ;;
+		4|void) install_check_void ;;
+		*) error "No valid distro family selected. Exiting." ;;
+	esac
+}
+
 if [ -f $BUILD_LOG ];then
 	rm -f $BUILD_LOG ||:
 fi
@@ -97,6 +121,9 @@ if [ $SKIP_DEPS -eq 0 ];then
 			install_check_arch
 			;;
 		archcraft)
+			install_check_arch
+			;;
+		cachyos)
 			install_check_arch
 			;;
 		void)
@@ -135,7 +162,7 @@ if [ $SKIP_DEPS -eq 0 ];then
 			install_check_rpm
 			;;
 		*)
-			error "Your dist '$ID' isn't supported by this script. Exiting."
+			prompt_family
 			;;
 	esac
 fi
