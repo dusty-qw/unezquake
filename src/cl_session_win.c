@@ -35,6 +35,8 @@ static HANDLE session_job, coordinator_wake;
 static HWND render_window, presentation_window;
 static HDC render_dc, presentation_dc;
 static qbool presenting;
+static qbool render_gl_loaded;
+static const char pixel_format_property[] = "unezQuake.SessionPixelFormat";
 static BOOL (WINAPI *session_make_current)(HDC, HGLRC);
 
 static void Session_WinError(const char *operation)
@@ -282,12 +284,26 @@ done:
 	return success;
 }
 
-uintptr_t Session_WinWindowHandle(SDL_Window *window)
+uintptr_t Session_WinPublishWindow(SDL_Window *window)
 {
 	SDL_SysWMinfo wm;
+	int pixel_format;
 	SDL_VERSION(&wm.version);
 	if (!window || !SDL_GetWindowWMInfo(window, &wm) || wm.subsystem != SDL_SYSWM_WINDOWS)
 		return 0;
+	/* Query SDL's actual DC in the process which selected its format. Publish
+	 * only the numeric index, never a process-local DC or descriptor pointer.
+	 * Window properties disappear with the HWND, including on vid_restart. */
+	SetLastError(ERROR_SUCCESS);
+	pixel_format = GetPixelFormat(wm.info.win.hdc);
+	if (!pixel_format) {
+		Session_WinError("Coordinator has no selected OpenGL pixel format");
+		return 0;
+	}
+	if (!SetPropA(wm.info.win.window, pixel_format_property, (HANDLE)(INT_PTR)pixel_format)) {
+		Session_WinError("Cannot publish the shared OpenGL pixel format");
+		return 0;
+	}
 	return (uintptr_t)wm.info.win.window;
 }
 
@@ -302,6 +318,11 @@ void Session_WinDestroyWindow(SDL_Window *window)
 		DestroyWindow(render_window);
 	if (presentation_dc)
 		ReleaseDC(presentation_window, presentation_dc);
+	/* Keep the backend loaded until all native DCs have been released. The
+	 * SDL foreign wrapper holds a separate load reference of its own. */
+	if (render_gl_loaded)
+		SDL_GL_UnloadLibrary();
+	render_gl_loaded = false;
 	render_window = presentation_window = NULL;
 	render_dc = presentation_dc = NULL;
 	presenting = false;
@@ -315,10 +336,10 @@ SDL_Window *Session_WinCreateWindow(uintptr_t parent)
 	RECT rect;
 	POINT origin = { 0, 0 };
 	PIXELFORMATDESCRIPTOR format;
-	int pixel_format;
+	int pixel_format, current_format;
 	SDL_Window *window;
 
-	if (render_window || presentation_dc) {
+	if (render_window || presentation_dc || render_gl_loaded) {
 		SDL_SetError("Session drawable was not released before recreation");
 		return NULL;
 	}
@@ -329,10 +350,40 @@ SDL_Window *Session_WinCreateWindow(uintptr_t parent)
 		presentation_window = NULL;
 		return NULL;
 	}
+	/* No SDL GL window exists in this worker yet. Initialize WGL before any
+	 * pixel-format operations instead of relying on another process's setup. */
+	if (SDL_GL_LoadLibrary(NULL) < 0)
+		goto failed;
+	render_gl_loaded = true;
+	pixel_format = (int)(INT_PTR)GetPropA(presentation_window, pixel_format_property);
+	if (pixel_format <= 0) {
+		SDL_SetError("Coordinator did not publish an OpenGL pixel format");
+		goto failed;
+	}
+	SetLastError(ERROR_SUCCESS);
 	presentation_dc = GetDC(presentation_window);
-	pixel_format = presentation_dc ? GetPixelFormat(presentation_dc) : 0;
-	if (!pixel_format || !DescribePixelFormat(presentation_dc, pixel_format, sizeof(format), &format)) {
-		Session_WinError("Cannot inspect the shared window's pixel format");
+	if (!presentation_dc) {
+		Session_WinError("Cannot acquire the shared window DC");
+		goto failed;
+	}
+	SetLastError(ERROR_SUCCESS);
+	if (!DescribePixelFormat(presentation_dc, pixel_format, sizeof(format), &format)) {
+		Session_WinError("Cannot describe the coordinator's OpenGL pixel format");
+		goto failed;
+	}
+	current_format = GetPixelFormat(presentation_dc);
+	if (!current_format) {
+		/* Establish this worker's DC using exactly the owner's selection.
+		 * Never choose a new format or replace an existing different one. */
+		SetLastError(ERROR_SUCCESS);
+		if (!SetPixelFormat(presentation_dc, pixel_format, &format)) {
+			Session_WinError("Cannot initialize the shared window DC pixel format");
+			goto failed;
+		}
+		current_format = GetPixelFormat(presentation_dc);
+	}
+	if (current_format != pixel_format) {
+		SDL_SetError("Shared window pixel format mismatch (coordinator %d, worker %d)", pixel_format, current_format);
 		goto failed;
 	}
 

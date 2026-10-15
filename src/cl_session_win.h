@@ -29,7 +29,7 @@ int Session_WinReceive(intptr_t pipe, void *message, size_t size);
 void Session_WinClose(intptr_t pipe);
 void Session_WinTerminate(intptr_t process);
 qbool Session_WinReap(intptr_t process, qbool wait);
-uintptr_t Session_WinWindowHandle(SDL_Window *window);
+uintptr_t Session_WinPublishWindow(SDL_Window *window);
 SDL_Window *Session_WinCreateWindow(uintptr_t parent);
 void Session_WinDestroyWindow(SDL_Window *window);
 void Session_WinSwapBuffers(void);
