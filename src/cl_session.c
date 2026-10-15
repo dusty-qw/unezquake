@@ -761,8 +761,11 @@ void CL_SessionsAttachWindow(SDL_Window *window)
 {
 #ifdef _WIN32
 	session_window = window;
-	if (session_coordinator)
-		parent_window = Session_WinWindowHandle(window);
+	if (session_coordinator) {
+		parent_window = Session_WinPublishWindow(window);
+		if (!parent_window)
+			Sys_Error("Cannot publish session drawable: %s", SDL_GetError());
+	}
 #else
 	SDL_SysWMinfo wm;
 	session_window = window;
