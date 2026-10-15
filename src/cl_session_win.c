@@ -29,6 +29,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 static HANDLE session_job, coordinator_wake;
 
+/* These handles are local to a worker. The hidden window has neither a parent
+ * nor an owner: attaching it to the coordinator would join their input queues.
+ * SDL owns only a wrapper for this local window, never the coordinator's HWND. */
+static HWND render_window, presentation_window;
+static HDC render_dc, presentation_dc;
+static qbool presenting;
+static BOOL (WINAPI *session_make_current)(HDC, HGLRC);
+
 static void Session_WinError(const char *operation)
 {
 	SDL_SetError("%s (Windows error %lu)", operation, (unsigned long)GetLastError());
@@ -283,46 +291,131 @@ uintptr_t Session_WinWindowHandle(SDL_Window *window)
 	return (uintptr_t)wm.info.win.window;
 }
 
+void Session_WinDestroyWindow(SDL_Window *window)
+{
+	/* The caller deletes its GL context before releasing either drawable. */
+	if (window)
+		SDL_DestroyWindow(window);
+	if (render_dc)
+		ReleaseDC(render_window, render_dc);
+	if (render_window)
+		DestroyWindow(render_window);
+	if (presentation_dc)
+		ReleaseDC(presentation_window, presentation_dc);
+	render_window = presentation_window = NULL;
+	render_dc = presentation_dc = NULL;
+	presenting = false;
+	session_make_current = NULL;
+}
+
 SDL_Window *Session_WinCreateWindow(uintptr_t parent)
 {
+	static const char class_name[] = "unezQuakeSessionDrawable";
+	WNDCLASSA wc;
 	RECT rect;
-	HWND child;
+	POINT origin = { 0, 0 };
+	PIXELFORMATDESCRIPTOR format;
+	int pixel_format;
 	SDL_Window *window;
-	if (!IsWindow((HWND)parent) || !GetClientRect((HWND)parent, &rect)) {
+
+	if (render_window || presentation_dc) {
+		SDL_SetError("Session drawable was not released before recreation");
+		return NULL;
+	}
+	presentation_window = (HWND)parent;
+	if (!IsWindow(presentation_window) || !GetClientRect(presentation_window, &rect) ||
+		!ClientToScreen(presentation_window, &origin)) {
 		SDL_SetError("The session's application window no longer exists");
+		presentation_window = NULL;
 		return NULL;
 	}
-	/* Cross-process SDL_CreateWindowFrom cannot subclass the owner's HWND.
-	 * Give SDL a window it owns, embedded before it can become visible. The
-	 * executable applies the same DPI awareness in coordinator and workers.
-	 * WS_DISABLED leaves keyboard/mouse focus with the main window. */
-	window = SDL_CreateWindow("", 0, 0, rect.right, rect.bottom,
-		SDL_WINDOW_OPENGL | SDL_WINDOW_BORDERLESS | SDL_WINDOW_HIDDEN);
+	presentation_dc = GetDC(presentation_window);
+	pixel_format = presentation_dc ? GetPixelFormat(presentation_dc) : 0;
+	if (!pixel_format || !DescribePixelFormat(presentation_dc, pixel_format, sizeof(format), &format)) {
+		Session_WinError("Cannot inspect the shared window's pixel format");
+		goto failed;
+	}
+
+	memset(&wc, 0, sizeof(wc));
+	wc.style = CS_OWNDC;
+	wc.lpfnWndProc = DefWindowProcA;
+	wc.hInstance = GetModuleHandle(NULL);
+	wc.lpszClassName = class_name;
+	if (!RegisterClassA(&wc) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS) {
+		Session_WinError("Cannot register the private session drawable");
+		goto failed;
+	}
+	/* A hidden, unowned top-level window on the same display supplies SDL's
+	 * context creation and size bookkeeping. Inactive engines render here.
+	 * Matching the owner's exact pixel format permits WGL to bind the same
+	 * context to the visible drawable without copies or driver extensions. */
+	render_window = CreateWindowExA(WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE, class_name, "",
+		WS_POPUP | WS_DISABLED | WS_CLIPSIBLINGS | WS_CLIPCHILDREN,
+		origin.x, origin.y, rect.right, rect.bottom, NULL, NULL, wc.hInstance, NULL);
+	if (!render_window || !(render_dc = GetDC(render_window)) ||
+		!SetPixelFormat(render_dc, pixel_format, &format)) {
+		Session_WinError("Cannot create the private session drawable");
+		goto failed;
+	}
+	SDL_SetHintWithPriority(SDL_HINT_VIDEO_FOREIGN_WINDOW_OPENGL, "1", SDL_HINT_OVERRIDE);
+	window = SDL_CreateWindowFrom(render_window);
 	if (!window)
-		return NULL;
-	child = (HWND)Session_WinWindowHandle(window);
-	SetWindowLongPtr(child, GWL_STYLE, WS_CHILD | WS_DISABLED | WS_CLIPSIBLINGS | WS_CLIPCHILDREN);
-	SetWindowLongPtr(child, GWL_EXSTYLE, GetWindowLongPtr(child, GWL_EXSTYLE) & ~WS_EX_APPWINDOW);
-	SetLastError(ERROR_SUCCESS);
-	if (!SetParent(child, (HWND)parent) && GetLastError() != ERROR_SUCCESS) {
-		DWORD error = GetLastError();
+		goto failed;
+	/* A window's pixel format is immutable. SDL may attempt its own format
+	 * selection for a foreign window; it must not replace our exact match. */
+	if (GetPixelFormat(render_dc) != pixel_format) {
+		SDL_SetError("Session drawable does not match the shared pixel format");
 		SDL_DestroyWindow(window);
-		SetLastError(error);
-		Session_WinError("Cannot embed session render window");
-		return NULL;
+		goto failed;
 	}
-	SetWindowPos(child, NULL, 0, 0, rect.right, rect.bottom,
-		SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+	SDL_ClearError();
 	return window;
+
+failed:
+	{
+		char error[512];
+		strlcpy(error, SDL_GetError(), sizeof(error));
+		Session_WinDestroyWindow(NULL);
+		SDL_SetError("%s", error);
+	}
+	return NULL;
 }
 
 void Session_WinGeometry(SDL_Window *window, int width, int height)
 {
-	HWND child = (HWND)Session_WinWindowHandle(window);
 	RECT rect;
-	if (width > 0 && height > 0 && GetClientRect(child, &rect) &&
-		(rect.right != width || rect.bottom != height))
-		SetWindowPos(child, NULL, 0, 0, width, height, SWP_NOZORDER | SWP_NOACTIVATE);
+	POINT origin = { 0, 0 };
+	if (window && render_window && !IsIconic(presentation_window) && width > 0 && height > 0 &&
+		GetWindowRect(render_window, &rect) && ClientToScreen(presentation_window, &origin) &&
+		(rect.left != origin.x || rect.top != origin.y ||
+		 rect.right - rect.left != width || rect.bottom - rect.top != height)) {
+		SetWindowPos(render_window, NULL, origin.x, origin.y, width, height,
+			SWP_NOZORDER | SWP_NOACTIVATE);
+	}
+}
+
+void Session_WinSetActive(SDL_Window *window, qbool active)
+{
+	SDL_GLContext context = SDL_GL_GetCurrentContext();
+	if (!window || !context)
+		return;
+	if (!session_make_current)
+		session_make_current = (BOOL (WINAPI *)(HDC, HGLRC))SDL_GL_GetProcAddress("wglMakeCurrent");
+	/* SDL continues to track the local wrapper for sizing and context lifetime.
+	 * Only the WGL drawing target changes; no HWND is shown, reparented, or
+	 * activated. The coordinator waits for glFinish + ASLEEP before WAKE. */
+	if (!session_make_current || !session_make_current(active ? presentation_dc : render_dc, (HGLRC)context))
+		Sys_Error("Cannot bind session %s drawable (Windows error %lu)",
+			active ? "shared" : "private", (unsigned long)GetLastError());
+	presenting = active;
+}
+
+void Session_WinSwapBuffers(void)
+{
+	if (!presenting || !presentation_dc)
+		return;
+	if (!SwapBuffers(presentation_dc))
+		Sys_Error("Cannot present session frame (Windows error %lu)", (unsigned long)GetLastError());
 }
 
 void Session_WinWait(const intptr_t *processes, int count, unsigned int timeout)
@@ -337,13 +430,4 @@ void Session_WinWait(const intptr_t *processes, int count, unsigned int timeout)
 	MsgWaitForMultipleObjectsEx(count + 1, handles, timeout, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
 }
 
-void Session_WinSetActive(SDL_Window *window, qbool active)
-{
-	HWND child = (HWND)Session_WinWindowHandle(window);
-	if (!child)
-		return;
-	/* Use native show-without-activation: SDL_ShowWindow raises a top-level
-	 * window, while this is a child in another process's application window. */
-	ShowWindow(child, active ? SW_SHOWNOACTIVATE : SW_HIDE);
-}
 #endif

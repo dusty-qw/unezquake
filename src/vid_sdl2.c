@@ -49,6 +49,9 @@
 #include "ezquake-icon.c"
 #include "keys.h"
 #include "cl_session.h"
+#ifdef _WIN32
+#include "cl_session_win.h"
+#endif
 #include "tr_types.h"
 #include "input.h"
 #include "rulesets.h"
@@ -107,6 +110,10 @@ static void vid_reload_callback(cvar_t* var, char* string, qbool* cancel);
 static void GrabMouse(qbool grab, qbool raw);
 static qbool session_alt_tab_enabled = true;
 static qbool session_alt_tab_initialized;
+#ifdef _WIN32
+static qbool session_minimize_pending;
+static int session_minimize_on_focus_loss; /* 0: never, 1: always, 2: SDL auto policy. */
+#endif
 
 #if defined(__linux__) && defined(SDL_VIDEO_DRIVER_X11)
 static qbool session_swap_control_checked;
@@ -729,6 +736,13 @@ static void window_event(SDL_WindowEvent *event)
 
 		case SDL_WINDOWEVENT_FOCUS_LOST:
 			ActiveApp = false;
+#ifdef _WIN32
+			if (CL_SessionIsCoordinator() && (flags & SDL_WINDOW_FULLSCREEN) &&
+				!(flags & SDL_WINDOW_MINIMIZED) && session_minimize_on_focus_loss &&
+				(session_minimize_on_focus_loss != 2 ||
+				 (flags & SDL_WINDOW_FULLSCREEN_DESKTOP) != SDL_WINDOW_FULLSCREEN_DESKTOP))
+				session_minimize_pending = true;
+#endif
 			if (CL_SessionIsCoordinator())
 				VID_SuspendSessionGamma();
 #ifdef __linux__
@@ -757,6 +771,10 @@ static void window_event(SDL_WindowEvent *event)
 		case SDL_WINDOWEVENT_RESTORED:
 			Minimized = CL_SessionIsWorker() && CL_SessionWindowIsMinimized();
 			ActiveApp = (flags & SDL_WINDOW_INPUT_FOCUS) && !Minimized;
+#ifdef _WIN32
+			if (ActiveApp)
+				session_minimize_pending = false;
+#endif
 			scr_skipupdate = 0;
 #ifdef X11_GAMMA_WORKAROUND
 			if (vid_gamma_workaround.integer) {
@@ -1274,11 +1292,9 @@ static void HandleEvents(void)
 					coordinator_cursor_valid = true;
 				}
 			}
-			/* SDL normally minimizes grabbed fullscreen windows from inside its
-			 * low-level keyboard hook. Defer that until the hook has returned:
-			 * the owner has cross-process child windows, so activation can wait
-			 * on another thread's input queue. Handle this before forwarding to
-			 * a worker or menu, using the owner's grab and focus state. */
+			/* Defer fullscreen transitions out of native keyboard/focus callbacks.
+			 * Handle Alt+Tab before forwarding to a worker or menu, using the
+			 * owner's grab and focus state. */
 			if (session_alt_tab_initialized && event.type == SDL_KEYDOWN && !event.key.repeat &&
 				event.key.windowID == SDL_GetWindowID(sdl_window) &&
 				event.key.keysym.sym == SDLK_TAB && (event.key.keysym.mod & KMOD_ALT) &&
@@ -1286,7 +1302,9 @@ static void HandleEvents(void)
 				(SDL_GetWindowFlags(sdl_window) & SDL_WINDOW_INPUT_FOCUS) &&
 				!(SDL_GetWindowFlags(sdl_window) & SDL_WINDOW_MINIMIZED)) {
 				/* Also allow escape from a grabbed windowed/borderless window. */
-				VID_Minimize();
+#ifdef _WIN32
+				session_minimize_pending = true;
+#endif
 				continue;
 			}
 			/* Non-raw capture is sampled and recentered once per pump below. */
@@ -1329,6 +1347,14 @@ static void HandleEvents(void)
 
 	if (CL_SessionIsWorker())
 		return;
+#ifdef _WIN32
+	/* Finish native focus callbacks before changing fullscreen presentation. */
+	if (session_minimize_pending) {
+		session_minimize_pending = false;
+		if (sdl_window && !(SDL_GetWindowFlags(sdl_window) & SDL_WINDOW_MINIMIZED))
+			VID_Minimize();
+	}
+#endif
 	if (track_movement_through_state) {
 		float factor = (IN_MouseTrackingRequired() ? cursor_sensitivity.value : 1);
 		int pos_x, pos_y;
@@ -1353,9 +1379,23 @@ void VID_SoftRestart(void)
 	QMB_ShutdownParticles();
 }
 
+static void VID_DestroySDLWindow(SDL_Window *window)
+{
+#ifdef _WIN32
+	if (CL_SessionIsWorker()) {
+		Session_WinDestroyWindow(window);
+		return;
+	}
+#endif
+	SDL_DestroyWindow(window);
+}
+
 void VID_Shutdown(qbool restart)
 {
 	int i;
+#ifdef _WIN32
+	session_minimize_pending = false;
+#endif
 	if (CL_SessionIsCoordinator())
 		VID_SessionGammaSettings(NULL);
 	// the menus own GL objects and textures, release them while the context still exists
@@ -1394,7 +1434,7 @@ void VID_Shutdown(qbool restart)
 
 	if (sdl_window) {
 		CL_SessionsDetachWindow();
-		SDL_DestroyWindow(sdl_window);
+		VID_DestroySDLWindow(sdl_window);
 		sdl_window = NULL;
 	}
 
@@ -1847,6 +1887,17 @@ static void VID_SDL_Init(void)
 	else
 		SDL_SetHint(SDL_HINT_IME_SHOW_UI, "1");
 	if (CL_SessionIsCoordinator() && !strcmp(SDL_GetCurrentVideoDriver(), "windows")) {
+#ifdef _WIN32
+		const char *minimize_hint = SDL_getenv(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS);
+		/* Re-read policy on vid_restart before disabling SDL's synchronous path. */
+		SDL_SetHintWithPriority(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS,
+			minimize_hint ? minimize_hint : (vid_minimize_on_focus_loss.integer ? "1" : "0"), SDL_HINT_OVERRIDE);
+		session_minimize_on_focus_loss = SDL_GetHintBoolean(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, SDL_TRUE);
+		if (minimize_hint && (!*minimize_hint || !SDL_strcasecmp(minimize_hint, "auto")))
+			session_minimize_on_focus_loss = 2;
+		/* SDL otherwise minimizes synchronously inside the native focus callback. */
+		SDL_SetHintWithPriority(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, "0", SDL_HINT_OVERRIDE);
+#endif
 		/* Preserve the user's policy across vid_restart; defer minimizing out
 		 * of SDL's low-level Windows keyboard hook. */
 		if (!session_alt_tab_initialized) {
@@ -1917,7 +1968,7 @@ static void VID_SDL_Init(void)
 					sdl_context = VID_SDL_GL_SetupContextAttributes();
 
 					if (!sdl_context) {
-						SDL_DestroyWindow(sdl_window);
+						VID_DestroySDLWindow(sdl_window);
 						sdl_window = NULL;
 					}
 					else {
@@ -2009,6 +2060,12 @@ static void VID_SDL_Init(void)
 
 static void VID_SwapBuffers (void)
 {
+#ifdef _WIN32
+	if (CL_SessionIsWorker()) {
+		Session_WinSwapBuffers();
+		return;
+	}
+#endif
 #if defined(__linux__) && defined(SDL_VIDEO_DRIVER_X11)
 	if (r_swapInterval.integer == 1 && CL_SessionIsWorker()) {
 		if (!session_swap_control_checked) {
@@ -2051,7 +2108,7 @@ static void VID_SwapBuffers (void)
 void VID_SessionRelease(void)
 {
 	/* Release logical input before waiting for the renderer. Only the owner
-	 * ever releases native capture. Keep this worker's saved cursor position. */
+	 * ever releases native capture. */
 	VID_SessionInputState(false, CL_SessionWindowIsMinimized(), true, 0);
 	glFinish();
 }
