@@ -107,6 +107,10 @@ static void vid_reload_callback(cvar_t* var, char* string, qbool* cancel);
 static void GrabMouse(qbool grab, qbool raw);
 static qbool session_alt_tab_enabled = true;
 static qbool session_alt_tab_initialized;
+#ifdef _WIN32
+static qbool session_minimize_pending;
+static int session_minimize_on_focus_loss; /* 0: never, 1: always, 2: SDL auto policy. */
+#endif
 
 #if defined(__linux__) && defined(SDL_VIDEO_DRIVER_X11)
 static qbool session_swap_control_checked;
@@ -729,6 +733,13 @@ static void window_event(SDL_WindowEvent *event)
 
 		case SDL_WINDOWEVENT_FOCUS_LOST:
 			ActiveApp = false;
+#ifdef _WIN32
+			if (CL_SessionIsCoordinator() && (flags & SDL_WINDOW_FULLSCREEN) &&
+				!(flags & SDL_WINDOW_MINIMIZED) && session_minimize_on_focus_loss &&
+				(session_minimize_on_focus_loss != 2 ||
+				 (flags & SDL_WINDOW_FULLSCREEN_DESKTOP) != SDL_WINDOW_FULLSCREEN_DESKTOP))
+				session_minimize_pending = true;
+#endif
 			if (CL_SessionIsCoordinator())
 				VID_SuspendSessionGamma();
 #ifdef __linux__
@@ -757,6 +768,10 @@ static void window_event(SDL_WindowEvent *event)
 		case SDL_WINDOWEVENT_RESTORED:
 			Minimized = CL_SessionIsWorker() && CL_SessionWindowIsMinimized();
 			ActiveApp = (flags & SDL_WINDOW_INPUT_FOCUS) && !Minimized;
+#ifdef _WIN32
+			if (ActiveApp)
+				session_minimize_pending = false;
+#endif
 			scr_skipupdate = 0;
 #ifdef X11_GAMMA_WORKAROUND
 			if (vid_gamma_workaround.integer) {
@@ -1286,7 +1301,9 @@ static void HandleEvents(void)
 				(SDL_GetWindowFlags(sdl_window) & SDL_WINDOW_INPUT_FOCUS) &&
 				!(SDL_GetWindowFlags(sdl_window) & SDL_WINDOW_MINIMIZED)) {
 				/* Also allow escape from a grabbed windowed/borderless window. */
-				VID_Minimize();
+#ifdef _WIN32
+				session_minimize_pending = true;
+#endif
 				continue;
 			}
 			/* Non-raw capture is sampled and recentered once per pump below. */
@@ -1329,6 +1346,14 @@ static void HandleEvents(void)
 
 	if (CL_SessionIsWorker())
 		return;
+#ifdef _WIN32
+	/* Finish native focus callbacks before minimizing cross-process children. */
+	if (session_minimize_pending) {
+		session_minimize_pending = false;
+		if (sdl_window && !(SDL_GetWindowFlags(sdl_window) & SDL_WINDOW_MINIMIZED))
+			VID_Minimize();
+	}
+#endif
 	if (track_movement_through_state) {
 		float factor = (IN_MouseTrackingRequired() ? cursor_sensitivity.value : 1);
 		int pos_x, pos_y;
@@ -1356,6 +1381,9 @@ void VID_SoftRestart(void)
 void VID_Shutdown(qbool restart)
 {
 	int i;
+#ifdef _WIN32
+	session_minimize_pending = false;
+#endif
 	if (CL_SessionIsCoordinator())
 		VID_SessionGammaSettings(NULL);
 	// the menus own GL objects and textures, release them while the context still exists
@@ -1847,6 +1875,17 @@ static void VID_SDL_Init(void)
 	else
 		SDL_SetHint(SDL_HINT_IME_SHOW_UI, "1");
 	if (CL_SessionIsCoordinator() && !strcmp(SDL_GetCurrentVideoDriver(), "windows")) {
+#ifdef _WIN32
+		const char *minimize_hint = SDL_getenv(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS);
+		/* Re-read policy on vid_restart before disabling SDL's synchronous path. */
+		SDL_SetHintWithPriority(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS,
+			minimize_hint ? minimize_hint : (vid_minimize_on_focus_loss.integer ? "1" : "0"), SDL_HINT_OVERRIDE);
+		session_minimize_on_focus_loss = SDL_GetHintBoolean(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, SDL_TRUE);
+		if (minimize_hint && (!*minimize_hint || !SDL_strcasecmp(minimize_hint, "auto")))
+			session_minimize_on_focus_loss = 2;
+		/* SDL otherwise minimizes synchronously inside the native focus callback. */
+		SDL_SetHintWithPriority(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, "0", SDL_HINT_OVERRIDE);
+#endif
 		/* Preserve the user's policy across vid_restart; defer minimizing out
 		 * of SDL's low-level Windows keyboard hook. */
 		if (!session_alt_tab_initialized) {
