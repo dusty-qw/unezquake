@@ -772,7 +772,8 @@ static void window_event(SDL_WindowEvent *event)
 			Minimized = CL_SessionIsWorker() && CL_SessionWindowIsMinimized();
 			ActiveApp = (flags & SDL_WINDOW_INPUT_FOCUS) && !Minimized;
 #ifdef _WIN32
-			if (ActiveApp)
+			/* Regained focus cancels a deferred minimize even if SDL's flags lag. */
+			if (event->event == SDL_WINDOWEVENT_FOCUS_GAINED || ActiveApp)
 				session_minimize_pending = false;
 #endif
 			scr_skipupdate = 0;
