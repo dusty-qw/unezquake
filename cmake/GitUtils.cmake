@@ -39,7 +39,7 @@ function(git_extract_version target_var)
 
         if (GIT_IS_SHALLOW MATCHES "true")
             message(WARNING "Shallow repository detected, revision not available.")
-            set(GIT_REVISION "0")
+            set(GIT_REVISION "1")
         else()
             execute_process(
                     COMMAND ${GIT_EXECUTABLE} rev-list HEAD --count
@@ -76,7 +76,7 @@ function(git_extract_version target_var)
     endif()
 
     if (NOT GIT_REVISION)
-        set(GIT_REVISION "0")
+        set(GIT_REVISION "1")
     endif()
 
     if (NOT GIT_COMMIT_HASH)
