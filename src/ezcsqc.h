@@ -33,6 +33,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define EZCSQC_WEAPONDEF		4
 #define EZCSQC_HUDELEMENT		32
 
+/* Legacy KTX CSQC entity identifiers used before the native EZCSQC schema. */
+#define EZCSQC_LEGACY_PROJECTILE	10
+#define EZCSQC_LEGACY_WEAPONPRED	20
+
 #define DRAWMASK_ENGINE			0x01
 #define DRAWMASK_VIEWMODEL		0x02
 #define DRAWMASK_PROJECTILE		0x04
