@@ -30,6 +30,7 @@ See the GNU General Public License for more details.
 #include "r_texture.h"
 #include "menu_scene.h"
 #include "menu_ui_bridge.h"
+#include "version.h"
 
 #define MUI_MAX_PREVIEWS 32
 
@@ -54,6 +55,8 @@ static void OnChange_menu_classic(cvar_t *var, char *value, qbool *cancel);
 cvar_t menu_classic = {"menu_classic", "0", 0, OnChange_menu_classic};
 // size of the new menus relative to the automatic scale (based on window height)
 cvar_t menu_scale = {"menu_scale", "1"};
+cvar_t menu_news = {"menu_news", "1"};
+cvar_t menu_logo = {"menu_logo", "1"};
 
 static qbool mui_video_ready;
 // menu_classic as it was when the client started
@@ -150,6 +153,21 @@ void MUI_Quit(void)
 float MUI_MenuScale(void)
 {
 	return bound(0.5f, menu_scale.value, 3.0f);
+}
+
+mui_bool MUI_ShowNews(void)
+{
+	return menu_news.integer != 0;
+}
+
+void MUI_SetShowNews(mui_bool show)
+{
+	Cvar_SetValue(&menu_news, show ? 1 : 0);
+}
+
+const char *MUI_Version(void)
+{
+	return VERSION_NUMBER;
 }
 
 mui_bool MUI_ConfirmQuit(void)
@@ -257,9 +275,38 @@ unsigned int MUI_MapPreviewTexture(const char *map, int *width, int *height)
 	return GL_TextureNameFromReference(preview->texture);
 }
 
+static struct {
+	texture_ref texture;
+	qbool loaded;
+} mui_logo;
+
+unsigned int MUI_LogoTexture(int *width, int *height)
+{
+	*width = *height = 0;
+	if (!mui_video_ready || !menu_logo.integer) {
+		return 0;
+	}
+	if (!mui_logo.loaded) {
+		// load once, also remembering if there's no logo so the disk isn't hit every frame
+		mui_logo.texture = R_LoadTextureImage("textures/menu/logo", "menu:logo", 0, 0, TEX_NOCOMPRESS | TEX_NOSCALE | TEX_ALPHA);
+		mui_logo.loaded = true;
+	}
+	if (!R_TextureReferenceIsValid(mui_logo.texture)) {
+		return 0;
+	}
+	*width = R_TextureWidth(mui_logo.texture);
+	*height = R_TextureHeight(mui_logo.texture);
+	return GL_TextureNameFromReference(mui_logo.texture);
+}
+
 void MUI_FlushTextures(void)
 {
 	int i;
+
+	if (R_TextureReferenceIsValid(mui_logo.texture)) {
+		R_DeleteTexture(&mui_logo.texture);
+	}
+	memset(&mui_logo, 0, sizeof(mui_logo));
 
 	for (i = 0; i < MUI_MAX_PREVIEWS; i++) {
 		if (R_TextureReferenceIsValid(mui_previews[i].texture)) {
@@ -990,6 +1037,8 @@ void M_ImGui_Init(void)
 {
 	Cvar_SetCurrentGroup(CVAR_GROUP_MENU);
 	Cvar_Register(&menu_scale);
+	Cvar_Register(&menu_news);
+	Cvar_Register(&menu_logo);
 	Cvar_ResetCurrentGroup();
 }
 

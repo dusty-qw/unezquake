@@ -14821,6 +14821,38 @@
         }
       ]
     },
+    "menu_news": {
+      "default": "1",
+      "desc": "Shows the What's new card on the main menu home page.",
+      "group-id": "17",
+      "type": "boolean",
+      "values": [
+        {
+          "description": "card hidden",
+          "name": "false"
+        },
+        {
+          "description": "card shown",
+          "name": "true"
+        }
+      ]
+    },
+    "menu_logo": {
+      "default": "1",
+      "desc": "Draws textures/menu/logo (png/tga) as the logo in the menu top bar. Without the image, or with 0, the text logo is used.",
+      "group-id": "17",
+      "type": "boolean",
+      "values": [
+        {
+          "description": "text logo",
+          "name": "false"
+        },
+        {
+          "description": "image logo if available",
+          "name": "true"
+        }
+      ]
+    },
     "menu_marked_bgcolor": {
       "default": "20 20 20 128",
       "desc": "The color of the selected entry in options menu.",

@@ -55,6 +55,9 @@ void MUI_ToggleConsole(void);
 void MUI_Quit(void);                      // quits immediately, confirmation is up to the menu
 mui_bool MUI_ConfirmQuit(void);           // cl_confirmquit
 float MUI_MenuScale(void);                // menu_scale
+mui_bool MUI_ShowNews(void);              // menu_news
+void MUI_SetShowNews(mui_bool show);
+const char *MUI_Version(void);
 void MUI_Disconnect(void);
 void MUI_SetClipboard(const char *text);
 
@@ -68,6 +71,8 @@ unsigned int MUI_PaletteColor(int index);
 // GL texture name of textures/levelshots/<map>, 0 if there is none
 unsigned int MUI_MapPreviewTexture(const char *map, int *width, int *height);
 void MUI_FlushTextures(void);
+// GL texture name of textures/menu/logo, 0 if there is none
+unsigned int MUI_LogoTexture(int *width, int *height);
 
 //
 // server browser

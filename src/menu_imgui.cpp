@@ -42,6 +42,7 @@ See the GNU General Public License for more details.
 #include "imgui.h"
 #include "imgui_internal.h"
 #include "imgui_impl_sdl2.h"
+#include "fonts/oxanium.h"
 #include "imgui_impl_opengl2.h"
 #include "imgui_impl_opengl3.h"
 
@@ -122,6 +123,7 @@ struct Backend {
 	glActiveTexture_t ClientActiveTexture = nullptr;
 	glBindSampler_t BindSampler = nullptr;
 	ImFont *font = nullptr;
+	ImFont *font_bold = nullptr;
 	float scale = 1.0f;
 };
 
@@ -269,7 +271,7 @@ float S(float v)
 }
 
 struct FontSize {
-	explicit FontSize(float size) { ImGui::PushFont(nullptr, size); }
+	explicit FontSize(float size, ImFont *font = nullptr) { ImGui::PushFont(font, size); }
 	~FontSize() { ImGui::PopFont(); }
 };
 
@@ -347,7 +349,7 @@ void Badge(const char *text, const ImVec4 &bg, const ImVec4 &fg)
 void SectionTitle(const char *title, const char *subtitle = nullptr)
 {
 	{
-		FontSize fs(FONT_TITLE);
+		FontSize fs(FONT_TITLE, backend.font_bold);
 		ImGui::TextUnformatted(title);
 	}
 	if (subtitle) {
@@ -651,13 +653,25 @@ bool NavItem(const char *label, bool active, bool danger, float height)
 
 void DrawLogo(ImDrawList *dl, ImVec2 pos, float height)
 {
+	int tex_w = 0, tex_h = 0;
+	unsigned int texture = MUI_LogoTexture(&tex_w, &tex_h);
+
+	// textures/menu/logo if there is one, fitted into the clickable logo area
+	if (texture && tex_w > 0 && tex_h > 0) {
+		float aspect = (float)tex_w / tex_h;
+		float h = std::min(height * 0.74f, S(190) / aspect);
+		float y = pos.y + (height - h) * 0.5f;
+		dl->AddImage(ImTextureRef((ImTextureID)(intptr_t)texture), ImVec2(pos.x, y), ImVec2(pos.x + h * aspect, y + h));
+		return;
+	}
+
 	// wordmark only
 	float font_size = S(FONT_LARGE * 1.15f);
 	float x = pos.x;
-	ImVec2 unez = backend.font->CalcTextSizeA(font_size, FLT_MAX, 0, "UNEZ");
+	ImVec2 unez = backend.font_bold->CalcTextSizeA(font_size, FLT_MAX, 0, "UNEZ");
 	float y = pos.y + (height - unez.y) * 0.5f;
-	dl->AddText(backend.font, font_size, ImVec2(x, y), Col(COLOR_TEXT_DIM), "UNEZ");
-	dl->AddText(backend.font, font_size, ImVec2(x + unez.x, y), Col(COLOR_TEXT), "QUAKE");
+	dl->AddText(backend.font_bold, font_size, ImVec2(x, y), Col(COLOR_TEXT_DIM), "UNEZ");
+	dl->AddText(backend.font_bold, font_size, ImVec2(x + unez.x, y), Col(COLOR_TEXT), "QUAKE");
 }
 
 void SetPage(int page);
@@ -2187,10 +2201,124 @@ void DrawQuit()
 // home
 //=============================================================================
 
+// ponytail: hand-written from CHANGELOG.md/git log, update on release (CHANGELOG.md is not shipped with the client)
+enum NewsTag { NEWS_NEW, NEWS_CHANGED, NEWS_FIX };
+
+struct NewsItem {
+	NewsTag tag;
+	const char *text;
+};
+
+// the first NEWS_HIGHLIGHTS items are shown while the card is not expanded
+const NewsItem NEWS_ITEMS[] = {
+	{ NEWS_NEW,     "Sessions: stay connected to up to nine servers in one window (session 2, session 1, session_list)" },
+	{ NEWS_NEW,     "Redesigned menu with Quick Play, server browser, demos and searchable settings (credit Bance)" },
+	{ NEWS_NEW,     "cl_ping replaces cl_delay_packet and delays both incoming and outgoing packets" },
+	{ NEWS_NEW,     "Chat emoticons (cl_emoticons) and extra player and team colors" },
+	{ NEWS_NEW,     "Player names on Quick Play cards" },
+	{ NEWS_NEW,     "menu_classic 1 brings back the classic menu" },
+	{ NEWS_CHANGED, "Session hotkeys reworked, Ctrl+number shortcuts removed" },
+	{ NEWS_CHANGED, "Cursor position is shared across sessions" },
+	{ NEWS_FIX,     "Windows sessions no longer couple rendering to input, fullscreen Alt+Tab minimizes safely" },
+	{ NEWS_FIX,     "HUD status-bar redraw, auto-HUD backups and finale visibility" },
+	{ NEWS_FIX,     "Stale menu state no longer hides the HUD" },
+	{ NEWS_FIX,     "AppImage session startup with bundled glibc" },
+	{ NEWS_FIX,     "Shift+Esc opens the console when tilde does not work" },
+	{ NEWS_FIX,     "1024-byte serverinfo support" },
+	{ NEWS_FIX,     "LG animation at high pings" },
+	{ NEWS_FIX,     "Various sound prediction issues" },
+};
+const int NEWS_HIGHLIGHTS = 4;
+
+bool news_expanded = false;
+
+void NewsBadge(NewsTag tag)
+{
+	static const ImVec4 colors[] = {
+		COLOR_GOOD,                           // NEW
+		COLOR_ACCENT,                         // CHANGED
+		ImVec4(0.38f, 0.62f, 0.96f, 1.00f),   // FIX
+	};
+	static const char *labels[] = { "NEW", "CHANGED", "FIX" };
+	const ImVec4 &c = colors[tag];
+
+	FontSize fs(12.0f);
+	Badge(labels[tag], ImVec4(c.x, c.y, c.z, 0.18f), c);
+}
+
+void DrawNewsCard()
+{
+	ImGuiIO &io = ImGui::GetIO();
+	float width = S(news_expanded ? 460 : 320), pad = S(18);
+	float top = TopBarHeight() + S(22);
+	int count = news_expanded ? IM_ARRAYSIZE(NEWS_ITEMS) : NEWS_HIGHLIGHTS;
+
+	if (!MUI_ShowNews()) {
+		return;
+	}
+
+	ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - width - S(28), top));
+	ImGui::SetNextWindowSizeConstraints(ImVec2(width, 0), ImVec2(width, io.DisplaySize.y - top - S(120)));
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(pad, S(18)));
+	if (ImGui::Begin("##news", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+		ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize)) {
+		float button = ImGui::GetFrameHeight();
+
+		{
+			FontSize fs(FONT_LARGE, backend.font_bold);
+			ImGui::TextUnformatted("What's new");
+		}
+		{
+			// bold product name and dim version on one baseline
+			float size = S(FONT_SMALL);
+			ImVec2 pos = ImGui::GetCursorScreenPos();
+			ImVec2 name = backend.font_bold->CalcTextSizeA(size, FLT_MAX, 0, "unezQuake ");
+			ImDrawList *dl = ImGui::GetWindowDrawList();
+			dl->AddText(backend.font_bold, size, pos, Col(COLOR_TEXT), "unezQuake ");
+			dl->AddText(backend.font, size, ImVec2(pos.x + name.x, pos.y), Col(COLOR_TEXT_DIM), MUI_Version());
+			ImGui::Dummy(ImVec2(name.x, name.y));
+		}
+		// close, top right of the card; sets menu_news 0
+		ImGui::SetCursorPos(ImVec2(width - pad - button, S(18)));
+		if (ImGui::Button("x", ImVec2(button, button))) {
+			MUI_SetShowNews(false);
+		}
+		ImGui::Spacing();
+
+		if (ImGui::BeginTable("##newsitems", 2, ImGuiTableFlags_None)) {
+			ImGui::TableSetupColumn("tag", ImGuiTableColumnFlags_WidthFixed, S(news_expanded ? 70 : 44));
+			ImGui::TableSetupColumn("text", ImGuiTableColumnFlags_WidthStretch);
+			for (int i = 0; i < count; i++) {
+				ImGui::TableNextRow(ImGuiTableRowFlags_None, S(24));
+				ImGui::TableSetColumnIndex(0);
+				NewsBadge(NEWS_ITEMS[i].tag);
+				ImGui::TableSetColumnIndex(1);
+				FontSize fs(FONT_SMALL);
+				ImGui::TextWrapped("%s", NEWS_ITEMS[i].text);
+			}
+			ImGui::EndTable();
+		}
+
+		ImGui::Spacing();
+		ImGui::PushStyleColor(ImGuiCol_Text, COLOR_ACCENT);
+		{
+			FontSize fs(FONT_SMALL);
+			if (ImGui::Selectable(news_expanded ? "Show less" : "Show all changes", false, 0, ImGui::CalcTextSize("Show all changes"))) {
+				news_expanded = !news_expanded;
+			}
+		}
+		ImGui::PopStyleColor();
+	}
+	ImGui::End();
+	ImGui::PopStyleVar();
+}
+
 void DrawHome()
 {
 	ImGuiIO &io = ImGui::GetIO();
 	ImDrawList *dl = ImGui::GetBackgroundDrawList();
+
+	DrawNewsCard();
 
 	if (!client.background_scene) {
 		return;
@@ -2199,11 +2327,11 @@ void DrawHome()
 	// cinematic caption: name of the background map
 	std::string map = ToUpper(client.scene_map);
 	float big = S(FONT_HUGE);
-	ImVec2 ts = backend.font->CalcTextSizeA(big, FLT_MAX, 0, map.c_str());
+	ImVec2 ts = backend.font_bold->CalcTextSizeA(big, FLT_MAX, 0, map.c_str());
 	float margin = S(40);
 	dl->AddRectFilledMultiColor(ImVec2(0, io.DisplaySize.y * 0.70f), io.DisplaySize,
 		IM_COL32(0, 0, 0, 0), IM_COL32(0, 0, 0, 0), IM_COL32(0, 0, 0, 150), IM_COL32(0, 0, 0, 150));
-	dl->AddText(backend.font, big, ImVec2(margin, io.DisplaySize.y - margin - ts.y - S(24)), IM_COL32(255, 255, 255, 150), map.c_str());
+	dl->AddText(backend.font_bold, big, ImVec2(margin, io.DisplaySize.y - margin - ts.y - S(24)), IM_COL32(255, 255, 255, 150), map.c_str());
 
 	const char *hint = "Pick Quick Play to jump into a game    ~  console";
 	float small = S(FONT_SMALL);
@@ -2502,6 +2630,19 @@ void ForwardedNewFrame()
 // interface
 //=============================================================================
 
+// Oxanium with ImGui's default font merged in for glyphs it lacks
+static ImFont *AddMenuFont(const unsigned char *data, int size)
+{
+	ImGuiIO &io = ImGui::GetIO();
+	ImFontConfig cfg, fallback;
+
+	cfg.FontDataOwnedByAtlas = false;
+	ImFont *font = io.Fonts->AddFontFromMemoryTTF((void *)data, size, 0.0f, &cfg);
+	fallback.MergeMode = true;
+	io.Fonts->AddFontDefaultVector(&fallback);
+	return font;
+}
+
 void MenuUI_VidInit(void *sdl_window, void *gl_context, int gl_major_version, mui_bool forwarded_input)
 {
 	if (backend.initialised) {
@@ -2516,7 +2657,8 @@ void MenuUI_VidInit(void *sdl_window, void *gl_context, int gl_major_version, mu
 	io.LogFilename = nullptr;
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
-	backend.font = io.Fonts->AddFontDefaultVector();
+	backend.font = AddMenuFont(oxanium_medium_ttf, sizeof(oxanium_medium_ttf));
+	backend.font_bold = AddMenuFont(oxanium_bold_ttf, sizeof(oxanium_bold_ttf));
 
 	if (gl_major_version <= 0) {
 		const char *version = (const char *)glGetString(GL_VERSION);
