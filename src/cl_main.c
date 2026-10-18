@@ -138,6 +138,10 @@ cvar_t  cl_chunksperframe  = {"cl_chunksperframe", "30"};
 cvar_t  cl_pext_floatcoords  = {"cl_pext_floatcoords", "1", CVAR_NOTFROMSERVER};
 #endif
 
+#ifdef FTE_PEXT_SCALE
+cvar_t cl_pext_scale = {"cl_pext_scale", "1", CVAR_NOTFROMSERVER};
+#endif
+
 #ifdef FTE_PEXT_TRANS
 cvar_t cl_pext_alpha = {"cl_pext_alpha", "1", CVAR_NOTFROMSERVER};
 #endif
@@ -495,6 +499,10 @@ unsigned int CL_SupportedFTEExtensions (void)
 		fteprotextsupported |= FTE_PEXT_FLOATCOORDS;
 #endif
 
+#ifdef FTE_PEXT_SCALE
+	if (cl_pext_scale.value)
+		fteprotextsupported |= FTE_PEXT_SCALE;
+#endif
 #ifdef FTE_PEXT_TRANS
 	if (cl_pext_alpha.value)
 		fteprotextsupported |= FTE_PEXT_TRANS;
@@ -2041,6 +2049,9 @@ static void CL_InitLocal(void)
 	Cvar_Register(&cl_pext_floatcoords);
 #endif
 
+#ifdef FTE_PEXT_SCALE
+	Cvar_Register(&cl_pext_scale);
+#endif
 #ifdef FTE_PEXT_TRANS
 	Cvar_Register(&cl_pext_alpha);
 #endif
