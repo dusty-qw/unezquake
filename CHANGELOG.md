@@ -1,5 +1,24 @@
 # unezQuake Changelog
 
+## Version 2.1.1 - 2026-10-11
+
+### New Features
+
+- **Chat Emoticons** (credit tiba).
+  - `cl_emoticons 1` - replaces text smileys (`:)` `;)` `^^` `<3` ...) and `:name:` codes (`:fire:` `:skull:` ...) in chat messages with small images. The country flags of `scoreboard_flags.pk3` work too (`:br:` `:us:` ...).
+  - Place `emoticons.pk3` in your `qw` directory.
+- **New Player Colors** (credit tiba). `color` now accepts 17-34: 18 extra vibrant colors (Lime, Neon Green, Cyan, Magenta, Hot Pink, Gold, ...).
+- **Player Names in Quickplay** (credit bance). Player names now show in the game tiles in quickplay.
+- **Copy Server IP** (credit hytiek). Added a button to copy the server IP in the new menu.
+
+### Bug fixes
+
+- Various fixes for Alt-tabbing/Minimizing in Windows
+- Fixed issues with hardware gamma and `vid_software_palette 0`
+- Fixed a bug causing HUD to disappear in certain situations
+- Cursor position is now consistent across sessions
+- AppImage build should work now
+
 ## Version 2.1.0 - 2026-10-08
 
 ### New Features
