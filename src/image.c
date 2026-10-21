@@ -529,7 +529,9 @@ static int apng_compression;
 static void PNG_IO_user_read_data(png_structp png_ptr, png_bytep data, png_size_t length) {
 	vfsfile_t *v = (vfsfile_t *) png_get_io_ptr(png_ptr);
 	vfserrno_t err;
-	VFS_READ(v, data, (int)length, &err);
+	if (VFS_READ(v, data, (int)length, &err) != (int)length) {
+		png_error(png_ptr, "Unexpected end of file");
+	}
 }
 
 static void PNG_IO_user_write_data(png_structp png_ptr, png_bytep data, png_size_t length) {
@@ -593,8 +595,8 @@ static qbool PNG_HasHeader (vfsfile_t *fin)
 	byte header[PNG_HEADER_LENGTH];
 	vfserrno_t err;
 
-	VFS_READ(fin, header, PNG_HEADER_LENGTH, &err);
-	if (png_sig_cmp(header, 0, PNG_HEADER_LENGTH)) 
+	if (VFS_READ(fin, header, PNG_HEADER_LENGTH, &err) != PNG_HEADER_LENGTH ||
+		png_sig_cmp(header, 0, PNG_HEADER_LENGTH))
 	{
 		VFS_CLOSE(fin);
 		fin = NULL;
@@ -615,7 +617,8 @@ static void Image_PngErrorHandler(png_structp png_ptr, png_const_charp error_msg
 		error_msg = "unknown error";
 	}
 
-	Sys_Error("Invalid PNG detected: %s (%s)\n", filename, error_msg);
+	Com_Printf("Invalid PNG detected: %s (%s)\n", filename, error_msg);
+	png_longjmp(png_ptr, 1);
 }
 
 static void Image_PngWarningHandler(png_structp png_ptr, png_const_charp error_msg)
@@ -637,8 +640,9 @@ static void Image_PngWarningHandler(png_structp png_ptr, png_const_charp error_m
 
 png_data *Image_LoadPNG_All (vfsfile_t *fin, const char *filename, int matchwidth, int matchheight, int loadflag, int *real_width, int *real_height)
 {
-	byte **rowpointers = NULL;
-	byte *data = NULL;
+	// These pointers change after setjmp and must survive a decode error.
+	byte ** volatile rowpointers = NULL;
+	byte * volatile data = NULL;
 	png_structp png_ptr = NULL;
 	png_infop pnginfo = NULL;			
 	png_textp textchunks = NULL;		// Actual text chunks that will be returned.
@@ -681,15 +685,15 @@ png_data *Image_LoadPNG_All (vfsfile_t *fin, const char *filename, int matchwidt
 
 	// Set the return address that PNGLib should return to if
 	// an error occurs during reading.
-#if 0
-	if (setjmp(png_ptr->jmpbuf)) 
+	if (setjmp(png_jmpbuf(png_ptr)))
 	{
+		Q_free(rowpointers);
+		Q_free(data);
 		png_destroy_read_struct(&png_ptr, &pnginfo, NULL);
 		VFS_CLOSE(fin);
 		fin = NULL;
 		return NULL;
 	}
-#endif
 
 	// Set the read function that should be used.
     png_set_read_fn(png_ptr, fin, PNG_IO_user_read_data);

@@ -269,62 +269,7 @@ byte* R_LoadImagePixels(const char *filename, int matchwidth, int matchheight, i
 {
 	char basename[MAX_QPATH], name[MAX_QPATH];
 	byte *c, *data = NULL;
-	vfsfile_t *f;
-
-	COM_StripExtension(filename, basename, sizeof(basename));
-	for (c = (byte *)basename; *c; c++) {
-		if (*c == '*') {
-			*c = '#';
-		}
-	}
-
-	snprintf(name, sizeof(name), "%s.link", basename);
-	if ((f = FS_OpenVFS(name, "rb", FS_ANY))) {
-		char link[128];
-		int len;
-		VFS_GETS(f, link, sizeof(link));
-
-		len = strlen(link);
-
-		// Strip endline.
-		if (link[len - 1] == '\n') {
-			link[len - 1] = '\0';
-			--len;
-		}
-
-		if (link[len - 1] == '\r') {
-			link[len - 1] = '\0';
-			--len;
-		}
-
-		snprintf(name, sizeof(name), "textures/%s", link);
-		if ((f = FS_OpenVFS(name, "rb", FS_ANY))) {
-			if (!data && !strcasecmp(link + len - 3, "tga")) {
-				data = Image_LoadTGA(f, name, matchwidth, matchheight, real_width, real_height);
-			}
-
-#ifdef WITH_PNG
-			if (!data && !strcasecmp(link + len - 3, "png")) {
-				data = Image_LoadPNG(f, name, matchwidth, matchheight, real_width, real_height);
-			}
-#endif // WITH_PNG
-
-#ifdef WITH_JPEG
-			if (!data && !strcasecmp(link + len - 3, "jpg")) {
-				data = Image_LoadJPEG(f, name, matchwidth, matchheight, real_width, real_height);
-			}
-#endif // WITH_JPEG
-
-			// TEX_NO_PCX - preventing loading skins here
-			if (!(mode & TEX_NO_PCX) && !data && !strcasecmp(link + len - 3, "pcx")) {
-				data = Image_LoadPCX_As32Bit(f, name, matchwidth, matchheight, real_width, real_height);
-			}
-
-			if (data)
-				return data;
-		}
-	}
-
+	vfsfile_t *f = NULL, *link_file;
 	image_load_format_t formats[] = {
 		{ "tga", Image_LoadTGA, 0 },
 #ifdef WITH_PNG
@@ -335,9 +280,46 @@ byte* R_LoadImagePixels(const char *filename, int matchwidth, int matchheight, i
 #endif
 		{ "pcx", Image_LoadPCX_As32Bit, TEX_NO_PCX }
 	};
-	int i = 0;
-
 	image_load_format_t* best = NULL;
+	int i;
+
+	COM_StripExtension(filename, basename, sizeof(basename));
+	for (c = (byte *)basename; *c; c++) {
+		if (*c == '*') {
+			*c = '#';
+		}
+	}
+
+	snprintf(name, sizeof(name), "%s.link", basename);
+	if ((link_file = FS_OpenVFS(name, "rb", FS_ANY))) {
+		char link[128] = { 0 };
+		int len;
+		VFS_GETS(link_file, link, sizeof(link));
+		VFS_CLOSE(link_file);
+
+		len = strlen(link);
+
+		// Strip endline.
+		while (len > 0 && (link[len - 1] == '\n' || link[len - 1] == '\r')) {
+			link[--len] = '\0';
+		}
+
+		for (i = 0; len >= 3 && i < sizeof(formats) / sizeof(formats[0]); ++i) {
+			if ((mode & formats[i].filter_mask) || strcasecmp(link + len - 3, formats[i].extension)) {
+				continue;
+			}
+
+			snprintf(name, sizeof(name), "textures/%s", link);
+			// The decoder owns its file handle, including on failure. Keep it
+			// separate from the normal image search so fallback cannot reuse it.
+			data = formats[i].function(NULL, name, matchwidth, matchheight, real_width, real_height);
+			if (data) {
+				return data;
+			}
+			break;
+		}
+	}
+
 	for (i = 0; i < sizeof(formats) / sizeof(formats[0]); ++i) {
 		vfsfile_t *file = NULL;
 
