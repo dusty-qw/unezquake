@@ -516,6 +516,9 @@ unsigned int CL_SupportedFTEExtensions (void)
 #ifdef FTE_PEXT_MODELDBL
 		fteprotextsupported |= FTE_PEXT_MODELDBL;
 #endif
+#ifdef FTE_PEXT_SOUNDDBL
+		fteprotextsupported |= FTE_PEXT_SOUNDDBL;
+#endif
 #ifdef FTE_PEXT_ENTITYDBL
 		fteprotextsupported |= FTE_PEXT_ENTITYDBL;
 #endif
