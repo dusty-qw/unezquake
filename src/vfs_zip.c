@@ -467,6 +467,10 @@ static void *FSZIP_LoadZipFile(vfsfile_t *packhandle, const char *desc)
 	strlcpy (zip->filename, desc, sizeof (zip->filename));
 	FSZIP_CreteFileFuncs(&(zip->zlib_funcs));
 	zip->raw = packhandle;
+	if (FSMMAP_IsMemoryMapped(packhandle)) {
+		zip->zlib_funcs.opaque = packhandle;
+		funcs = &zip->zlib_funcs;
+	}
 	zip->handle = unzOpen2(desc, funcs);
 	if (!zip->handle) goto fail;
 
@@ -500,9 +504,9 @@ static void *FSZIP_LoadZipFile(vfsfile_t *packhandle, const char *desc)
 	return zip;
 
 fail:
-	// Q_free is safe to call on NULL pointers
-	Q_free(funcs);
-	Q_free(zip->handle);
+	if (zip->handle) {
+		unzClose(zip->handle);
+	}
 	Q_free(zip->files);
 	Q_free(zip);
 	return NULL;

@@ -61,9 +61,11 @@ unezQuake now has full support for spray decals in game. Place a spray.png image
 ### Chat Emoticons
 
 Display text smileys such as `:)`, `;)`, `^^`, and `<3`, and codes such as
-`:fire:` and `:skull:`, as small images in chat. Copy
-[`emoticons.pk3`](misc/emoticons/emoticons.pk3) into your `qw` directory before
-starting the client, then enable them with `cl_emoticons 1`.
+`:fire:` and `:skull:`, as small images in chat. Enable them with
+`cl_emoticons 1`; the default images are built into the client as a fallback.
+To customize them, place an [`emoticons.pk3`](misc/emoticons/emoticons.pk3) pack
+or loose files under `textures/emoticons/` in your `qw` directory before
+starting the client. Installed files take precedence over the built-in defaults.
 
  * `cl_emoticons` - `1` enables emoticons; `0` leaves chat as text (default)
  * Country codes such as `:br:` and `:us:` use the flags from `scoreboard_flags.pk3`, if installed

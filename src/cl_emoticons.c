@@ -21,7 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // images. The images are drawn like the tracker weapon images: as glyphs of private-use
 // charset pages, so they go through the normal console/notify text path.
 //
-// The images are not part of the executable. They come from:
+// The default emoticons.pk3 is embedded as a fallback. Installed files override it:
 //   - textures/emoticons/emoticons.json (emoticons.pk3), same layout as the scoreboard flags
 //   - the scoreboard login flags (scoreboard_flags.pk3), as ":xx:" with the country code
 //

@@ -73,6 +73,13 @@ searchpath_t	*fs_searchpaths = NULL;
 searchpath_t	*fs_base_searchpaths = NULL;	// without gamedirs
 searchpath_t	*fs_purepaths;
 
+#if defined(WITH_ZIP) && !defined(SERVERONLY)
+// Kept outside the game search paths so installed files always take precedence.
+static searchpath_t fs_builtin_emoticons;
+extern const unsigned char emoticons_pk3[];
+extern const unsigned int emoticons_pk3_len;
+#endif
+
 static int FS_AddPak(char *pathto, char *pakname, searchpath_t *search, searchpathfuncs_t *funcs);
 static qbool FS_RemovePak (const char *pakfile);
 
@@ -967,6 +974,40 @@ qbool VFS_COPYPROTECTED(struct vfsfile_s *vf) {
 	return vf->copyprotected;
 }
 
+#if defined(WITH_ZIP) && !defined(SERVERONLY)
+static vfsfile_t *FS_OpenBuiltinEmoticon(const char *filename)
+{
+	flocation_t loc;
+	vfsfile_t *archive;
+	byte *bytes;
+	static const char prefix[] = "textures/emoticons/";
+
+	if (strncasecmp(filename, prefix, sizeof(prefix) - 1)) {
+		return NULL;
+	}
+
+	if (!fs_builtin_emoticons.handle) {
+		// FSMMAP_OpenVFS owns its buffer; never pass it the constant resource array.
+		bytes = Q_malloc(emoticons_pk3_len);
+		memcpy(bytes, emoticons_pk3, emoticons_pk3_len);
+		archive = FSMMAP_OpenVFS(bytes, emoticons_pk3_len);
+		fs_builtin_emoticons.handle = zipfilefuncs.OpenNew(archive, "builtin:emoticons.pk3");
+		if (!fs_builtin_emoticons.handle) {
+			VFS_CLOSE(archive);
+			return NULL;
+		}
+		fs_builtin_emoticons.funcs = &zipfilefuncs;
+		fs_builtin_emoticons.copyprotected = true;
+	}
+
+	if (!zipfilefuncs.FindFile(fs_builtin_emoticons.handle, &loc, filename, NULL)) {
+		return NULL;
+	}
+	loc.search = &fs_builtin_emoticons;
+	return zipfilefuncs.OpenVFS(fs_builtin_emoticons.handle, &loc, "rb");
+}
+#endif
+
 //
 // some general function to open VFS file, except VFSTCP
 //
@@ -975,11 +1016,11 @@ qbool VFS_COPYPROTECTED(struct vfsfile_s *vf) {
  * FS_OpenVFS
  * ================
  * This should be how all files are opened, will either give a valid vfsfile_t
- * or NULL. We first check the home directory for the file first, if not found 
+ * or NULL. We first check the home directory for the file first, if not found
  * we try the basedir.
  */
 // VFS-XXX: This is very similar to FS_OpenVFS in fs.c
-// VFS-FIXME: Clean up this function to reduce the relativeto options 
+// VFS-FIXME: Clean up this function to reduce the relativeto options
 vfsfile_t *FS_OpenVFS(const char *filename, char *mode, relativeto_t relativeto)
 {
 	char fullname[MAX_OSPATH];
@@ -1087,7 +1128,13 @@ vfsfile_t *FS_OpenVFS(const char *filename, char *mode, relativeto_t relativeto)
 		if (vfs)
 			return vfs;
 
-		return FS_OpenVFS(filename, mode, FS_PAK);
+		vfs = FS_OpenVFS(filename, mode, FS_PAK);
+#if defined(WITH_ZIP) && !defined(SERVERONLY)
+		if (!vfs && !strcmp(mode, "rb")) {
+			return FS_OpenBuiltinEmoticon(filename);
+		}
+#endif
+		return vfs;
 
 	default:
 		Sys_Error("FS_OpenVFS: Bad relative path (%i)", relativeto);
@@ -3221,6 +3268,13 @@ void FS_Shutdown(void)
 {
 	searchpath_t* path;
 	searchpath_t* next;
+
+#if defined(WITH_ZIP) && !defined(SERVERONLY)
+	if (fs_builtin_emoticons.handle) {
+		fs_builtin_emoticons.funcs->ClosePath(fs_builtin_emoticons.handle);
+		memset(&fs_builtin_emoticons, 0, sizeof(fs_builtin_emoticons));
+	}
+#endif
 
 	Hash_ShutdownTable(filesystemhash);
 	filesystemhash = NULL;

@@ -623,6 +623,10 @@ add_resources(documentation
         ${DOCUMENTATION_DIR}/help_variables.json
 )
 
+add_resources(emoticon_resources
+        ${PROJECT_SOURCE_DIR}/misc/emoticons/emoticons.pk3
+)
+
 set(client_headers
         ${SOURCE_DIR}/Ctrl.h
         ${SOURCE_DIR}/Ctrl_EditBox.h
@@ -970,6 +974,7 @@ target_link_libraries(unezquake PRIVATE
         $<$<BOOL:${RENDERER_CLASSIC_OPENGL}>:shaders_classic>
         shaders_shared
         documentation
+        emoticon_resources
         git_version
 
         ${CMAKE_DL_LIBS}
