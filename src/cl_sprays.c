@@ -1711,7 +1711,7 @@ static void CL_SprayAddToScene(cl_spray_t *spray, byte color[4])
 
 	// The decal batch was initialized with a null texture, which tells the
 	// sprite renderer to use this entry-specific texture reference.
-	vert = R_Sprite3DAddEntrySpecific(SPRITE3D_DECALS, 4, spray->texture, spray->texture_index);
+	vert = R_Sprite3DAddEntrySpecific(SPRITE3D_DECALS, 4, spray->texture);
 	if (!vert) {
 		return;
 	}
