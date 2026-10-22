@@ -58,6 +58,45 @@ unezQuake now has full support for spray decals in game. Place a spray.png image
  * `cl_spray_colorize` - tint all sprays to match your color scheme
  * `cl_spray_distance` - how close you need to be from a surface to 
 
+### Chat Emoticons
+
+Display text smileys such as `:)`, `;)`, `^^`, and `<3`, and codes such as
+`:fire:` and `:skull:`, as small images in chat. Copy
+[`emoticons.pk3`](misc/emoticons/emoticons.pk3) into your `qw` directory before
+starting the client, then enable them with `cl_emoticons 1`.
+
+ * `cl_emoticons` - `1` enables emoticons; `0` leaves chat as text (default)
+ * Country codes such as `:br:` and `:us:` use the flags from `scoreboard_flags.pk3`, if installed
+ * Smileys and codes without a loaded image remain as text
+
+### Extra Scoreboard Colors
+
+The `color` command now accepts values from `0` to `34`, including 18 extra
+colors for scoreboard color bars and fills. Use `color <top> [bottom]` to set
+both colors, or pass one value to use it for both. For example, `color 20 24`
+sets a Cyan top and Magenta bottom; `color 28` uses Gold for both.
+
+| Value | Color |
+| --- | --- |
+| 17 | Lime |
+| 18 | Neon Green |
+| 19 | Spring Green |
+| 20 | Cyan |
+| 21 | Sky Blue |
+| 22 | Azure |
+| 23 | Violet |
+| 24 | Magenta |
+| 25 | Hot Pink |
+| 26 | Coral |
+| 27 | Crimson |
+| 28 | Gold |
+| 29 | Teal |
+| 30 | Mint |
+| 31 | Light Violet |
+| 32 | Navy |
+| 33 | Pure White |
+| 34 | Silver |
+
 ### Improved Player Prediction / Movement
 
  * `cl_predict_lerp` - interpolate errors in player prediction
