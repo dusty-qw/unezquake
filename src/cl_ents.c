@@ -571,6 +571,8 @@ void CL_ParseDelta (entity_state_t *from, entity_state_t *to, int bits) {
 		to->modelindex = MSG_ReadShort();
 #endif
 	}
+	if ((unsigned)to->modelindex >= MAX_MODELS)
+		Host_Error ("CL_ParseDelta: invalid modelindex %d", to->modelindex);
 
 	if (bits & U_FRAME)
 		to->frame = MSG_ReadByte ();
@@ -1515,7 +1517,10 @@ void CL_ParsePlayerinfo (void)
 					state->skinnum &= ~(1 << 7);
 					state->modelindex += 256;
 				}
-				else if (cl.model_precache[state->modelindex] != NULL && cl.model_precache[state->modelindex]->type == mod_brush && state->modelindex + 256 == cl_modelindices[mi_player]) {
+				else if ((unsigned)state->modelindex < MAX_MODELS
+						&& cl.model_precache[state->modelindex] != NULL
+						&& cl.model_precache[state->modelindex]->type == mod_brush
+						&& state->modelindex + 256 == cl_modelindices[mi_player]) {
 					// Temporary hack to detect demos where the modelindex needs to be +256, but not encoded in the skin field
 					state->modelindex = cl_modelindices[mi_player];
 				}
@@ -1824,6 +1829,9 @@ guess_pm_type:
 #endif
 		}
 	}
+
+	if ((unsigned)state->modelindex >= MAX_MODELS)
+		Host_Error ("CL_ParsePlayerinfo: invalid modelindex %d", state->modelindex);
 
 	if (cl.z_ext & Z_EXT_PF_ONGROUND)
 		state->onground = (flags & PF_ONGROUND) != 0;
