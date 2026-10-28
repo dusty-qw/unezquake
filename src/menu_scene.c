@@ -398,7 +398,7 @@ static qbool MenuScene_Load(void)
 	// Same steps as connecting to a server and receiving its model list, minus the server.
 	CL_ClearState();
 
-	cl.clipmodels[1] = CM_LoadMap(path, true, NULL, &checksum2);
+	cl.clipmodels[1] = CM_LoadMap(path, true, CM_VIS_AUTO, NULL, &checksum2);
 	R_NewMapPreLoad();
 
 	// The map is only flagged as the world model if it matches the mapname a server would have
