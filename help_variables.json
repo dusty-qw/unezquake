@@ -2882,7 +2882,7 @@
       ]
     },
     "cl_sessions": {
-      "default": "0",
+      "default": "1",
       "desc": "Enables sessions (several server connections in one window). Read at startup, restart the client after changing it. With 0 the client runs as a single process; on Windows this lets capture tools that hook the game process, such as OBS Game Capture, see the game.",
       "group-id": "9",
       "type": "boolean",

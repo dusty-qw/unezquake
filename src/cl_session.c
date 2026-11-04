@@ -44,9 +44,9 @@ static qbool worker_window_focused;
 static cvar_t cl_session_hotkeys = { "cl_session_hotkeys", "1" };
 static void OnChange_cl_sessions(cvar_t *var, char *value, qbool *cancel);
 /* Read once at startup, before the coordinator is created (the config is
- * executed first). Off by default: the client then runs as one process, which
+ * executed first). Enabled by default; disabling uses one process, which
  * capture tools hooking the window's process (e.g. OBS Game Capture) can see. */
-cvar_t cl_sessions = { "cl_sessions", "0", 0, OnChange_cl_sessions };
+cvar_t cl_sessions = { "cl_sessions", "1", 0, OnChange_cl_sessions };
 
 static void OnChange_cl_sessions(cvar_t *var, char *value, qbool *cancel)
 {
