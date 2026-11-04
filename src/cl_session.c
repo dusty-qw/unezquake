@@ -54,12 +54,14 @@ static void OnChange_cl_sessions(cvar_t *var, char *value, qbool *cancel)
 		Con_Printf("Restart the client to apply cl_sessions.\n");
 }
 
+#if defined(_WIN32) || (defined(__linux__) && defined(SDL_VIDEO_DRIVER_X11))
 /* cl_sessions as saved in the config; called before CL_Init registers it */
 static qbool Session_Enabled(void)
 {
 	cvar_t *var = Cvar_Find(cl_sessions.name);
 	return var ? var->integer != 0 : atoi(cl_sessions.string) != 0;
 }
+#endif
 
 qbool CL_SessionWindowIsFocused(void)
 {
