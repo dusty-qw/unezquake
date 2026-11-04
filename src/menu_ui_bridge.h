@@ -56,6 +56,7 @@ void MUI_Quit(void);                      // quits immediately, confirmation is 
 mui_bool MUI_ConfirmQuit(void);           // cl_confirmquit
 float MUI_MenuScale(void);                // menu_scale
 mui_bool MUI_ShowNews(void);              // menu_news
+int MUI_MenuFont(void);                   // menu_font
 void MUI_SetShowNews(mui_bool show);
 const char *MUI_Version(void);
 void MUI_Disconnect(void);

@@ -43,6 +43,7 @@ See the GNU General Public License for more details.
 #include "imgui_internal.h"
 #include "imgui_impl_sdl2.h"
 #include "fonts/oxanium.h"
+#include "fonts/menu_fonts.h"
 #include "imgui_impl_opengl2.h"
 #include "imgui_impl_opengl3.h"
 
@@ -124,6 +125,10 @@ struct Backend {
 	glBindSampler_t BindSampler = nullptr;
 	ImFont *font = nullptr;
 	ImFont *font_bold = nullptr;
+	// every selectable menu font, loaded once; font/font_bold point at the menu_font one
+	ImFont *fonts[16] = {};
+	ImFont *fonts_bold[16] = {};
+	int font_count = 0;
 	float scale = 1.0f;
 };
 
@@ -2630,7 +2635,7 @@ void ForwardedNewFrame()
 // interface
 //=============================================================================
 
-// Oxanium with ImGui's default font merged in for glyphs it lacks
+// a TTF with ImGui's default font merged in for glyphs it lacks
 static ImFont *AddMenuFont(const unsigned char *data, int size)
 {
 	ImGuiIO &io = ImGui::GetIO();
@@ -2641,6 +2646,64 @@ static ImFont *AddMenuFont(const unsigned char *data, int size)
 	fallback.MergeMode = true;
 	io.Fonts->AddFontDefaultVector(&fallback);
 	return font;
+}
+
+// Fonts selectable with menu_font, in cvar value order (keep in sync with menu_font_enum in menu_options.c).
+// A font without a bold weight uses its regular one for titles.
+struct MenuFontDef {
+	const unsigned char *regular;
+	int regular_size;
+	const unsigned char *bold;
+	int bold_size;
+};
+
+#define MENU_FONT(r, b) { r, (int)sizeof(r), b, (int)sizeof(b) }
+#define MENU_FONT_SINGLE(r) { r, (int)sizeof(r), nullptr, 0 }
+static const MenuFontDef menu_fonts[] = {
+	{ nullptr, 0, nullptr, 0 },  // unezQuake: ImGui's default font
+	MENU_FONT(oxanium_medium_ttf, oxanium_bold_ttf),
+	MENU_FONT(orbitron_regular_ttf, orbitron_bold_ttf),
+	MENU_FONT(rajdhani_regular_ttf, rajdhani_bold_ttf),
+	MENU_FONT(chakra_petch_regular_ttf, chakra_petch_bold_ttf),
+	MENU_FONT(exo2_regular_ttf, exo2_bold_ttf),
+	MENU_FONT(saira_regular_ttf, saira_bold_ttf),
+	MENU_FONT(titillium_regular_ttf, titillium_bold_ttf),
+	MENU_FONT_SINGLE(russo_one_regular_ttf),
+	MENU_FONT_SINGLE(share_tech_mono_regular_ttf),
+};
+#undef MENU_FONT
+#undef MENU_FONT_SINGLE
+
+static void LoadMenuFonts(void)
+{
+	ImGuiIO &io = ImGui::GetIO();
+	int i;
+
+	backend.font_count = IM_ARRAYSIZE(menu_fonts);
+	IM_STATIC_ASSERT(IM_ARRAYSIZE(menu_fonts) <= IM_ARRAYSIZE(backend.fonts));
+	for (i = 0; i < backend.font_count; i++) {
+		const MenuFontDef &def = menu_fonts[i];
+
+		if (!def.regular) {
+			backend.fonts[i] = backend.fonts_bold[i] = io.Fonts->AddFontDefaultVector();
+			continue;
+		}
+		backend.fonts[i] = AddMenuFont(def.regular, def.regular_size);
+		backend.fonts_bold[i] = def.bold ? AddMenuFont(def.bold, def.bold_size) : backend.fonts[i];
+	}
+}
+
+// pick the menu_font font, called before every ImGui frame so changes apply immediately
+static void SelectMenuFont(void)
+{
+	int index = MUI_MenuFont();
+
+	if (index < 0 || index >= backend.font_count) {
+		index = 0;
+	}
+	backend.font = backend.fonts[index];
+	backend.font_bold = backend.fonts_bold[index];
+	ImGui::GetIO().FontDefault = backend.font;
 }
 
 void MenuUI_VidInit(void *sdl_window, void *gl_context, int gl_major_version, mui_bool forwarded_input)
@@ -2657,8 +2720,8 @@ void MenuUI_VidInit(void *sdl_window, void *gl_context, int gl_major_version, mu
 	io.LogFilename = nullptr;
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
-	backend.font = AddMenuFont(oxanium_medium_ttf, sizeof(oxanium_medium_ttf));
-	backend.font_bold = AddMenuFont(oxanium_bold_ttf, sizeof(oxanium_bold_ttf));
+	LoadMenuFonts();
+	SelectMenuFont();
 
 	if (gl_major_version <= 0) {
 		const char *version = (const char *)glGetString(GL_VERSION);
@@ -2715,6 +2778,8 @@ void MenuUI_VidShutdown(void)
 	ImGui::DestroyContext();
 	backend.initialised = false;
 	backend.font = nullptr;
+	backend.font_bold = nullptr;
+	backend.font_count = 0;
 }
 
 mui_bool MenuUI_ProcessEvent(const void *sdl_event)
@@ -2843,6 +2908,7 @@ void MenuUI_Render(void)
 	else
 		ImGui_ImplSDL2_NewFrame();
 	UpdateScale();
+	SelectMenuFont();
 	ImGui::NewFrame();
 
 	BuildFrame();

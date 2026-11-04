@@ -14837,6 +14837,24 @@
         }
       ]
     },
+    "menu_font": {
+      "default": "0",
+      "desc": "Font used by the new menus. All fonts are embedded and licensed under the SIL Open Font License 1.1.",
+      "group-id": "17",
+      "type": "integer",
+      "values": [
+        { "description": "unezQuake (default)", "name": "0" },
+        { "description": "Oxanium", "name": "1" },
+        { "description": "Orbitron", "name": "2" },
+        { "description": "Rajdhani", "name": "3" },
+        { "description": "Chakra Petch", "name": "4" },
+        { "description": "Exo 2", "name": "5" },
+        { "description": "Saira", "name": "6" },
+        { "description": "Titillium Web", "name": "7" },
+        { "description": "Russo One", "name": "8" },
+        { "description": "Share Tech Mono", "name": "9" }
+      ]
+    },
     "menu_logo": {
       "default": "1",
       "desc": "Draws textures/menu/logo (png/tga) as the logo in the menu top bar. Without the image, or with 0, the text logo is used.",

@@ -57,6 +57,8 @@ cvar_t menu_classic = {"menu_classic", "0", 0, OnChange_menu_classic};
 cvar_t menu_scale = {"menu_scale", "1"};
 cvar_t menu_news = {"menu_news", "1"};
 cvar_t menu_logo = {"menu_logo", "1"};
+// font of the new menus, index into the list in menu_imgui.cpp (0 = unezQuake default)
+cvar_t menu_font = {"menu_font", "0"};
 
 static qbool mui_video_ready;
 // menu_classic as it was when the client started
@@ -163,6 +165,11 @@ mui_bool MUI_ShowNews(void)
 void MUI_SetShowNews(mui_bool show)
 {
 	Cvar_SetValue(&menu_news, show ? 1 : 0);
+}
+
+int MUI_MenuFont(void)
+{
+	return menu_font.integer;
 }
 
 const char *MUI_Version(void)
@@ -1039,6 +1046,7 @@ void M_ImGui_Init(void)
 	Cvar_Register(&menu_scale);
 	Cvar_Register(&menu_news);
 	Cvar_Register(&menu_logo);
+	Cvar_Register(&menu_font);
 	Cvar_ResetCurrentGroup();
 }
 
