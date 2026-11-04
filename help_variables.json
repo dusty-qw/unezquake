@@ -14839,7 +14839,7 @@
     },
     "menu_font": {
       "default": "0",
-      "desc": "Font used by the new menus. All fonts are embedded and licensed under the SIL Open Font License 1.1.",
+      "desc": "Font used by the new menus (Settings > System > Menu Font). All fonts are embedded and licensed under the SIL Open Font License 1.1.",
       "group-id": "17",
       "type": "integer",
       "values": [

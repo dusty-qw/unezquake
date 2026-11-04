@@ -1256,7 +1256,6 @@ setting settmisc_arr[] = {
 	ADDSET_BOOL		("Classic Menus", menu_classic),
 	ADDSET_BOOL		("What's New Card", menu_news),
 	ADDSET_BOOL		("Logo Image", menu_logo),
-	ADDSET_NAMED	("Menu Font", menu_font, menu_font_enum),
 
 	//Paths
 	ADDSET_SEPARATOR("Paths"),
@@ -1323,6 +1322,10 @@ setting settsystem_arr[] = {
 	ADDSET_NUMBER("FXAA", vid_framebuffer_fxaa, 0, 17, 1),
 	ADDSET_ACTION("Apply Changes", RendererRestart, "Restarts the renderer."),
 	ADDSET_BASIC_SECTION(),
+
+	//Menu font
+	ADDSET_SEPARATOR("Menu Font"),
+	ADDSET_NAMED	("Font", menu_font, menu_font_enum),
 
 	//Font
 	ADDSET_ADVANCED_SECTION(),
