@@ -197,7 +197,7 @@ extern cvar_t mvd_autotrack, mvd_moreinfo, mvd_status, cl_weaponpreselect, cl_we
 	scr_sshot_dir, log_dir, cl_nolerp, cl_confirmquit, log_readable, ignore_flood, ignore_flood_duration, con_timestamps, scr_consize, scr_conspeed, cl_chatmode, cl_chasecam,
 	enemyforceskins, teamforceskins, vid_vsync_lag_fix, cl_sayfilter_coloredtext, cl_sayfilter_sendboth,
 	mvd_autotrack_lockteam, qtv_adjustbuffer, cl_earlypackets, cl_useimagesinfraglog, con_completion_format, menu_ingame, sys_inactivesound,
-	menu_classic
+	menu_classic, cl_sessions
 ;
 
 #ifdef _WIN32
@@ -1318,6 +1318,10 @@ setting settsystem_arr[] = {
 	ADDSET_NUMBER("FXAA", vid_framebuffer_fxaa, 0, 17, 1),
 	ADDSET_ACTION("Apply Changes", RendererRestart, "Restarts the renderer."),
 	ADDSET_BASIC_SECTION(),
+
+	//Sessions
+	ADDSET_SEPARATOR("Sessions"),
+	ADDSET_BOOL		("Sessions (restart)", cl_sessions),
 
 	//Font
 	ADDSET_ADVANCED_SECTION(),

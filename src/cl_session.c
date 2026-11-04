@@ -42,6 +42,24 @@ static qbool worker_window_fullscreen;
 static qbool worker_window_minimized;
 static qbool worker_window_focused;
 static cvar_t cl_session_hotkeys = { "cl_session_hotkeys", "1" };
+static void OnChange_cl_sessions(cvar_t *var, char *value, qbool *cancel);
+/* Read once at startup, before the coordinator is created (the config is
+ * executed first). Off by default: the client then runs as one process, which
+ * capture tools hooking the window's process (e.g. OBS Game Capture) can see. */
+cvar_t cl_sessions = { "cl_sessions", "0", 0, OnChange_cl_sessions };
+
+static void OnChange_cl_sessions(cvar_t *var, char *value, qbool *cancel)
+{
+	if (atoi(value) != var->integer)
+		Con_Printf("Restart the client to apply cl_sessions.\n");
+}
+
+/* cl_sessions as saved in the config; called before CL_Init registers it */
+static qbool Session_Enabled(void)
+{
+	cvar_t *var = Cvar_Find(cl_sessions.name);
+	return var ? var->integer != 0 : atoi(cl_sessions.string) != 0;
+}
 
 qbool CL_SessionWindowIsFocused(void)
 {
@@ -925,6 +943,8 @@ qbool CL_SessionsInitCoordinator(void)
 	int i;
 	if (session_worker)
 		return false;
+	if (!Session_Enabled())
+		return false;
 	if (SDL_InitSubSystem(SDL_INIT_VIDEO) != 0)
 		Sys_Error("Couldn't initialize SDL video: %s", SDL_GetError());
 	/* Other backends retain the ordinary single-process client. */
@@ -1085,6 +1105,10 @@ void CL_SessionSelect(int slot)
 	if (CL_SessionIsWorker()) {
 		if (!Session_Control(coordinator_fd, SESSION_SELECT, slot))
 			Session_Printf("Session switch could not be queued.\n");
+		return;
+	}
+	if (!session_coordinator && !Session_Enabled()) {
+		Session_Printf("Sessions are disabled. Enable them in Settings > System (cl_sessions 1) and restart the client.\n");
 		return;
 	}
 	if (!session_coordinator) {
@@ -1640,6 +1664,7 @@ void CL_SessionsInit(void)
 	atexit(CL_SessionsShutdown);
 	Cvar_SetCurrentGroup(CVAR_GROUP_INPUT_KEYBOARD);
 	Cvar_Register(&cl_session_hotkeys);
+	Cvar_Register(&cl_sessions);
 	Cvar_ResetCurrentGroup();
 	Cmd_AddCommand("session", Session_Select_f);
 	Cmd_AddCommand("close", Session_CloseCurrent_f);
