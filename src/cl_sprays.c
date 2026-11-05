@@ -193,7 +193,7 @@ static sfx_t *cl_spray_reject_sfx;
 static char cl_spray_reject_sfx_name[MAX_QPATH];
 
 static void CL_SprayCancelUpload(void);
-static void CL_SprayClearServerImageCache(void);
+static void CL_SprayClearServerImageCache(qbool preserve_incomplete);
 static void CL_SprayPlayRejectSound(void);
 static cl_spray_texture_t *CL_SprayTextureCacheForName(const char *filename);
 static cl_spray_texture_t *CL_SprayTextureCacheForHash(unsigned long long hash);
@@ -584,13 +584,10 @@ static texture_ref CL_SprayCacheTexture(cl_spray_texture_t *cached, int *texture
 
 // Placed sprays are map-local. Local file textures are intentionally kept
 // because they may be reused on the next map and texture references remain
-// valid. Server image cache lifetime is controlled by clear_server_images.
-static void CL_SprayClearPlaced(qbool clear_server_images)
+// valid. Callers manage the server image cache separately.
+static void CL_SprayClearPlaced(void)
 {
 	memset(cl_sprays, 0, sizeof(cl_sprays));
-	if (clear_server_images) {
-		CL_SprayClearServerImageCache();
-	}
 	CL_SprayCancelUpload();
 	cl_spray_preview_active = false;
 	cl_spray_preview_image_path[0] = '\0';
@@ -1848,7 +1845,8 @@ void CL_SpraysDisconnect(void)
 {
 	// Clear connection/map state, but keep local image hashes. They describe
 	// normalized image bytes, not any particular server's cache state.
-	CL_SprayClearPlaced(true);
+	CL_SprayClearServerImageCache(false);
+	CL_SprayClearPlaced();
 }
 
 static cl_server_spray_image_t *CL_SprayServerImageForId(int id)
@@ -1891,7 +1889,7 @@ static cl_server_spray_image_t *CL_SprayServerImageForHash(unsigned long long ha
 	return NULL;
 }
 
-static void CL_SprayClearServerImageCache(void)
+static void CL_SprayClearServerImageCache(qbool preserve_incomplete)
 {
 	int i;
 
@@ -1899,7 +1897,7 @@ static void CL_SprayClearServerImageCache(void)
 		// During signon, a server spray begin can arrive just before the
 		// renderer observes the new worldmodel. Preserve incomplete receives so
 		// the following pixel chunks still have their begin state.
-		if (cl_server_spray_images[i].active && cl_server_spray_images[i].have_begin && !cl_server_spray_images[i].complete) {
+		if (preserve_incomplete && cl_server_spray_images[i].active && cl_server_spray_images[i].have_begin && !cl_server_spray_images[i].complete) {
 			continue;
 		}
 		memset(&cl_server_spray_images[i], 0, sizeof(cl_server_spray_images[i]));
@@ -2207,7 +2205,7 @@ void CL_SpraysParseServerMessage(qbool demo_tolerant)
 		if (cl_spray_debug.value) {
 			Con_Printf("spray debug: recv clear-all\n");
 		}
-		CL_SprayClearPlaced(false);
+		CL_SprayClearPlaced();
 		return;
 	}
 
@@ -2234,7 +2232,8 @@ void CL_SpraysAddToScene(void)
 	if (cl_spray_worldmodel != cl.worldmodel) {
 		// A worldmodel change means a new map/reload. MVDSV also resets its
 		// spray image and known-hash caches there, so drop server image cache.
-		CL_SprayClearPlaced(true);
+		CL_SprayClearServerImageCache(true);
+		CL_SprayClearPlaced();
 	}
 
 	if (cl_spray_show.value <= 0) {
