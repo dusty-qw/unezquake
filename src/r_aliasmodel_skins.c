@@ -36,6 +36,11 @@ void R_CompressFullbrightTexture(byte* skin_pixels, int skin_width, int skin_hei
 {
 	int x, y;
 
+	// re-scale fb texture to match underlying skin *before* touching it: the loops
+	// below index fb_pixels using the skin's dimensions, so a smaller _luma would
+	// otherwise be read/written out of bounds (heap corruption / access violation)
+	R_TextureRescaleOverlay(&fb_pixels, &fb_width, &fb_height, skin_width, skin_height);
+
 	// adjust fb-texture to add alpha (this is from (TEX_FULLBRIGHT | TEX_LUMA) processing)
 	for (x = 0; x < skin_width; ++x) {
 		for (y = 0; y < skin_height; ++y) {
@@ -48,9 +53,6 @@ void R_CompressFullbrightTexture(byte* skin_pixels, int skin_width, int skin_hei
 			}
 		}
 	}
-
-	// re-scale fb texture to match underlying skin
-	R_TextureRescaleOverlay(&fb_pixels, &fb_width, &fb_height, skin_width, skin_height);
 
 	// Merge the fb texture with the original
 	for (x = 0; x < skin_width; ++x) {

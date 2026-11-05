@@ -14831,6 +14831,56 @@
         }
       ]
     },
+    "menu_news": {
+      "default": "1",
+      "desc": "Shows the What's new card on the main menu home page.",
+      "group-id": "17",
+      "type": "boolean",
+      "values": [
+        {
+          "description": "card hidden",
+          "name": "false"
+        },
+        {
+          "description": "card shown",
+          "name": "true"
+        }
+      ]
+    },
+    "menu_font": {
+      "default": "0",
+      "desc": "Font used by the new menus (Settings > System > Menu Font). All fonts are embedded and licensed under the SIL Open Font License 1.1.",
+      "group-id": "17",
+      "type": "integer",
+      "values": [
+        { "description": "unezQuake (default)", "name": "0" },
+        { "description": "Oxanium", "name": "1" },
+        { "description": "Orbitron", "name": "2" },
+        { "description": "Rajdhani", "name": "3" },
+        { "description": "Chakra Petch", "name": "4" },
+        { "description": "Exo 2", "name": "5" },
+        { "description": "Saira", "name": "6" },
+        { "description": "Titillium Web", "name": "7" },
+        { "description": "Russo One", "name": "8" },
+        { "description": "Share Tech Mono", "name": "9" }
+      ]
+    },
+    "menu_logo": {
+      "default": "1",
+      "desc": "Draws textures/menu/logo (png/tga) as the logo in the menu top bar. Without the image, or with 0, the text logo is used.",
+      "group-id": "17",
+      "type": "boolean",
+      "values": [
+        {
+          "description": "text logo",
+          "name": "false"
+        },
+        {
+          "description": "image logo if available",
+          "name": "true"
+        }
+      ]
+    },
     "menu_marked_bgcolor": {
       "default": "20 20 20 128",
       "desc": "The color of the selected entry in options menu.",

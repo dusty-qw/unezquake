@@ -170,6 +170,8 @@ void GFXPresetToggle(qbool back) {
 
 const char* amf_tracker_frags_enum[] = {"off", "related", "all" };
 
+// keep in sync with menu_fonts[] in menu_imgui.cpp
+const char* menu_font_enum[] = { "unezQuake", "Oxanium", "Orbitron", "Rajdhani", "Chakra Petch", "Exo 2", "Saira", "Titillium Web", "Russo One", "Share Tech Mono" };
 const char* mvdautohud_enum[] = { "off", "simple", "customizable" };
 const char* mvdautotrack_enum[] = { "off", "auto", "custom", "multitrack", "simple" };
 const char* funcharsmode_enum[] = { "ctrl+key", "ctrl+y" };
@@ -197,7 +199,7 @@ extern cvar_t mvd_autotrack, mvd_moreinfo, mvd_status, cl_weaponpreselect, cl_we
 	scr_sshot_dir, log_dir, cl_nolerp, cl_confirmquit, log_readable, ignore_flood, ignore_flood_duration, con_timestamps, scr_consize, scr_conspeed, cl_chatmode, cl_chasecam,
 	enemyforceskins, teamforceskins, vid_vsync_lag_fix, cl_sayfilter_coloredtext, cl_sayfilter_sendboth,
 	mvd_autotrack_lockteam, qtv_adjustbuffer, cl_earlypackets, cl_useimagesinfraglog, con_completion_format, menu_ingame, sys_inactivesound,
-	menu_classic, cl_sessions
+	menu_classic, cl_sessions, menu_news, menu_logo, menu_font
 ;
 
 #ifdef _WIN32
@@ -1252,6 +1254,8 @@ setting settmisc_arr[] = {
 	//Menus
 	ADDSET_SEPARATOR("Menus"),
 	ADDSET_BOOL		("Classic Menus", menu_classic),
+	ADDSET_BOOL		("What's New Card", menu_news),
+	ADDSET_BOOL		("Logo Image", menu_logo),
 
 	//Paths
 	ADDSET_SEPARATOR("Paths"),
@@ -1322,6 +1326,10 @@ setting settsystem_arr[] = {
 	//Sessions
 	ADDSET_SEPARATOR("Sessions"),
 	ADDSET_BOOL		("Sessions (restart)", cl_sessions),
+  
+	//Menu font
+	ADDSET_SEPARATOR("Menu Font"),
+	ADDSET_NAMED	("Font", menu_font, menu_font_enum),
 
 	//Font
 	ADDSET_ADVANCED_SECTION(),

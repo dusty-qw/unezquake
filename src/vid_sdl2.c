@@ -1379,6 +1379,8 @@ static void HandleEvents(void)
 
 void VID_SoftRestart(void)
 {
+	// Release cached menu textures before their engine slots can be reused.
+	MUI_FlushTextures();
 	R_Shutdown(r_shutdown_reload);
 	QMB_ShutdownParticles();
 }
