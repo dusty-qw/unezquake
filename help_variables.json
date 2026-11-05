@@ -2881,6 +2881,16 @@
         }
       ]
     },
+    "cl_sessions": {
+      "default": "1",
+      "desc": "Enables sessions (several server connections in one window). Read at startup, restart the client after changing it. With 0 the client runs as a single process; on Windows this lets capture tools that hook the game process, such as OBS Game Capture, see the game.",
+      "group-id": "9",
+      "type": "boolean",
+      "values": [
+        { "description": "single process, no sessions", "name": "false" },
+        { "description": "sessions enabled", "name": "true" }
+      ]
+    },
     "cl_session_hotkeys": {
       "default": "1",
       "desc": "Enable Ctrl+1 through Ctrl+9 on the top-row number keys to create or select sessions.",
