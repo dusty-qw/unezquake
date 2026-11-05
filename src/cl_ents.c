@@ -55,6 +55,7 @@ extern  unsigned int     cl_dlight_active[MAX_DLIGHTS/32];
 #define CL_PREDICT_SCALE_DEFAULT_THRESHOLD 320.0f
 #define CL_PREDICT_LERP_SNAP_DISTANCE 120.0f
 #define CL_PREDICT_LERP_STOP_EPSILON 0.01f
+#define CL_PREDICT_LERP_VELOCITY_THRESHOLD 150.0f
 
 static float CL_PredictScaleThreshold(void)
 {
@@ -2080,11 +2081,18 @@ static void CL_PredictRemotePlayer(int playernum, player_state_t *state, int mse
 				VectorClear(offset);
 			}
 			else if (distance > 0) {
+				vec3_t velocity_change;
+
 				// Decay the old correction before adding the new discrepancy to
 				// preserve continuity when another packet changes the prediction.
 				VectorAdd(offset, error, offset);
 				distance = VectorLength(offset);
-				if (distance >= CL_PREDICT_LERP_SNAP_DISTANCE) {
+				// Compare velocities at the same prediction time. Only snap when
+				// removing the offset has no backward horizontal component.
+				VectorSubtract(exact.velocity, previous.velocity, velocity_change);
+				if (distance >= CL_PREDICT_LERP_SNAP_DISTANCE ||
+					(DotProduct(velocity_change, velocity_change) > CL_PREDICT_LERP_VELOCITY_THRESHOLD * CL_PREDICT_LERP_VELOCITY_THRESHOLD &&
+					 offset[0] * state->velocity[0] + offset[1] * state->velocity[1] <= 0)) {
 					player->lerping = false;
 					VectorClear(offset);
 				}
