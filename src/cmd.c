@@ -1696,7 +1696,7 @@ char* TP_AlignMacroText(char* text, int fixed_width, int alignment);
 //Expands all $cvar expressions to cvar values
 //Also expands $macro expressions
 //Note: dest must point to a 1024 byte buffer
-void Cmd_ExpandString (const char *data, char *dest)
+static void Cmd_ExpandStringEx (const char *data, char *dest, qbool untrusted)
 {
 	unsigned int c;
 	char buf[255], *str;
@@ -1723,7 +1723,8 @@ void Cmd_ExpandString (const char *data, char *dest)
 				buf[i++] = c;
 				buf[i] = 0;
 
-				if ((var = Cvar_Find(buf)))
+				if ((var = Cvar_Find(buf)) && !Cvar_HiddenFromServer(var) &&
+					!(untrusted && (var->flags & CVAR_NOUNSAFEEXPAND)))
 					bestvar = var;
 
 				if (i >= (int) sizeof (buf) - 1)
@@ -1776,6 +1777,16 @@ void Cmd_ExpandString (const char *data, char *dest)
 	}
 
 	dest[len] = 0;
+}
+
+void Cmd_ExpandString (const char *data, char *dest)
+{
+	Cmd_ExpandStringEx(data, dest, false);
+}
+
+void Cmd_ExpandUntrustedString (const char *data, char *dest)
+{
+	Cmd_ExpandStringEx(data, dest, true);
 }
 
 int Commands_Compare_Func (const void * arg1, const void * arg2)
@@ -2427,7 +2438,7 @@ void Cmd_Alias_In_f (void)
 	}
 
 	var = Cvar_Find(Cmd_Argv(2));
-	if (!var) {
+	if (!var || Cvar_HiddenFromServer(var)) {
 		Com_Printf ("alias_in: unknown cvar \"%s\"\n", Cmd_Argv(2));
 		return;
 	}
@@ -2464,7 +2475,7 @@ void Cmd_Alias_Out_f (void)
 	}
 
 	var = Cvar_Find(Cmd_Argv(2));
-	if (!var) {
+	if (!var || Cvar_HiddenFromServer(var)) {
 		Com_Printf ("alias_out: unknown cvar \"%s\"\n", Cmd_Argv(2));
 		return;
 	}
@@ -2503,7 +2514,7 @@ void Cmd_Cvar_In_f (void)
 	}
 
 	var2 = Cvar_Find(Cmd_Argv(2));
-	if (!var2) {
+	if (!var2 || Cvar_HiddenFromServer(var2)) {
 		Com_Printf ("cvar_in: unknown cvar \"%s\"\n", Cmd_Argv(2));
 		return;
 	}
@@ -2541,7 +2552,7 @@ void Cmd_Cvar_Out_f (void)
 	}
 
 	var2 = Cvar_Find(Cmd_Argv(2));
-	if (!var2) {
+	if (!var2 || Cvar_HiddenFromServer(var2)) {
 		Com_Printf ("cvar_out: unknown cvar \"%s\"\n", Cmd_Argv(2));
 		return;
 	}
