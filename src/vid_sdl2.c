@@ -1654,6 +1654,26 @@ int VID_GetCurrentModeIndex(void)
 	return best_idx;
 }
 
+int VID_GetCurrentRefreshRate(void)
+{
+	SDL_DisplayMode mode;
+	int display = sdl_window ? SDL_GetWindowDisplayIndex(sdl_window) : -1;
+
+	if (display < 0) {
+		display = VID_DisplayNumber(r_fullscreen.integer != 0);
+	}
+	if (SDL_GetCurrentDisplayMode(display, &mode) == 0 && mode.refresh_rate > 0) {
+		return mode.refresh_rate;
+	}
+	if (SDL_GetDesktopDisplayMode(display, &mode) == 0 && mode.refresh_rate > 0) {
+		return mode.refresh_rate;
+	}
+	if (glConfig.displayFrequency > 0) {
+		return glConfig.displayFrequency;
+	}
+	return r_displayRefresh.integer;
+}
+
 int VID_GetModeIndexCount(void) {
 	return modelist_count;
 }

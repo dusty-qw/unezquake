@@ -193,6 +193,7 @@ typedef struct mui_setting_info_s {
 	mui_action_kind_t action;
 } mui_setting_info_t;
 
+void MUI_Settings_OnShow(void);
 int MUI_Settings_PageCount(void);
 const char *MUI_Settings_PageName(int page);
 int MUI_Settings_Count(int page);

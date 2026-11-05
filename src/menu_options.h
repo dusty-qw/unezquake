@@ -37,6 +37,9 @@ qbool Menu_Options_Mouse_Event(const mouse_state_t *);
 // </interface>
 
 // <interface for menu_ui_bridge.c>
+// initialize pending video choices from the current configuration when settings opens
+void Menu_Options_RefreshVideoSettings(void);
+
 // the settings pages, in the order the options menu shows them as tabs
 int Menu_Options_PageCount(void);
 const char *Menu_Options_PageName(int index);

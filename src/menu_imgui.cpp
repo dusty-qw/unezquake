@@ -2360,6 +2360,9 @@ void SetPage(int page)
 	current_page = page;
 	MUI_Settings_CancelBinding();
 
+	if (page == MUI_PAGE_SETTINGS) {
+		MUI_Settings_OnShow();
+	}
 	if (page == MUI_PAGE_QUICKPLAY || page == MUI_PAGE_SERVERS) {
 		MUI_Browser_Refresh(-1);
 	}

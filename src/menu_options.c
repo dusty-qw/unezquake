@@ -490,13 +490,12 @@ static void ApplyVideoSettings(const menu_system_settings_t *s)
 	const SDL_DisplayMode *current;
 
 	current = VID_GetDisplayMode(s->res);
-	if (current == NULL) {
-		return;
+	if (current != NULL) {
+		Cvar_SetValue(&vid_width, current->w);
+		Cvar_SetValue(&vid_height, current->h);
+		Cvar_SetValue(&r_displayRefresh, current->refresh_rate);
 	}
 
-	Cvar_SetValue(&vid_width, current->w);
-	Cvar_SetValue(&vid_height, current->h);
-	Cvar_SetValue(&r_displayRefresh,current->refresh_rate);
 	Cvar_SetValue(&r_colorbits, s->bpp);
 	Cvar_SetValue(&r_fullscreen, s->fullscreen);
 	Cbuf_AddText("vid_restart\n");
@@ -545,10 +544,19 @@ const char* ResolutionRead(void)
 {
 	static char buf[64];
 	const SDL_DisplayMode *mode;
+	int refresh_rate;
 
 	mode = VID_GetDisplayMode(mss_selected.res);
 	if (mode == NULL) {
-		return "";
+		// Desktop and custom window sizes may not appear in the display-mode list.
+		refresh_rate = VID_GetCurrentRefreshRate();
+		if (refresh_rate > 0) {
+			snprintf(buf, sizeof(buf), "%dx%d@%dHz", glConfig.vidWidth, glConfig.vidHeight, refresh_rate);
+		}
+		else {
+			snprintf(buf, sizeof(buf), "%dx%d", glConfig.vidWidth, glConfig.vidHeight);
+		}
+		return buf;
 	}
 
 	snprintf(buf, sizeof(buf), "%dx%d@%dHz", mode->w, mode->h, mode->refresh_rate);
@@ -564,6 +572,13 @@ const char* FullScreenRead(void)
 void ResolutionToggle(qbool back)
 {
 	int count = VID_GetModeIndexCount();
+	if (count <= 0) {
+		return;
+	}
+	if (mss_selected.res < 0 || mss_selected.res >= count) {
+		mss_selected.res = back ? count - 1 : 0;
+		return;
+	}
 	if (back) {
 		mss_selected.res--;
 	} else {
@@ -628,9 +643,14 @@ int CT_Opt_System_Key (int key, wchar unichar, CTab_t *tab, CTabPage_t *page)
 	}
 }
 
-void OnShow_SettSystem(void)
+void Menu_Options_RefreshVideoSettings(void)
 {
 	StoreCurrentVideoSettings(&mss_selected);
+}
+
+void OnShow_SettSystem(void)
+{
+	Menu_Options_RefreshVideoSettings();
 	Settings_OnShow(&settsystem);
 }
 

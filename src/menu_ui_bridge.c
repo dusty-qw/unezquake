@@ -655,6 +655,11 @@ static setting *MUI_Setting(int page, int index)
 	return &p->settings[index];
 }
 
+void MUI_Settings_OnShow(void)
+{
+	Menu_Options_RefreshVideoSettings();
+}
+
 int MUI_Settings_PageCount(void)
 {
 	return Menu_Options_PageCount();
