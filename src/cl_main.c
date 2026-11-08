@@ -112,6 +112,7 @@ cvar_t  cl_ping_dev = { "cl_ping_dev", "0", 0, Rulesets_OnChange_cl_ping };
 
 cvar_t	cl_shownet = {"cl_shownet", "0"};	// can be 0, 1, or 2
 #if defined(PROTOCOL_VERSION_FTE) || defined(PROTOCOL_VERSION_FTE2) || defined(PROTOCOL_VERSION_MVD1)
+cvar_t cl_pext_replacementdeltas = {"cl_pext_replacementdeltas", "1", CVAR_NOTFROMSERVER}; // Allow retained FTE entity updates.
 cvar_t  cl_pext = {"cl_pext", "1", CVAR_NOTFROMSERVER};					// allow/disallow protocol extensions at all.
 													// some extensions can be explicitly controlled.
 cvar_t  cl_pext_limits = { "cl_pext_limits", "1", CVAR_NOTFROMSERVER }; // enhanced protocol limits
@@ -485,6 +486,10 @@ unsigned int CL_SupportedFTEExtensions (void)
 	if (!cl_pext.value)
 		return 0;
 
+#ifdef FTE_PEXT_TE_BULLET
+	fteprotextsupported |= FTE_PEXT_TE_BULLET;
+#endif
+
 #ifdef FTE_PEXT_CHUNKEDDOWNLOADS
 	if (cl_pext_chunkeddownloads.value)
 		fteprotextsupported |= FTE_PEXT_CHUNKEDDOWNLOADS;
@@ -556,6 +561,9 @@ unsigned int CL_SupportedFTEExtensions2 (void)
 
 	if (!cl_pext.value)
 		return 0;
+
+	if (cl_pext_replacementdeltas.integer)
+		fteprotextsupported2 |= FTE_PEXT2_REPLACEMENTDELTAS;
 
 	return fteprotextsupported2;
 }
@@ -758,6 +766,7 @@ void CL_CheckForResend (void)
 #endif // PROTOCOL_VERSION_FTE
 #ifdef PROTOCOL_VERSION_FTE2
 				svs.fteprotocolextensions2
+					| (SV_EntityCapacityRequiresRD() ? FTE_PEXT2_REPLACEMENTDELTAS : 0)
 	#ifdef PROTOCOL_VERSION_MVD1
                 ,
 	#endif
@@ -1291,6 +1300,7 @@ void CL_ClearState (void)
 	extern cshift_t	cshift_empty;
 	extern void CL_ProcessServerInfo (void);
 
+	CL_RD_Clear();
 	S_StopAllSounds();
 
 	Com_DPrintf ("Clearing memory\n");
@@ -1302,6 +1312,8 @@ void CL_ClearState (void)
 	CL_ClearTEnts ();
 	CL_ClearScene ();
 	MenuScene_Invalidate();
+	Q_free(cl_visents.list);
+	cl_visents.capacity = 0;
 
 	CL_ClearPredict();
 #ifdef FTE_PEXT_CSQC
@@ -1387,6 +1399,8 @@ void CL_ClearState (void)
 void CL_Disconnect (void) 
 {
 	byte final[10];
+
+	CL_RD_Clear();
 
 	connect_time = 0;
 	con_addtimestamp = true;
@@ -2035,6 +2049,7 @@ static void CL_InitLocal(void)
 
 #if defined(PROTOCOL_VERSION_FTE) || defined(PROTOCOL_VERSION_FTE2) || defined(PROTOCOL_VERSION_MVD1)
 	Cvar_Register(&cl_pext);
+	Cvar_Register(&cl_pext_replacementdeltas);
 	Cvar_Register(&cl_pext_limits);
 	Cvar_Register(&cl_pext_other);
 	Cvar_Register(&cl_pext_warndemos);
@@ -2538,7 +2553,9 @@ static void CL_ServerFrame(double frametime)
 {
 #ifndef CLIENTONLY
 	if (com_serveractive) {
-		playermove_t oldmove;
+		/* The server shares pmove with client prediction; keep the large backup
+		 * off the stack and refresh it before every server frame. */
+		static playermove_t oldmove;
 
 		memcpy(&oldmove, &pmove, sizeof(playermove_t));
 
@@ -2961,6 +2978,8 @@ void CL_Shutdown (void)
 	CL_ShutdownDiscord();
 #endif
 	CL_Disconnect();
+	Q_free(cl_visents.list);
+	cl_visents.capacity = 0;
 	if (CL_SessionNumber() == 1)
 		SList_Shutdown();
 	CDAudio_Shutdown();
