@@ -250,7 +250,10 @@ int packet_latency[NET_TIMINGS];
 
 int CL_CalcNet (void) 
 {
-	int a, i, j, lost, packetcount;
+	int a, i, j, lost, packetcount, pending = 0;
+	double now;
+	qbool delay_active = cl_ping.integer && cls.state == ca_active && !cls.demoplayback;
+	qbool check_pending;
 	frame_t	*frame;
 
 	static cvar_t * netgraph_inframes = NULL;
@@ -258,14 +261,20 @@ int CL_CalcNet (void)
 
 	static int last_calculated_outgoing;
 	static int last_calculated_incoming;
+	static qbool last_calculated_delay;
 	static int last_lost;
 
+	// Artificial-delay reply windows can expire without either sequence changing.
 	if (last_calculated_incoming == cls.netchan.incoming_sequence  &&
-	    last_calculated_outgoing == cls.netchan.outgoing_sequence)
+	    last_calculated_outgoing == cls.netchan.outgoing_sequence &&
+	    !delay_active && !last_calculated_delay)
 		return last_lost;
 
+	check_pending = delay_active || last_calculated_delay;
 	last_calculated_outgoing = cls.netchan.outgoing_sequence;
 	last_calculated_incoming = cls.netchan.incoming_sequence;
+	last_calculated_delay = delay_active;
+	now = delay_active ? Sys_DoubleTime() : 0;
 
 	if (netgraph_inframes == NULL)
 	    netgraph_inframes = HUD_FindVar(hud_netgraph, "inframes");
@@ -276,8 +285,15 @@ int CL_CalcNet (void)
 	        j = i & NETWORK_STATS_MASK;
 		if (frame->receivedtime == -1)
 		{
-			packet_latency[i & NET_TIMINGSMASK] = 9999;	// dropped
-			network_stats[j].status = packet_dropped;
+			if (CL_PacketDelayPending((unsigned)i, now)) {
+				packet_latency[i & NET_TIMINGSMASK] = -1;
+				network_stats[j].status = packet_pending;
+				++pending;
+			}
+			else {
+				packet_latency[i & NET_TIMINGSMASK] = 9999;	// dropped
+				network_stats[j].status = packet_dropped;
+			}
 		}
 		else if (frame->receivedtime == -2) 
 		{
@@ -307,6 +323,20 @@ int CL_CalcNet (void)
 		}
 	}
 
+	// Pending entries can outlive the prediction frames at high command rates.
+	if (check_pending) {
+		for (i = cls.netchan.outgoing_sequence - NETWORK_STATS_SIZE + 1;
+			i <= cls.netchan.outgoing_sequence - UPDATE_BACKUP; ++i) {
+			j = i & NETWORK_STATS_MASK;
+			if (network_stats[j].status == packet_pending && !CL_PacketDelayPending((unsigned)i, now)) {
+				network_stats[j].status = packet_dropped;
+				if (cls.netchan.outgoing_sequence - i < NET_TIMINGS) {
+					packet_latency[i & NET_TIMINGSMASK] = 9999;
+				}
+			}
+		}
+	}
+
 	lost = packetcount = 0;
 	for (a = 0; a < NET_TIMINGS; a++)	
 	{
@@ -318,10 +348,10 @@ int CL_CalcNet (void)
 		i = (cls.netchan.outgoing_sequence-a) & NET_TIMINGSMASK;
 		if (packet_latency[i] == 9999)
 			lost++;
-		if (packet_latency[i] != -1)	// don't count packets choked by c2spps
+		if (packet_latency[i] != -1)	// exclude pending packets and c2spps limits
 			packetcount++;
 	}
-	last_lost = packetcount ? lost * 100 / packetcount : 100;
+	last_lost = packetcount ? lost * 100 / packetcount : (pending ? 0 : 100);
 	return last_lost;
 }
 
@@ -340,7 +370,7 @@ int CL_CalcNetStatistics(
     float f_min, f_max, f_avg, f_dev, f_sum, f_dev_sum;
     int lost_lost, lost_rate, lost_delta, lost_netlimit;
     int size_sent, size_received;
-    int samples_received, samples_sent, samples_delta;
+    int samples_received, samples_sent, samples_delta, samples_pending;
 
     if (cls.netchan.outgoing_sequence - cls.netchan.incoming_sequence  >  NETWORK_STATS_SIZE/2)
         return (res->samples = 0);
@@ -358,6 +388,7 @@ int CL_CalcNetStatistics(
     samples_sent = 0;
     samples_received = 0;
     samples_delta = 0;  // packets with delta compression applied
+    samples_pending = 0;
 
     ping_sum = 0;
     ping_min =  99999999;
@@ -392,6 +423,12 @@ int CL_CalcNetStatistics(
         samples_sent++;
 
         size_sent += samples[a].sentsize;
+
+        // Pending packets still contribute outgoing bytes, but not resolved loss samples.
+        if (samples[a].status == packet_pending) {
+            samples_pending++;
+            continue;
+        }
 
         switch (samples[a].status)
         {
@@ -474,8 +511,8 @@ int CL_CalcNetStatistics(
     res->ping_f_dev = f_dev;
 
     res->lost_netlimit = lost_netlimit * 100.0 / (q-p);
-    res->lost_lost     = lost_lost     * 100.0 / samples_sent;
-    res->lost_rate     = lost_rate     * 100.0 / samples_sent;
+    res->lost_lost     = lost_lost     * 100.0 / (samples_sent - samples_pending);
+    res->lost_rate     = lost_rate     * 100.0 / (samples_sent - samples_pending);
     res->bandwidth_in  = lost_delta    * 100.0 / samples_sent;
 
     res->size_out = size_sent      / (float)samples_sent;

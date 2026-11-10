@@ -136,148 +136,199 @@ loopback_t	loopbacks[2];
 #ifndef SERVERONLY
 
 typedef struct packet_queue_s {
-	cl_delayed_packet_t packets[CL_MAX_DELAYED_PACKETS];
+	cl_delayed_packet_t* packets;
 	int head;
-	int tail;
-	qbool outgoing;
+	int count;
+	int capacity;
 } packet_queue_t;
 
 static packet_queue_t delay_queue_get;
 static packet_queue_t delay_queue_send;
+static packet_queue_t delay_queue_ready;
+
+// Keep packet timing separate from the simulation clock and prediction frames.
+// This covers the maximum target RTT at over 3000 commands per second.
+#define PACKET_DELAY_SAMPLES 1024
+typedef struct {
+	unsigned sequence;
+	qbool valid;
+	qbool sampled;
+	double queuedtime;
+	double senttime;
+	double reply_delay; // Expected time from actual send to reply delivery, in seconds.
+} packet_delay_sample_t;
+
+static packet_delay_sample_t delay_samples[PACKET_DELAY_SAMPLES];
+static unsigned delay_target_incoming_sequence;
 
 // Estimated round-trip latency excluding artificial packet delay, in milliseconds.
 static float delay_target_natural_latency_ms = -1;
 
-static inline void NET_PacketQueueSetNextIndex(int* index)
+static cl_delayed_packet_t* NET_PacketQueuePeek(packet_queue_t* queue)
 {
-	*index = (*index + 1) % CL_MAX_DELAYED_PACKETS;
+	return queue->count ? &queue->packets[queue->head] : NULL;
+}
+
+static void NET_PacketQueueAdvance(packet_queue_t* queue)
+{
+	if (queue->count) {
+		queue->head = (queue->head + 1) % queue->capacity;
+		--queue->count;
+	}
 }
 
 static qbool NET_PacketQueueRemove(packet_queue_t* queue, sizebuf_t* buffer, netadr_t* from_address)
 {
-	cl_delayed_packet_t* next = &queue->packets[queue->head];
-	double time;
+	cl_delayed_packet_t* next = NET_PacketQueuePeek(queue);
 
-	// Empty queue
-	if (!next->time) {
-		return false;
-	}
-
-	// Not time yet
-	time = Sys_DoubleTime();
-	if (next->time > time) {
+	if (!next || next->time > Sys_DoubleTime()) {
 		return false;
 	}
 
 	SZ_Clear(buffer);
 	SZ_Write(buffer, next->data, next->length);
 	*from_address = next->addr;
-	next->time = 0;
-
-	NET_PacketQueueSetNextIndex(&queue->head);
+	NET_PacketQueueAdvance(queue);
 	return true;
 }
 
-static qbool NET_PacketQueueAdd(packet_queue_t* queue, byte* data, int size, netadr_t addr)
+static void NET_PacketQueueAdd(packet_queue_t* queue, const byte* data, int size, netadr_t addr, double time)
 {
-	cl_delayed_packet_t* next = &queue->packets[queue->tail];
-	float deviation = 0;
-	float ms_delay;
+	cl_delayed_packet_t* next;
 
-	if (cl_ping_dev.integer) {
-		deviation = f_rnd(-bound(0, cl_ping_dev.integer, CL_MAX_PACKET_DELAY_DEVIATION), bound(0, cl_ping_dev.integer, CL_MAX_PACKET_DELAY_DEVIATION));
-	}
+	if (queue->count == queue->capacity) {
+		int capacity = queue->capacity ? queue->capacity * 2 : 16;
+		cl_delayed_packet_t* packets = Q_malloc(capacity * sizeof(*packets));
+		int i;
 
-	// If buffer is full, can't prevent packet loss - drop this packet
-	if (next->time && queue->head == queue->tail) {
-		return false;
-	}
-
-	// calculate delay based on settings
-	if (cls.state != ca_active) {
-		// not yet connected, go as fast as possible
-		ms_delay = 0;
-	}
-	else if (cl_ping.integer && size >= 8 && BuffLittleLong(data) != -1
-		&& NET_CompareAdr(addr, cls.netchan.remote_address)) {
-		if (!queue->outgoing) {
-			// Dynamically change incoming delay to target a particular total latency.
-			unsigned sequence_ack;
-			int sequencemod;
-			double expected_latency;
-			float natural_latency_ms;
-			frame_t* frame;
-
-			MSG_BeginReading();
-			MSG_ReadLong(); // sequence =
-			sequence_ack = (unsigned)MSG_ReadLong() & ~(1u << 31);
-
-			sequencemod = sequence_ack & UPDATE_MASK;
-			frame = &cl.frames[sequencemod];
-			expected_latency = (cls.realtime - frame->senttime) * 1000.0;
-
-			// Remove outgoing artificial delay so the estimator tracks real network latency.
-			natural_latency_ms = expected_latency - frame->packetdelay;
-			if (frame->receivedtime == -1 && natural_latency_ms >= 0) {
-				if (delay_target_natural_latency_ms < 0 || natural_latency_ms <= delay_target_natural_latency_ms) {
-					delay_target_natural_latency_ms = natural_latency_ms;
-				}
-				else {
-					// Match the normal latency estimator: drop quickly, rise slowly through spikes.
-					delay_target_natural_latency_ms += min(1.0, natural_latency_ms - delay_target_natural_latency_ms);
-				}
-			}
-
-			// Delay only the remaining time needed to reach the target after this ack.
-			ms_delay = max(0, cl_ping.value - expected_latency + deviation);
+		for (i = 0; i < queue->count; ++i) {
+			packets[i] = queue->packets[(queue->head + i) % queue->capacity];
 		}
-		else {
-			unsigned sequence = (unsigned)BuffLittleLong(data) & ~(1u << 31);
-			frame_t* frame = &cl.frames[sequence & UPDATE_MASK];
-			// Split only the artificial portion; real network latency already counts toward the target.
-			float natural_latency_ms = delay_target_natural_latency_ms >= 0
-				? delay_target_natural_latency_ms
-				: cls.latency * 1000.0;
-
-			ms_delay = 0.5 * max(0, cl_ping.value - natural_latency_ms);
-			// Remember this frame's outgoing delay so its ack can recover natural latency.
-			frame->packetdelay = ms_delay;
-		}
-	}
-	else {
-		ms_delay = 0;
+		Q_free(queue->packets);
+		queue->packets = packets;
+		queue->capacity = capacity;
+		queue->head = 0;
 	}
 
+	next = &queue->packets[(queue->head + queue->count) % queue->capacity];
 	memmove(next->data, data, size);
 	next->length = size;
 	next->addr = addr;
-	next->time = Sys_DoubleTime() + 0.001 * ms_delay;
-
-	NET_PacketQueueSetNextIndex(&queue->tail);
-	return true;
+	next->time = time;
+	++queue->count;
 }
 
-static cl_delayed_packet_t* NET_PacketQueuePeek(packet_queue_t* queue)
+static qbool NET_ShouldDelayPacket(const byte* data, int size, netadr_t addr)
 {
-	cl_delayed_packet_t* next = &queue->packets[queue->head];
-
-	// Empty queue
-	if (!next->time)
-		return NULL;
-
-	return next;
+	return cls.state == ca_active && cl_ping.integer && size >= 8
+		&& BuffLittleLong(data) != -1 && NET_CompareAdr(addr, cls.netchan.remote_address);
 }
 
-static void NET_PacketQueueAdvance(packet_queue_t* queue)
+static double NET_PacketDelay(qbool outgoing, const byte* data, double now)
 {
-	cl_delayed_packet_t* head = NET_PacketQueuePeek(queue);
+	unsigned sequence = (unsigned)BuffLittleLong(data) & ~(1u << 31);
+	packet_delay_sample_t* sample;
+	float natural_latency_ms;
+	float deviation = 0;
 
-	if (head != NULL)
-	{
-		head->time = 0;
+	if (outgoing) {
+		double ms_delay;
 
-		NET_PacketQueueSetNextIndex(&queue->head);
+		natural_latency_ms = delay_target_natural_latency_ms >= 0
+			? delay_target_natural_latency_ms : cls.latency * 1000.0;
+		ms_delay = 0.5 * max(0, cl_ping.value - natural_latency_ms);
+		sample = &delay_samples[sequence % PACKET_DELAY_SAMPLES];
+		if (!sample->valid || sample->sequence != sequence) {
+			sample->sequence = sequence;
+			sample->valid = true;
+			sample->sampled = false;
+			sample->queuedtime = now;
+			sample->senttime = -1;
+			sample->reply_delay = 0.001 * max(0, cl_ping.value - ms_delay
+				+ bound(0, cl_ping_dev.integer, CL_MAX_PACKET_DELAY_DEVIATION));
+		}
+		return ms_delay;
 	}
+
+	{
+		unsigned sequence_ack = (unsigned)BuffLittleLong(data + 4) & ~(1u << 31);
+		sample = &delay_samples[sequence_ack % PACKET_DELAY_SAMPLES];
+		// Unknown or overwritten acks must not use another command's timestamps.
+		if (!sample->valid || sample->sequence != sequence_ack || sample->senttime < 0) {
+			return 0;
+		}
+	}
+
+	// Measure from the actual send, including any extra time spent in the queue.
+	natural_latency_ms = (now - sample->senttime) * 1000.0;
+	if (!sample->sampled && sequence > delay_target_incoming_sequence && natural_latency_ms >= 0) {
+		if (delay_target_natural_latency_ms < 0 || natural_latency_ms <= delay_target_natural_latency_ms) {
+			delay_target_natural_latency_ms = natural_latency_ms;
+		}
+		else {
+			delay_target_natural_latency_ms += min(1.0, natural_latency_ms - delay_target_natural_latency_ms);
+		}
+		sample->sampled = true;
+	}
+	delay_target_incoming_sequence = max(delay_target_incoming_sequence, sequence);
+
+	if (cl_ping_dev.integer) {
+		int dev = bound(0, cl_ping_dev.integer, CL_MAX_PACKET_DELAY_DEVIATION);
+		deviation = f_rnd(-dev, dev);
+	}
+	return max(0, cl_ping.value - (now - sample->queuedtime) * 1000.0 + deviation);
+}
+
+static void NET_PacketSent(const byte* data, double now)
+{
+	unsigned sequence = (unsigned)BuffLittleLong(data) & ~(1u << 31);
+	packet_delay_sample_t* sample = &delay_samples[sequence % PACKET_DELAY_SAMPLES];
+
+	if (sample->valid && sample->sequence == sequence && sample->senttime < 0) {
+		sample->senttime = now;
+	}
+}
+
+double CL_PacketDelaySleepTime(double max_sleep)
+{
+	cl_delayed_packet_t* packet = NET_PacketQueuePeek(&delay_queue_send);
+
+	// Only outgoing packets are serviced between client frames.
+	if (cl_ping.integer && packet) {
+		return bound(0, packet->time - Sys_DoubleTime(), max_sleep);
+	}
+	return max_sleep;
+}
+
+qbool CL_PacketDelayPending(unsigned sequence, double now)
+{
+	packet_delay_sample_t* sample = &delay_samples[sequence % PACKET_DELAY_SAMPLES];
+	int i;
+
+	if (!cl_ping.integer || cls.state != ca_active || cls.demoplayback) {
+		return false;
+	}
+	// CL_SendCmd calculates loss before transmitting the command it is building.
+	if (sequence == (unsigned)cls.netchan.outgoing_sequence) {
+		return true;
+	}
+	if (!sample->valid || sample->sequence != sequence) {
+		return false;
+	}
+	if (sample->senttime < 0 || now < sample->senttime + sample->reply_delay) {
+		return true;
+	}
+
+	// A received reply is still pending until the client parses it, even if overdue.
+	for (i = 0; i < delay_queue_get.count; ++i) {
+		cl_delayed_packet_t* packet = &delay_queue_get.packets[(delay_queue_get.head + i) % delay_queue_get.capacity];
+		unsigned ack = (unsigned)BuffLittleLong(packet->data + 4) & ~(1u << 31);
+
+		if (ack == sequence) {
+			return true;
+		}
+	}
+	return false;
 }
 
 #endif
@@ -858,8 +909,11 @@ qbool NET_GetTCPPacket_SV (netsrc_t netsrc, netadr_t *from, sizebuf_t *message)
 qbool NET_GetPacketEx (netsrc_t netsrc, qbool delay)
 {
 #ifndef SERVERONLY
-	if (delay)
-		return NET_PacketQueueRemove(&delay_queue_get, &net_message, &net_from);
+	if (delay) {
+		// Browser replies and other undelayed traffic must bypass game packets.
+		return NET_PacketQueueRemove(&delay_queue_ready, &net_message, &net_from)
+			|| NET_PacketQueueRemove(&delay_queue_get, &net_message, &net_from);
+	}
 #endif
 
 #ifndef SERVERONLY
@@ -1007,10 +1061,18 @@ qbool NET_SendUDPPacket (netsrc_t netsrc, int length, void *data, netadr_t to)
 void NET_SendPacketEx (netsrc_t netsrc, int length, void *data, netadr_t to, qbool delay)
 {
 #ifndef SERVERONLY
-	if (delay)
-	{
-		NET_PacketQueueAdd (&delay_queue_send, data, length, to);
-		return;
+	if (delay && NET_ShouldDelayPacket(data, length, to)) {
+		double now = Sys_DoubleTime();
+		double ms_delay = NET_PacketDelay(true, data, now);
+
+		// Preserve command order, but send immediately when no delay is needed.
+		if (ms_delay > 0 || delay_queue_send.count) {
+			NET_PacketQueueAdd(&delay_queue_send, data, length, to, now + 0.001 * ms_delay);
+			return;
+		}
+	}
+	if (netsrc == NS_CLIENT && NET_ShouldDelayPacket(data, length, to)) {
+		NET_PacketSent(data, Sys_DoubleTime());
 	}
 #endif
 
@@ -1426,7 +1488,7 @@ void NET_Init (void)
 	Cvar_Register(&cl_portpingprobe_port_probes);
 	NET_SetPortPingProbeStatus(PORTPINGPROBE_READY);
 
-	delay_queue_send.outgoing = true;
+	CL_ClearQueuedPackets();
 #endif
 
 #ifndef CLIENTONLY
@@ -1453,6 +1515,7 @@ void NET_Shutdown (void)
 
 #ifndef SERVERONLY
 	NET_CloseClient();
+	CL_ClearQueuedPackets();
 #endif
 
 #ifdef _WIN32
@@ -1588,23 +1651,36 @@ void NET_CloseClient (void)
 
 qbool CL_QueInputPacket(void)
 {
-	if (!NET_GetPacketEx(NS_CLIENT, false))
-		return false;
+	qbool queued = false;
 
-	return NET_PacketQueueAdd(&delay_queue_get, net_message.data, net_message.cursize, net_from);
+	while (NET_GetPacketEx(NS_CLIENT, false)) {
+		double now = Sys_DoubleTime();
+		qbool delay = NET_ShouldDelayPacket(net_message.data, net_message.cursize, net_from);
+		double ms_delay = delay ? NET_PacketDelay(false, net_message.data, now) : 0;
+
+		NET_PacketQueueAdd(delay ? &delay_queue_get : &delay_queue_ready,
+			net_message.data, net_message.cursize, net_from, now + 0.001 * ms_delay);
+		queued = true;
+	}
+	return queued;
 }
 
 static void CL_ResetPacketDelayTarget(void)
 {
 	delay_target_natural_latency_ms = -1;
+	delay_target_incoming_sequence = 0;
+	memset(delay_samples, 0, sizeof(delay_samples));
 }
 
 void CL_ClearQueuedPackets(void)
 {
+	Q_free(delay_queue_get.packets);
+	Q_free(delay_queue_send.packets);
+	Q_free(delay_queue_ready.packets);
 	memset(&delay_queue_get, 0, sizeof(delay_queue_get));
 	memset(&delay_queue_send, 0, sizeof(delay_queue_send));
+	memset(&delay_queue_ready, 0, sizeof(delay_queue_ready));
 	CL_ResetPacketDelayTarget();
-	delay_queue_send.outgoing = true;
 }
 #endif
 

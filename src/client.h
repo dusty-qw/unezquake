@@ -254,7 +254,6 @@ typedef struct
 	// Generated on client side.
 	usercmd_t           cmd;                        // Cmd that generated the frame.
 	double              senttime;                   // Time cmd was sent off.
-	float               packetdelay;                // Artificial outgoing packet delay, in milliseconds.
 	int                 delta_sequence;             // Sequence number to delta from, -1 = full update.
 	int                 sentsize;
 
@@ -1033,7 +1032,7 @@ extern int	packet_latency[NET_TIMINGS];
 #define  NETWORK_STATS_MASK  (NETWORK_STATS_SIZE-1)
 
 typedef  enum{packet_ok, packet_dropped, packet_choked,
-              packet_delta, packet_netlimit}  packet_status;
+              packet_delta, packet_netlimit, packet_pending}  packet_status;
 
 typedef struct packet_info_s
 {
@@ -1322,7 +1321,6 @@ centity_t* CL_WeaponModelForView(void);
 extern cvar_t cl_ping;
 extern cvar_t cl_ping_dev;
 
-#define CL_MAX_DELAYED_PACKETS 16 /* 13 * 16 = 208 ms, should be enough */
 #define CL_MAX_PACKET_DELAY_DEVIATION 5
 #define CL_MAX_PACKET_DELAY_TARGET 300
 
@@ -1338,6 +1336,8 @@ typedef struct cl_delayed_packet_s
 
 qbool CL_QueInputPacket(void);
 qbool CL_UnqueOutputPacket(qbool sendall);
+double CL_PacketDelaySleepTime(double max_sleep);
+qbool CL_PacketDelayPending(unsigned sequence, double now);
 void CL_ClearQueuedPackets(void);
 
 // ===================================================================================

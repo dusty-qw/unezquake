@@ -2588,11 +2588,15 @@ void CL_Frame(double time)
 	if (extratime < minframetime) {
 		extern cvar_t sys_yieldcpu;
 		if (sys_yieldcpu.integer || Minimized || !CL_SessionIsActive()) {
+			double sleep_time = CL_PacketDelaySleepTime(minframetime - extratime);
+
+			if (sleep_time > 0) {
 			#ifdef _WIN32
-			Sys_MSleep(0);
+				Sys_MSleep(0);
 			#else
-			usleep( (minframetime - extratime) * 1000 * 1000 );
+				usleep(sleep_time * 1000 * 1000);
 			#endif
+			}
 		}
 
 		if (cl_ping.integer) {
