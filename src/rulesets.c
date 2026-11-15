@@ -688,11 +688,6 @@ qbool Ruleset_CanLogConsole(void)
 	return cls.demoplayback || cls.state != ca_active || cl.standby || cl.countdown || !rulesetDef.restrictLogging;
 }
 
-qbool Ruleset_AllowNoHardwareGamma(void)
-{
-	return rulesetDef.ruleset != rs_mtfl;
-}
-
 float Ruleset_RollAngle(void)
 {
 	extern cvar_t cl_rollangle;

@@ -33,6 +33,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "sbar.h"
 
 extern cvar_t vid_framebuffer;
+extern cvar_t vid_software_palette;
 extern cvar_t vid_framebuffer_depthformat;
 extern cvar_t vid_framebuffer_hdr;
 extern cvar_t vid_framebuffer_blit;
@@ -804,7 +805,7 @@ static void VID_FramebufferFlip(void)
 		// Screen-wide framebuffer without any processing required, so we can just blit
 		qbool should_blit = (
 			//vid_framebuffer_multisample.integer == 0 &&
-			!VID_UseSoftwarePalette() &&
+			!vid_software_palette.integer &&
 			vid_framebuffer.integer != USE_FRAMEBUFFER_3DONLY &&
 			vid_framebuffer_blit.integer &&
 			(glConfig.supported_features & R_SUPPORT_FRAMEBUFFERS_BLIT)
@@ -821,7 +822,7 @@ static void VID_FramebufferFlip(void)
 			renderer.RenderFramebuffers();
 		}
 	}
-	else if (VID_UseSoftwarePalette()) {
+	else if (vid_software_palette.integer) {
 		renderer.RenderFramebuffers();
 	}
 }
@@ -916,17 +917,14 @@ void GL_FramebufferPostProcessScreen(void)
 {
 	qbool framebuffer_active = GL_FramebufferEnabled3D() || GL_FramebufferEnabled2D();
 
-	if (framebuffer_active || VID_UseSoftwarePalette()) {
+	if (framebuffer_active || vid_software_palette.integer) {
 		R_Viewport(glx, gly, glConfig.vidWidth, glConfig.vidHeight);
 
 		VID_FramebufferFlip();
 	}
 
-	if (!VID_UseSoftwarePalette()) {
+	if (!vid_software_palette.integer) {
 		renderer.BrightenScreen();
-
-		// Hardware palette changes
-		V_UpdatePalette();
 	}
 }
 

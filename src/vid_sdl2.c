@@ -25,13 +25,6 @@
 
 #include <SDL.h>
 #include <SDL_syswm.h>
-#if defined(__linux__) && defined(SDL_VIDEO_DRIVER_X11)
-#include <X11/extensions/Xrandr.h>
-#endif
-
-#ifdef X11_GAMMA_WORKAROUND
-#include <X11/extensions/xf86vmode.h>
-#endif
 
 #ifdef _WIN32
 #include <windows.h>
@@ -54,7 +47,6 @@
 #endif
 #include "tr_types.h"
 #include "input.h"
-#include "rulesets.h"
 #include "utils.h"
 #include "textencoding.h"
 
@@ -121,8 +113,6 @@ static SDL_SysWMinfo session_swap_wm;
 static int64_t (*session_swap_msc)(Display *, unsigned long, int64_t, int64_t, int64_t);
 #endif
 static void HandleEvents(void);
-static void VID_PublishSessionGamma(void);
-static void VID_SuspendSessionGamma(void);
 static void VID_UpdateConRes(void);
 void IN_Restart_f(void);
 
@@ -130,7 +120,6 @@ static SDL_Window       *sdl_window;
 static SDL_GLContext    sdl_context;
 
 glconfig_t glConfig;
-qbool vid_hwgamma_enabled = false;
 static qbool mouse_active = false;
 qbool mouseinitialized = false; // unfortunately non static, lame...
 int mx, my;
@@ -145,10 +134,6 @@ double vid_last_swap_time;
 
 static SDL_DisplayMode *modelist;
 static int modelist_count;
-
-#ifdef X11_GAMMA_WORKAROUND
-static unsigned short sysramps[3*4096];
-#endif
 
 qbool vid_initialized = false;
 
@@ -208,11 +193,6 @@ cvar_t vid_width                  = {"vid_width",                  "0",       CV
 cvar_t vid_height                 = {"vid_height",                 "0",       CVAR_LATCH_GFX | CVAR_AUTO };
 cvar_t vid_win_width              = {"vid_win_width",              "640",     CVAR_LATCH_GFX };
 cvar_t vid_win_height             = {"vid_win_height",             "480",     CVAR_LATCH_GFX };
-#ifdef __APPLE__
-cvar_t vid_hwgammacontrol         = {"vid_hwgammacontrol",         "2",       CVAR_LATCH_GFX };
-#else
-cvar_t vid_hwgammacontrol         = {"vid_hwgammacontrol",         "0",       CVAR_LATCH_GFX };
-#endif
 cvar_t vid_minimize_on_focus_loss = {"vid_minimize_on_focus_loss", CVAR_DEF1, CVAR_LATCH_GFX };
 // TODO: Move the in_* cvars
 cvar_t in_raw                     = {"in_raw",                     "1",       CVAR_ARCHIVE | CVAR_SILENT, in_raw_callback};
@@ -222,10 +202,6 @@ cvar_t vid_grab_keyboard          = {"vid_grab_keyboard",          "0",       CV
 cvar_t vid_renderer               = {"vid_renderer",               "1",       CVAR_LATCH_GFX };
 #endif
 cvar_t vid_gl_core_profile        = {"vid_gl_core_profile",        "0",       CVAR_LATCH_GFX };
-
-#ifdef X11_GAMMA_WORKAROUND
-cvar_t vid_gamma_workaround       = {"vid_gamma_workaround",       "1",       CVAR_LATCH_GFX };
-#endif
 
 cvar_t in_release_mouse_modes     = {"in_release_mouse_modes",     "2",       CVAR_SILENT };
 cvar_t in_ignore_touch_events     = {"in_ignore_touch_events",     "1",       CVAR_SILENT };
@@ -248,13 +224,9 @@ cvar_t r_verbose                  = {"vid_verbose",                "0",       CV
 cvar_t r_showextensions           = {"vid_showextensions",         "0",       CVAR_SILENT };
 cvar_t gl_multisamples            = {"gl_multisamples",            "0",       CVAR_LATCH_GFX | CVAR_AUTO }; // It's here because it needs to be registered before window creation
 cvar_t vid_gammacorrection        = {"vid_gammacorrection",        "0",       CVAR_LATCH_GFX };
-#ifdef __APPLE__
-cvar_t vid_software_palette       = {"vid_software_palette",       "0",       CVAR_NO_RESET | CVAR_LATCH_GFX };
-#else
 cvar_t vid_software_palette       = {"vid_software_palette",       "1",       CVAR_NO_RESET | CVAR_LATCH_GFX };
-#endif
 
-cvar_t vid_framebuffer             = {"vid_framebuffer",               "0",       CVAR_NO_RESET | CVAR_LATCH_GFX, conres_changed_callback };
+cvar_t vid_framebuffer             = {"vid_framebuffer",               "2",       CVAR_NO_RESET | CVAR_LATCH_GFX, conres_changed_callback };
 cvar_t vid_framebuffer_blit        = {"vid_framebuffer_blit",          "0",       CVAR_NO_RESET };
 cvar_t vid_framebuffer_width       = {"vid_framebuffer_width",         "0",       CVAR_NO_RESET | CVAR_AUTO, conres_changed_callback };
 cvar_t vid_framebuffer_height      = {"vid_framebuffer_height",        "0",       CVAR_NO_RESET | CVAR_AUTO, conres_changed_callback };
@@ -517,7 +489,6 @@ static void IN_Frame(void)
 		settings.ime_x = menu.ime_x; settings.ime_y = menu.ime_y;
 		settings.ime_w = menu.ime_w; settings.ime_h = menu.ime_h;
 		CL_SessionInputSettings(&settings);
-		VID_PublishSessionGamma();
 		mx = mouse_active ? session_mouse_x : 0;
 		my = mouse_active ? session_mouse_y : 0;
 		session_mouse_x = session_mouse_y = 0;
@@ -661,64 +632,6 @@ void VID_SessionSyncWindowGeometry(int x, int y, int width, int height)
 	}
 }
 
-static int VID_SetDeviceGammaRampReal(unsigned short *ramps)
-{
-#ifdef X11_GAMMA_WORKAROUND
-	static short once = 1;
-	static short gamma_works = 0;
-
-	if (!vid_gamma_workaround.integer) {
-		SDL_SetWindowGammaRamp(sdl_window, ramps, ramps + 4096, ramps + (2 * 4096));
-		vid_hwgamma_enabled = true;
-		return 0;
-	}
-
-	if (once) {
-		if (glConfig.gammacrap.size < 0 || glConfig.gammacrap.size > 4096) {
-			Com_Printf("error: gamma size is broken, gamma won't work (reported size %d)\n", glConfig.gammacrap.size);
-			once = 0;
-			return 0;
-		}
-		if (!XF86VidModeGetGammaRamp(glConfig.gammacrap.display, glConfig.gammacrap.screen, glConfig.gammacrap.size, sysramps, sysramps + 4096, sysramps + (2 * 4096))) {
-			Com_Printf("error: cannot get system gamma ramps, gamma won't work\n");
-			once = 0;
-			return 0;
-		}
-		once = 0;
-		gamma_works = 1;
-	}
-
-	if (gamma_works) {
-		/* Just double check the gamma size... */
-		if (glConfig.gammacrap.size < 0 || glConfig.gammacrap.size > 4096) {
-			Com_Printf("error: gamma size broken but worked initially, wtf?! gamma won't work\n");
-			gamma_works = 0;
-			vid_hwgamma_enabled = false;
-		}
-		/* It returns true unconditionally ... */
-		XF86VidModeSetGammaRamp(glConfig.gammacrap.display, glConfig.gammacrap.screen, glConfig.gammacrap.size, ramps, ramps + 4096, ramps + (2 * 4096));
-		vid_hwgamma_enabled = true;
-	}
-	return 0;
-#else
-	if (SDL_SetWindowGammaRamp(sdl_window, ramps, ramps + 256, ramps + 512) == 0) {
-		vid_hwgamma_enabled = true;
-		return 0;
-	}
-	return -1;
-#endif
-}
-
-#ifdef X11_GAMMA_WORKAROUND
-static void VID_RestoreSystemGamma(void)
-{
-	if (CL_SessionIsCoordinator() || CL_SessionIsWorker() || !sdl_window || COM_CheckParm(cmdline_param_client_nohardwaregamma)) {
-		return;
-	}
-	VID_SetDeviceGammaRampReal(sysramps);
-}
-#endif
-
 static void window_event(SDL_WindowEvent *event)
 {
 	extern qbool scr_skipupdate;
@@ -743,17 +656,8 @@ static void window_event(SDL_WindowEvent *event)
 				 (flags & SDL_WINDOW_FULLSCREEN_DESKTOP) != SDL_WINDOW_FULLSCREEN_DESKTOP))
 				session_minimize_pending = true;
 #endif
-			if (CL_SessionIsCoordinator())
-				VID_SuspendSessionGamma();
 #ifdef __linux__
 			block_keyboard_input = in_ignore_unfocused_keyb.integer;
-#endif
-#ifdef X11_GAMMA_WORKAROUND
-			if (vid_gamma_workaround.integer) {
-				if (Minimized || vid_hwgammacontrol.integer != 3) {
-					VID_RestoreSystemGamma();
-				}
-			}
 #endif
 #ifdef _WIN32
 			Sys_ActiveAppChanged ();
@@ -780,11 +684,6 @@ static void window_event(SDL_WindowEvent *event)
 				session_minimize_pending = false;
 #endif
 			scr_skipupdate = 0;
-#ifdef X11_GAMMA_WORKAROUND
-			if (vid_gamma_workaround.integer) {
-				v_gamma.modified = true;
-			}
-#endif
 #ifdef _WIN32
 			Sys_ActiveAppChanged ();
 #endif
@@ -1402,8 +1301,6 @@ void VID_Shutdown(qbool restart)
 #ifdef _WIN32
 	session_minimize_pending = false;
 #endif
-	if (CL_SessionIsCoordinator())
-		VID_SessionGammaSettings(NULL);
 	// the menus own GL objects and textures, release them while the context still exists
 	M_ImGui_VidReady(false);
 	MenuUI_VidShutdown();
@@ -1422,12 +1319,6 @@ void VID_Shutdown(qbool restart)
 			SDL_FreeCursor(coordinator_cursors[i]);
 		coordinator_cursors[i] = NULL;
 	}
-
-#ifdef X11_GAMMA_WORKAROUND
-	if (vid_gamma_workaround.integer) {
-		VID_RestoreSystemGamma();
-	}
-#endif
 
 	/* A detached worker can quit before it receives its replacement window. */
 	if (sdl_context)
@@ -1454,7 +1345,6 @@ void VID_Shutdown(qbool restart)
 
 	Q_free(modelist);
 	modelist_count = 0;
-	vid_hwgamma_enabled = false;
 	vid_initialized = false;
 
 	if (!restart && !CL_SessionIsCoordinator()) {
@@ -1488,10 +1378,6 @@ static void VID_RegisterLatchCvars(void)
 		if (session_window_vars[i]->flags & CVAR_LATCH)
 			Cvar_Register(session_window_vars[i]);
 	}
-	Cvar_Register(&vid_hwgammacontrol);
-#ifdef X11_GAMMA_WORKAROUND
-	Cvar_Register(&vid_gamma_workaround);
-#endif
 	Cvar_Register(&vid_grab_keyboard);
 #ifdef EZ_MULTIPLE_RENDERERS
 	Cvar_Register(&vid_renderer);
@@ -1793,40 +1679,6 @@ static SDL_Window *VID_SDL_CreateWindow(int flags)
 	}
 }
 
-#ifdef X11_GAMMA_WORKAROUND
-static void VID_X11_GetGammaRampSize(void)
-{
-	glConfig.gammacrap.size = -1;
-
-	SDL_VERSION(&glConfig.gammacrap.info.version);
-	glConfig.gammacrap.screen = SDL_GetWindowDisplayIndex(sdl_window);
-
-	if (glConfig.gammacrap.screen < 0) {
-		Com_Printf("error: couldn't get screen number to set gamma\n");
-		return;
-	}
-
-	if (SDL_GetWindowWMInfo(sdl_window, &glConfig.gammacrap.info) != SDL_TRUE) {
-		Com_Printf("error: can not get display pointer, gamma won't work: %s\n", SDL_GetError());
-		return;
-	}
-
-	if (glConfig.gammacrap.info.subsystem != SDL_SYSWM_X11) {
-		Com_Printf("error: not x11, gamma won't work\n");
-		return;
-	}
-
-	glConfig.gammacrap.display = glConfig.gammacrap.info.info.x11.display;
-	XF86VidModeGetGammaRampSize(glConfig.gammacrap.display, glConfig.gammacrap.screen, &glConfig.gammacrap.size);
-
-	if (glConfig.gammacrap.size <= 0 || glConfig.gammacrap.size > 4096) {
-		Com_Printf("error: gamma size '%d' seems weird, refusing to use it\n", glConfig.gammacrap.size);
-		glConfig.gammacrap.size = -1;
-		return;
-	}
-}
-#endif
-
 static void VID_SetWindowResolution(void)
 {
 	if (CL_SessionIsWorker())
@@ -2045,17 +1897,7 @@ static void VID_SDL_Init(void)
 		Com_Printf("Failed to set window icon");
 	}
 
-	v_gamma.modified = true;
 	r_swapInterval.modified = true;
-
-#ifdef X11_GAMMA_WORKAROUND
-	/* PLEASE REMOVE ME AS SOON AS SDL2 AND XORG ARE TALKING NICELY TO EACHOTHER AGAIN IN TERMS OF GAMMA */
-	if (!CL_SessionIsCoordinator() && !CL_SessionIsWorker() && vid_gamma_workaround.integer != 0) {
-		VID_X11_GetGammaRampSize();
-	} else {
-		glConfig.gammacrap.size = 256;
-	}
-#endif
 
 	if (!CL_SessionIsCoordinator())
 		R_Initialise();
@@ -2255,342 +2097,7 @@ void VID_NotifyActivity(void)
 #endif
 }
 
-/* The coordinator alone owns native gamma. Retain the original display target
- * as well as its ramp: a window can move before the next input/frame pump. */
-static session_gamma_settings_t coordinator_gamma;
-static qbool coordinator_gamma_dirty, coordinator_gamma_open;
-static int coordinator_gamma_display = -1, coordinator_gamma_result;
-#ifdef _WIN32
-static HDC coordinator_gamma_dc;
-static WORD coordinator_gamma_original[3][256];
-#elif defined(__linux__) && defined(SDL_VIDEO_DRIVER_X11)
-static Display *coordinator_gamma_xdisplay;
-static RRCrtc coordinator_gamma_crtc;
-static XRRCrtcGamma *coordinator_gamma_original, *coordinator_gamma_ramp;
-static Status (*gamma_XRRQueryVersion)(Display *, int *, int *);
-static XRRScreenResources *(*gamma_XRRGetScreenResources)(Display *, Window);
-static void (*gamma_XRRFreeScreenResources)(XRRScreenResources *);
-static XRRCrtcInfo *(*gamma_XRRGetCrtcInfo)(Display *, XRRScreenResources *, RRCrtc);
-static void (*gamma_XRRFreeCrtcInfo)(XRRCrtcInfo *);
-static XRRCrtcGamma *(*gamma_XRRGetCrtcGamma)(Display *, RRCrtc);
-static XRRCrtcGamma *(*gamma_XRRAllocGamma)(int);
-static void (*gamma_XRRFreeGamma)(XRRCrtcGamma *);
-static void (*gamma_XRRSetCrtcGamma)(Display *, RRCrtc, XRRCrtcGamma *);
-
-static qbool VID_LoadGammaRandR(void)
-{
-	static void *library;
-	static qbool attempted, available;
-	if (attempted)
-		return available;
-	attempted = true;
-	library = SDL_LoadObject("libXrandr.so.2");
-	if (!library)
-		return false;
-#define GAMMA_LOAD(name) \
-	gamma_##name = SDL_LoadFunction(library, #name); \
-	if (!gamma_##name) return false;
-	GAMMA_LOAD(XRRQueryVersion);
-	GAMMA_LOAD(XRRGetScreenResources);
-	GAMMA_LOAD(XRRFreeScreenResources);
-	GAMMA_LOAD(XRRGetCrtcInfo);
-	GAMMA_LOAD(XRRFreeCrtcInfo);
-	GAMMA_LOAD(XRRGetCrtcGamma);
-	GAMMA_LOAD(XRRAllocGamma);
-	GAMMA_LOAD(XRRFreeGamma);
-	GAMMA_LOAD(XRRSetCrtcGamma);
-#undef GAMMA_LOAD
-	/* Keep loaded while Xlib retains extension callbacks. */
-	return available = true;
-}
-#endif
-
-static void VID_CloseSessionGamma(void)
-{
-	if (!coordinator_gamma_open)
-		return;
-#ifdef _WIN32
-	if (!SetDeviceGammaRamp(coordinator_gamma_dc, coordinator_gamma_original))
-		Com_Printf("Unable to restore the display gamma ramp (Windows error %lu).\n", (unsigned long)GetLastError());
-	DeleteDC(coordinator_gamma_dc);
-	coordinator_gamma_dc = NULL;
-#elif defined(__linux__) && defined(SDL_VIDEO_DRIVER_X11)
-	gamma_XRRSetCrtcGamma(coordinator_gamma_xdisplay, coordinator_gamma_crtc, coordinator_gamma_original);
-	/* Get is also a round trip, so restoration completes before a switch or
-	 * the SDL/X connection is destroyed. */
-	XRRCrtcGamma *restored = gamma_XRRGetCrtcGamma(coordinator_gamma_xdisplay, coordinator_gamma_crtc);
-	if (restored)
-		gamma_XRRFreeGamma(restored);
-	gamma_XRRFreeGamma(coordinator_gamma_original);
-	gamma_XRRFreeGamma(coordinator_gamma_ramp);
-	coordinator_gamma_original = coordinator_gamma_ramp = NULL;
-#endif
-	coordinator_gamma_open = false;
-}
-
-static void VID_SuspendSessionGamma(void)
-{
-	VID_CloseSessionGamma();
-	coordinator_gamma_dirty = true;
-	coordinator_gamma_result = 0;
-}
-
-static qbool VID_OpenSessionGamma(void)
-{
-	SDL_SysWMinfo wm;
-	SDL_VERSION(&wm.version);
-	if (!SDL_GetWindowWMInfo(sdl_window, &wm))
-		return false;
-#ifdef _WIN32
-	MONITORINFOEXW monitor;
-	memset(&monitor, 0, sizeof(monitor));
-	monitor.cbSize = sizeof(monitor);
-	if (wm.subsystem != SDL_SYSWM_WINDOWS ||
-		!GetMonitorInfoW(MonitorFromWindow(wm.info.win.window, MONITOR_DEFAULTTONEAREST), (MONITORINFO *)&monitor))
-		return false;
-	coordinator_gamma_dc = CreateDCW(monitor.szDevice, NULL, NULL, NULL);
-	if (!coordinator_gamma_dc)
-		return false;
-	if (!GetDeviceGammaRamp(coordinator_gamma_dc, coordinator_gamma_original)) {
-		DeleteDC(coordinator_gamma_dc);
-		coordinator_gamma_dc = NULL;
-		return false;
-	}
-#elif defined(__linux__) && defined(SDL_VIDEO_DRIVER_X11)
-	SDL_Rect bounds;
-	XRRScreenResources *resources;
-	int i, best_area = 0, major = 1, minor = 2;
-	if (wm.subsystem != SDL_SYSWM_X11 || !VID_LoadGammaRandR() ||
-		SDL_GetDisplayBounds(coordinator_gamma_display, &bounds) < 0)
-		return false;
-	coordinator_gamma_xdisplay = wm.info.x11.display;
-	if (!gamma_XRRQueryVersion(coordinator_gamma_xdisplay, &major, &minor) || major < 1 || (major == 1 && minor < 2))
-		return false;
-	resources = gamma_XRRGetScreenResources(coordinator_gamma_xdisplay, DefaultRootWindow(coordinator_gamma_xdisplay));
-	if (!resources)
-		return false;
-	coordinator_gamma_crtc = None;
-	for (i = 0; i < resources->ncrtc; ++i) {
-		XRRCrtcInfo *crtc = gamma_XRRGetCrtcInfo(coordinator_gamma_xdisplay, resources, resources->crtcs[i]);
-		if (crtc) {
-			int width = max(0, min(bounds.x + bounds.w, crtc->x + (int)crtc->width) - max(bounds.x, crtc->x));
-			int height = max(0, min(bounds.y + bounds.h, crtc->y + (int)crtc->height) - max(bounds.y, crtc->y));
-			if (width * height > best_area) {
-				best_area = width * height;
-				coordinator_gamma_crtc = resources->crtcs[i];
-			}
-			gamma_XRRFreeCrtcInfo(crtc);
-		}
-	}
-	gamma_XRRFreeScreenResources(resources);
-	if (coordinator_gamma_crtc == None)
-		return false;
-	coordinator_gamma_original = gamma_XRRGetCrtcGamma(coordinator_gamma_xdisplay, coordinator_gamma_crtc);
-	if (!coordinator_gamma_original)
-		return false;
-	coordinator_gamma_ramp = coordinator_gamma_original->size > 1 ? gamma_XRRAllocGamma(coordinator_gamma_original->size) : NULL;
-	if (!coordinator_gamma_ramp) {
-		gamma_XRRFreeGamma(coordinator_gamma_original);
-		coordinator_gamma_original = NULL;
-		return false;
-	}
-#else
-	return false;
-#endif
-	coordinator_gamma_open = true;
-	return true;
-}
-
-static qbool VID_ApplySessionGamma(float blend_alpha)
-{
-	int i, channel, size = 256;
-	unsigned short *channels[3];
-#ifdef _WIN32
-	WORD ramp[3][256];
-	channels[0] = ramp[0]; channels[1] = ramp[1]; channels[2] = ramp[2];
-#elif defined(__linux__) && defined(SDL_VIDEO_DRIVER_X11)
-	size = coordinator_gamma_ramp->size;
-	channels[0] = coordinator_gamma_ramp->red;
-	channels[1] = coordinator_gamma_ramp->green;
-	channels[2] = coordinator_gamma_ramp->blue;
-#else
-	return false;
-#endif
-	for (channel = 0; channel < 3; ++channel) {
-		for (i = 0; i < size; ++i) {
-			float value = (i * (256.0f / size) * (1 - blend_alpha) + 255 * coordinator_gamma.blend[channel] * blend_alpha) * coordinator_gamma.contrast;
-			value = 255 * pow(min(value, 255) / 255.5, coordinator_gamma.gamma) + 0.5;
-			channels[channel][i] = (int)bound(0, value, 255) << 8;
-		}
-	}
-#ifdef _WIN32
-	WORD readback[3][256];
-	if (!SetDeviceGammaRamp(coordinator_gamma_dc, ramp) || !GetDeviceGammaRamp(coordinator_gamma_dc, readback))
-		return false;
-	for (channel = 0; channel < 3; ++channel)
-		for (i = 0; i < 256; ++i)
-			if (abs((int)readback[channel][i] - ramp[channel][i]) > 255)
-				return false;
-	return true;
-#elif defined(__linux__) && defined(SDL_VIDEO_DRIVER_X11)
-	XRRCrtcGamma *readback;
-	qbool matches = true;
-	gamma_XRRSetCrtcGamma(coordinator_gamma_xdisplay, coordinator_gamma_crtc, coordinator_gamma_ramp);
-	readback = gamma_XRRGetCrtcGamma(coordinator_gamma_xdisplay, coordinator_gamma_crtc);
-	if (!readback)
-		return false;
-	if (readback->size != size)
-		matches = false;
-	else for (i = 0; i < size; ++i) {
-		/* Allow quantization to 8 bits, but reject ignored requests (as can
-		 * happen with compositor-controlled outputs). */
-		if (abs((int)readback->red[i] - channels[0][i]) > 255 ||
-			abs((int)readback->green[i] - channels[1][i]) > 255 ||
-			abs((int)readback->blue[i] - channels[2][i]) > 255)
-			matches = false;
-	}
-	gamma_XRRFreeGamma(readback);
-	return matches;
-#else
-	return false;
-#endif
-}
-
-void VID_SessionGammaSettings(const session_gamma_settings_t *settings)
-{
-	if (!settings) {
-		VID_CloseSessionGamma();
-		memset(&coordinator_gamma, 0, sizeof(coordinator_gamma));
-		coordinator_gamma_result = 0;
-		coordinator_gamma_dirty = false;
-	}
-	else if (memcmp(settings, &coordinator_gamma, sizeof(*settings))) {
-		coordinator_gamma = *settings;
-		coordinator_gamma_dirty = true;
-	}
-}
-
-int VID_SessionGammaUpdate(void)
-{
-	int display = sdl_window ? SDL_GetWindowDisplayIndex(sdl_window) : -1;
-	qbool eligible = sdl_window && CL_SessionWindowIsFocused() && !CL_SessionWindowIsMinimized();
-	if (display != coordinator_gamma_display) {
-		VID_CloseSessionGamma();
-		coordinator_gamma_display = display;
-		coordinator_gamma_dirty = true;
-	}
-	if (!eligible || !coordinator_gamma.enabled) {
-		VID_CloseSessionGamma();
-		coordinator_gamma_dirty = true;
-		return coordinator_gamma_result = 0;
-	}
-	if (coordinator_gamma_dirty) {
-		float alpha = coordinator_gamma.blend[3];
-		coordinator_gamma_dirty = false;
-		coordinator_gamma_result = -1;
-		if (coordinator_gamma_open || VID_OpenSessionGamma()) {
-			/* Preserve the existing workaround for ramps rejected during
-			 * strong damage/content blends, then try the unblended ramp. */
-			for (;;) {
-				if (VID_ApplySessionGamma(alpha)) {
-					coordinator_gamma_result = 1;
-					break;
-				}
-				if (alpha == 0)
-					break;
-				alpha = alpha > 0.1f ? alpha * 0.8f : 0;
-			}
-		}
-		if (coordinator_gamma_result < 0)
-			VID_CloseSessionGamma();
-	}
-	return coordinator_gamma_result;
-}
-
-void VID_SessionGammaResult(int result)
-{
-	static qbool failure_reported;
-	vid_hwgamma_enabled = result > 0;
-	if (result < 0 && !failure_reported) {
-		Con_Printf("Hardware gamma could not be applied to this display; using shader gamma.\n");
-		failure_reported = true;
-	}
-	if (result > 0)
-		failure_reported = false;
-}
-
-static void VID_PublishSessionGamma(void)
-{
-	session_gamma_settings_t settings;
-	static session_gamma_settings_t previous;
-	static double last_update;
-	static qbool disabled_reported;
-	double now = Sys_DoubleTime();
-	int gamma_fps = Cvar_Value("vid_hwgamma_fps");
-	extern cvar_t gl_hwblend;
-	extern float vid_gamma;
-	memset(&settings, 0, sizeof(settings));
-	settings.enabled = !vid_software_palette.integer &&
-		!(COM_CheckParm(cmdline_param_client_nohardwaregamma) && Ruleset_AllowNoHardwareGamma()) &&
-		vid_hwgammacontrol.integer >= (CL_SessionWindowIsFullscreen() ? 1 : 2);
-	if (!settings.enabled && !vid_software_palette.integer && !disabled_reported) {
-		Con_Printf("Hardware gamma is disabled for this mode; using shader gamma.\n");
-		disabled_reported = true;
-	}
-	if (settings.enabled || vid_software_palette.integer)
-		disabled_reported = false;
-	settings.gamma = bound(0.3, v_gamma.value, 3);
-	settings.contrast = bound(1, v_contrast.value, 3);
-	if (R_OldGammaBehaviour() && vid_gamma != 1) {
-		settings.gamma /= vid_gamma;
-		settings.contrast = pow(settings.contrast, vid_gamma);
-	}
-	if (vid_hwgamma_enabled && gl_hwblend.value && !cl.teamfortress)
-		memcpy(settings.blend, v_blend, sizeof(settings.blend));
-	/* Rate-limit changing blends, but never delay a gamma/mode change or
-	 * the retry of an unchanged request whose pipe was previously full. */
-	if (settings.enabled == previous.enabled && settings.gamma == previous.gamma && settings.contrast == previous.contrast &&
-		memcmp(settings.blend, previous.blend, sizeof(settings.blend)) && gamma_fps &&
-		now - last_update < 1.0 / max(10, gamma_fps))
-		return;
-	if (memcmp(&settings, &previous, sizeof(settings))) {
-		previous = settings;
-		last_update = now;
-	}
-	if (!settings.enabled)
-		vid_hwgamma_enabled = false;
-	CL_SessionGammaSettings(&settings);
-}
-
-qbool VID_UseSoftwarePalette(void)
-{
-	/* Use the fallback until the owner confirms that the display ramp works. */
-	return vid_software_palette.integer || (CL_SessionIsWorker() && !vid_hwgamma_enabled);
-}
-
-int VID_SetDeviceGammaRamp(unsigned short *ramps)
-{
-	if (CL_SessionIsWorker())
-		return 0;
-	if (!sdl_window || (COM_CheckParm(cmdline_param_client_nohardwaregamma) && Ruleset_AllowNoHardwareGamma())) {
-		return 0;
-	}
-
-	if (r_fullscreen.integer > 0) {
-		if (vid_hwgammacontrol.integer > 0) {
-			return VID_SetDeviceGammaRampReal(ramps);
-		}
-	}
-	else {
-		if (vid_hwgammacontrol.integer >= 2) {
-			return VID_SetDeviceGammaRampReal(ramps);
-		}
-	}
-
-	return 0;
-}
-
-void VID_Minimize (void) 
+void VID_Minimize (void)
 {
 	if (CL_SessionRequestWindowAction(false))
 		return;

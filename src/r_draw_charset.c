@@ -42,11 +42,7 @@ cvar_t scr_coloredText = { "scr_coloredText", "1" };
 cvar_t gl_charsets_min = { "gl_charsets_min", "1" };
 cvar_t vid_postprocess_text = { "vid_postprocess_text", "1" };
 
-extern cvar_t v_gamma;
-extern cvar_t v_contrast;
-extern float vid_gamma;
 extern cvar_t scr_conalpha;
-qbool R_OldGammaBehaviour(void);
 
 static byte *draw_chars; // 8*8 graphic characters
 
@@ -778,38 +774,7 @@ static void Draw_TextCacheInit(float x, float y, float scale)
 
 static void Draw_TextCacheSetColor(const byte* color)
 {
-	float contrast;
-	float gamma;
-	qbool precomp;
-	byte adjusted[4];
-
-	contrast = 1.0f;
-	gamma = 1.0f;
-	precomp = (vid_hwgamma_enabled && !vid_postprocess_text.integer);
-
-	if (precomp) {
-		contrast = bound(1.0f, v_contrast.value, 3.0f);
-		gamma = bound(0.3f, v_gamma.value, 3.0f);
-
-		if (R_OldGammaBehaviour() && vid_gamma != 1.0f) {
-			contrast = pow(contrast, vid_gamma);
-			gamma /= vid_gamma;
-		}
-	}
-
-	if (!precomp || (contrast <= 1.0f && gamma == 1.0f)) {
-		// Skip precompensation when text is postprocessed or hardware gamma isn't used.
-		memcpy(cache_currentColor, color, sizeof(cache_currentColor));
-		return;
-	}
-
-	// Precompensate colors when hardware gamma/contrast is active.
-	adjusted[0] = bound(0, Q_rint(pow(color[0] / 255.0f, 1.0f / gamma) * (1.0f / contrast) * 255.0f), 255);
-	adjusted[1] = bound(0, Q_rint(pow(color[1] / 255.0f, 1.0f / gamma) * (1.0f / contrast) * 255.0f), 255);
-	adjusted[2] = bound(0, Q_rint(pow(color[2] / 255.0f, 1.0f / gamma) * (1.0f / contrast) * 255.0f), 255);
-	adjusted[3] = color[3];
-
-	memcpy(cache_currentColor, adjusted, sizeof(cache_currentColor));
+	memcpy(cache_currentColor, color, sizeof(cache_currentColor));
 }
 
 static float Draw_TextCacheAddCharacter(float x, float y, wchar ch, float scale, qbool proportional)

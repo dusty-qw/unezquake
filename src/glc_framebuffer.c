@@ -46,9 +46,10 @@ static texture_ref non_framebuffer_screen_texture;
 qbool GLC_CompilePostProcessProgram(void)
 {
 	extern cvar_t vid_framebuffer;
+	extern cvar_t vid_software_palette;
 	int fxaa_preset = GL_FramebufferFxaaPreset();
 	int post_process_flags =
-		(VID_UseSoftwarePalette() ? POST_PROCESS_PALETTE : 0) |
+		(vid_software_palette.integer ? POST_PROCESS_PALETTE : 0) |
 		(vid_framebuffer.integer == USE_FRAMEBUFFER_3DONLY ? POST_PROCESS_3DONLY : 0) |
 		(fxaa_preset > 0 ? POST_PROCESS_FXAA : 0) | (fxaa_preset << 4); // mix in preset to detect change
 
@@ -125,20 +126,28 @@ void GLC_RenderFramebuffers(void)
 	qbool flip3d = GL_FramebufferEnabled3D();
 
 	if (GLC_CompilePostProcessProgram()) {
-		extern cvar_t gl_hwblend;
-
-		float blend_alpha = (!vid_hwgamma_enabled || !gl_hwblend.value || cl.teamfortress) ? 0 : v_blend[3];
+		float blend_alpha = R_PostProcessViewBlend() ? v_blend[3] : 0;
 		float blend_values[4] = {
 			v_blend[0] * blend_alpha,
 			v_blend[1] * blend_alpha,
 			v_blend[2] * blend_alpha,
 			1 - blend_alpha
 		};
+		float gamma = bound(0.3, v_gamma.value, 3);
+		float contrast = bound(1, v_contrast.value, 3);
+
+		if (R_OldGammaBehaviour()) {
+			extern float vid_gamma;
+
+			// The palette and textures already have vid_gamma baked in
+			gamma /= vid_gamma;
+			contrast = pow(contrast, vid_gamma);
+		}
 
 		R_ProgramUse(r_program_post_process_glc);
-		R_ProgramUniform1f(r_program_uniform_post_process_glc_gamma, v_gamma.value);
+		R_ProgramUniform1f(r_program_uniform_post_process_glc_gamma, gamma);
 		R_ProgramUniform4fv(r_program_uniform_post_process_glc_v_blend, blend_values);
-		R_ProgramUniform1f(r_program_uniform_post_process_glc_contrast, bound(1, v_contrast.value, 3));
+		R_ProgramUniform1f(r_program_uniform_post_process_glc_contrast, contrast);
 		R_ProgramUniform1f(r_program_uniform_post_process_glc_r_inv_width, 1.0f / (float)VID_ScaledWidth3D());
 		R_ProgramUniform1f(r_program_uniform_post_process_glc_r_inv_height, 1.0f / (float)VID_ScaledHeight3D());
 		R_ApplyRenderingState(r_state_default_2d);
