@@ -136,6 +136,8 @@ Backend backend;
 
 int current_page = MUI_PAGE_HOME;
 mui_client_state_t client;
+std::string copied_server_address;
+double server_address_copied_until = 0;
 
 // server browser cache
 struct BrowserCache {
@@ -739,23 +741,44 @@ void DrawTopBar()
 				MUI_CloseMenu();
 			}
 		}
-		if (strcmp(client.server, "local") != 0)
-		{
-			ImGui::SameLine();
-			ImGui::SetCursorPosY(button_y);
-
-			if (ImGui::Button("Copy to clipboard"))
-			{
-				ImGui::SetClipboardText(client.server);
-			}
-		}
 		ImGui::SameLine(0, S(14));
-		char where[256];
-		snprintf(where, sizeof(where), client.map[0] ? "%s  %s" : "%s", client.server, client.map);
 		ImVec2 text_pos(ImGui::GetCursorScreenPos().x, wpos.y + (height - ImGui::GetTextLineHeight()) * 0.5f);
 		ImVec4 clip(text_pos.x, wpos.y, wpos.x + nav_x - S(16), wpos.y + height);
 		if (clip.z > clip.x) {
-			dl->AddText(backend.font, ImGui::GetFontSize(), text_pos, Col(COLOR_TEXT_DIM), where, nullptr, 0, &clip);
+			ImVec2 address_size = ImGui::CalcTextSize(client.server);
+			bool hovered = false;
+			if (client.server[0] && strcmp(client.server, "local") != 0) {
+				ImGui::SetCursorScreenPos(text_pos);
+				if (ImGui::InvisibleButton("##server_address", ImVec2(std::min(address_size.x, clip.z - clip.x), address_size.y))) {
+					ImGui::SetClipboardText(client.server);
+					copied_server_address = client.server;
+					server_address_copied_until = ImGui::GetTime() + 3.0;
+				}
+				hovered = ImGui::IsItemHovered();
+				if (hovered) {
+					bool copied = copied_server_address == client.server && ImGui::GetTime() < server_address_copied_until;
+					ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+					FontSize fs(FONT_SMALL);
+					ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(S(5), S(5)));
+					ImGui::PushStyleColor(ImGuiCol_Text, copied ? COLOR_GOOD : COLOR_TEXT);
+					if (ImGui::BeginTooltip()) {
+						const char *text = copied ? "Copied!" : "Copy address";
+						ImVec2 pos = ImGui::GetCursorScreenPos();
+						// Reserve the normal text bounds, then draw two pixels higher.
+						ImGui::Dummy(ImGui::CalcTextSize(text));
+						pos.y -= 2.0f;
+						ImGui::GetWindowDrawList()->AddText(pos, ImGui::GetColorU32(ImGuiCol_Text), text);
+						ImGui::EndTooltip();
+					}
+					ImGui::PopStyleColor();
+					ImGui::PopStyleVar();
+				}
+			}
+			dl->AddText(backend.font, ImGui::GetFontSize(), text_pos, Col(hovered ? COLOR_ACCENT_HOVER : COLOR_TEXT_DIM), client.server, nullptr, 0, &clip);
+			if (client.map[0]) {
+				ImVec2 map_pos(text_pos.x + address_size.x + ImGui::CalcTextSize("  ").x, text_pos.y);
+				dl->AddText(backend.font, ImGui::GetFontSize(), map_pos, Col(COLOR_TEXT_DIM), client.map, nullptr, 0, &clip);
+			}
 		}
 	}
 
