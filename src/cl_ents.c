@@ -28,6 +28,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "rulesets.h"
 #include "teamplay.h"
 
+#define CL_PREDICT_SCALE_DEFAULT_THRESHOLD 320.0f
+#define CL_PREDICT_LERP_SNAP_DISTANCE 120.0f
+#define CL_PREDICT_LERP_STOP_EPSILON 0.01f
+#define CL_PREDICT_LERP_VELOCITY_THRESHOLD 150.0f
+#define PLAYER_INTERP_MAX_GAP 0.1
+#define PLAYER_INTERP_MAX_AGE 0.03
+#define PLAYER_INTERP_SNAP_DISTANCE 120.0f
+
 /* Separate RD buffers keep legacy frame capacities and demo layouts unchanged. */
 struct cl_rd_state_s {
 	rd_client_entity_t *current, *previous, *candidate; // Atomic publish and interpolation buffers.
@@ -493,6 +501,8 @@ void TP_ParsePlayerInfo(player_state_t *, player_state_t *, player_info_t *info)
 extern cvar_t cl_predict_players, cl_solid_players, cl_rocket2grenade;
 extern cvar_t cl_predict_half, cl_predict_scale, cl_predict_lerp;
 extern cvar_t cl_predict_lerp_time;
+extern cvar_t cl_predict_interp, cl_predict_interp_shift;
+extern cvar_t cl_nopred;
 extern cvar_t cl_debug_remote_prediction_errors;
 extern cvar_t cl_model_bobbing;		
 extern cvar_t cl_model_height;
@@ -500,15 +510,28 @@ extern cvar_t cl_nolerp, cl_lerp_monsters, cl_newlerp;
 extern cvar_t r_drawvweps;		
 extern  unsigned int     cl_dlight_active[MAX_DLIGHTS/32];       
 
-#define CL_PREDICT_SCALE_DEFAULT_THRESHOLD 320.0f
-#define CL_PREDICT_LERP_SNAP_DISTANCE 120.0f
-#define CL_PREDICT_LERP_STOP_EPSILON 0.01f
-#define CL_PREDICT_LERP_VELOCITY_THRESHOLD 150.0f
+static void CL_SetSolidPlayersEx(int playernum, qbool include_self);
 
 static float CL_PredictScaleThreshold(void)
 {
 	return cl.maxspeed > 0.0f ? cl.maxspeed : CL_PREDICT_SCALE_DEFAULT_THRESHOLD;
 }
+
+typedef struct {
+	qbool valid;
+	qbool low_ping;
+	int messagenum, pm_type, modelindex, mode, dead;
+	float shift_ms;
+	double packet_time, start, length, last_time, interval;
+	vec3_t from, to, pos, received_origin;
+} cl_playerinterp_t;
+
+typedef struct {
+	double time, frametime, packet_time, server_frame;
+	int mode, ping;
+	float shift_ms;
+	qbool no_pred;
+} cl_playerinterp_params_t;
 
 static struct predicted_player {
 	int flags;
@@ -532,6 +555,7 @@ static struct predicted_player {
 	vec3_t lerp_offset;
 	double lerp_start_time;
 	qbool lerping;
+	cl_playerinterp_t interp;
 } predicted_players[MAX_CLIENTS];
 
 char *cl_modelnames[cl_num_modelindices];
@@ -2530,6 +2554,153 @@ static int CL_RemotePredictionMsec(int msec)
 	return msec * steps;
 }
 
+// Remote-player glide rendering
+static void CL_PlayerInterpTarget(const player_state_t *state, float shift, vec3_t target)
+{
+	vec3_t pos, end, up, forward;
+	trace_t tr, tu, tf, td;
+	float flat_distance, step_distance;
+
+	VectorCopy(state->origin, target);
+	if (state->pm_type != PM_NORMAL || shift <= 0) {
+		return;
+	}
+
+	// Move horizontally first so landing does not truncate horizontal travel.
+	VectorCopy(state->origin, pos);
+	VectorCopy(pos, end);
+	end[0] += state->velocity[0] * shift;
+	end[1] += state->velocity[1] * shift;
+	tr = PM_PlayerTrace(pos, end);
+	if (tr.startsolid || tr.allsolid) {
+		return;
+	}
+	if (tr.fraction < 1 && state->onground) {
+		VectorCopy(pos, up);
+		up[2] += 18;
+		tu = PM_PlayerTrace(pos, up);
+		if (!tu.startsolid && !tu.allsolid) {
+			VectorCopy(end, forward);
+			forward[2] = tu.endpos[2];
+			tf = PM_PlayerTrace(tu.endpos, forward);
+			if (!tf.startsolid && !tf.allsolid) {
+				VectorCopy(tf.endpos, forward);
+				forward[2] = pos[2];
+				td = PM_PlayerTrace(tf.endpos, forward);
+				flat_distance = (tr.endpos[0] - pos[0]) * (tr.endpos[0] - pos[0]) +
+					(tr.endpos[1] - pos[1]) * (tr.endpos[1] - pos[1]);
+				step_distance = (td.endpos[0] - pos[0]) * (td.endpos[0] - pos[0]) +
+					(td.endpos[1] - pos[1]) * (td.endpos[1] - pos[1]);
+				if (!td.startsolid && !td.allsolid && td.fraction < 1 &&
+					td.plane.normal[2] >= 0.7f && step_distance > flat_distance) {
+					tr = td;
+				}
+			}
+		}
+	}
+	VectorCopy(tr.endpos, pos);
+	VectorCopy(pos, end);
+	end[2] += state->velocity[2] * shift;
+	tr = PM_PlayerTrace(pos, end);
+	if (!tr.startsolid && !tr.allsolid) {
+		VectorCopy(tr.endpos, pos);
+	}
+	VectorCopy(pos, target);
+}
+
+// Collision solids must already be installed. A zeroed state starts a new glide.
+static void CL_InterpolatePlayer(cl_playerinterp_t *p, const player_state_t *state,
+	const cl_playerinterp_params_t *params, vec3_t origin)
+{
+	qbool reset = !p->valid || params->time < p->last_time || p->mode != params->mode ||
+		p->shift_ms != params->shift_ms || p->pm_type != state->pm_type ||
+		p->modelindex != state->modelindex || p->dead != !!(state->flags & PF_DEAD);
+	qbool newmsg = reset || state->messagenum != p->messagenum;
+	vec3_t delta, target;
+	double interval, packet_delta, fraction;
+	float shift;
+	trace_t trace;
+	int i;
+
+	if (newmsg) {
+		packet_delta = params->packet_time - p->packet_time;
+		VectorSubtract(state->origin, p->received_origin, delta);
+		reset |= state->messagenum < p->messagenum ||
+			packet_delta <= 0 || packet_delta > PLAYER_INTERP_MAX_GAP ||
+			params->time - p->last_time > PLAYER_INTERP_MAX_GAP ||
+			DotProduct(delta, delta) >= PLAYER_INTERP_SNAP_DISTANCE * PLAYER_INTERP_SNAP_DISTANCE;
+		// Packet stamps use acknowledged command send times, not the opponent's
+		// irregular PF_MSEC clock or jitter in local packet arrival times.
+		interval = reset ? params->server_frame : packet_delta;
+		p->interval = reset ? interval : p->interval + 0.2 * (interval - p->interval);
+		p->interval = bound(0.001, p->interval, 0.05);
+		// Scoreboard ping is averaged. Keep the selected allowance stable
+		// near MVDSV's 20 ms threshold, resetting the estimate with the glide.
+		if (reset) {
+			p->low_ping = params->ping < 20;
+		}
+		else if (params->ping < 18) {
+			p->low_ping = true;
+		}
+		else if (params->ping > 22) {
+			p->low_ping = false;
+		}
+		// MVDSV's allowance plus the glide's estimated mean delay. This is
+		// still an estimate, not an exact hitbox clock.
+		shift = params->no_pred ? 0 : (p->low_ping ? params->server_frame : 0.02);
+		shift += 0.5 * p->interval;
+		if (params->shift_ms > 0) {
+			shift = params->shift_ms * 0.001f;
+		}
+		// The received origin is from the opponent's last move, not this
+		// server frame. Account for that age even with a manual base lead;
+		// otherwise missing moves become a stop followed by a double step.
+		if (state->messagenum == cl.parsecount) {
+			shift += bound(0, params->packet_time - state->state_time, PLAYER_INTERP_MAX_AGE);
+		}
+		shift = params->mode == 2 ? bound(0, shift, 0.1) : 0;
+		CL_PlayerInterpTarget(state, shift, target);
+		VectorSubtract(target, p->pos, delta);
+		reset |= DotProduct(delta, delta) >= PLAYER_INTERP_SNAP_DISTANCE * PLAYER_INTERP_SNAP_DISTANCE;
+		if (reset) {
+			VectorCopy(target, p->pos);
+		}
+		VectorCopy(p->pos, p->from);
+		VectorCopy(target, p->to);
+		p->length = reset ? 0 : interval;
+		// Start in the render interval that received the update, avoiding a
+		// stationary render frame at every packet boundary.
+		p->start = params->time - bound(0, params->frametime, p->length);
+		p->valid = true;
+		p->messagenum = state->messagenum;
+		p->packet_time = params->packet_time;
+		p->pm_type = state->pm_type;
+		p->modelindex = state->modelindex;
+		p->dead = !!(state->flags & PF_DEAD);
+		p->mode = params->mode;
+		p->shift_ms = params->shift_ms;
+		VectorCopy(state->origin, p->received_origin);
+	}
+
+	fraction = p->length > 0 ? (params->time - p->start) / p->length : 1;
+	fraction = bound(0, fraction, 1);
+	for (i = 0; i < 3; ++i) {
+		p->pos[i] = p->from[i] + fraction * (p->to[i] - p->from[i]);
+	}
+	// Both endpoints may be clear while their connecting segment cuts a
+	// corner. Clip the visual correction back from the current target too.
+	VectorCopy(p->to, target);
+	trace = PM_PlayerTrace(target, p->pos);
+	if (trace.startsolid || trace.allsolid) {
+		VectorCopy(target, p->pos);
+	}
+	else {
+		VectorCopy(trace.endpos, p->pos);
+	}
+	VectorCopy(p->pos, origin);
+	p->last_time = params->time;
+}
+
 // Called with this player's collision solids installed. Keep the ordinary prediction
 // separate from its visual correction so movement never feeds back into smoothing.
 static void CL_PredictRemotePlayer(int playernum, player_state_t *state, int msec, vec3_t origin)
@@ -2673,6 +2844,7 @@ static void CL_PredictRemotePlayer(int playernum, player_state_t *state, int mse
 // Create visible entities in the correct position for all current players
 static void CL_LinkPlayers(void)
 {
+	cl_playerinterp_params_t interp_params;
 	int j, msec, i, flicker, oldphysent;
 	float *org, distance;
 	vec3_t tmp, end, diff;
@@ -2689,6 +2861,14 @@ static void CL_LinkPlayers(void)
 
 	frame = &cl.frames[cl.parsecount & UPDATE_MASK];
 	memset (&ent, 0, sizeof(entity_t));
+	interp_params.time = cl.time;
+	interp_params.frametime = cls.frametime;
+	interp_params.packet_time = cl.parsecounttime;
+	interp_params.server_frame = 1.0 / (cl.maxfps >= 20 && cl.maxfps <= 1000 ? cl.maxfps : 77.0);
+	interp_params.mode = cl_predict_interp.integer;
+	interp_params.shift_ms = cl_predict_interp_shift.value;
+	interp_params.ping = cl.players[cl.playernum].ping;
+	interp_params.no_pred = Q_atoi(Info_ValueForKey(cl.serverinfo, "sv_antilag_no_pred")) != 0;
 
 	for (j = 0; j < MAX_CLIENTS; j++, info++, state++) 
 	{
@@ -2703,6 +2883,7 @@ static void CL_LinkPlayers(void)
 		if (!was_drawn) {
 			predicted_players[j].lerping = false;
 			predicted_players[j].prediction_valid = false;
+			predicted_players[j].interp.valid = false;
 		}
 
 		if (state->messagenum != cl.parsecount)
@@ -2884,18 +3065,34 @@ static void CL_LinkPlayers(void)
 				msec = (int)(msec * scale);
 			}
 		}
-		if (!cl_predict_players.value || cls.mvdplayback) {
-			VectorCopy (state->origin, ent.origin);
+		if ((interp_params.mode == 1 || interp_params.mode == 2) && cl_predict_players.value &&
+			!cls.mvdplayback && !ISPAUSED && j != cl.playernum) {
+			oldphysent = pmove.numphysent;
+			// Our box is at "now", while the opponent's update is older. It
+			// must not block either the glide target or its visual correction.
+			CL_SetSolidPlayersEx(j, false);
+			CL_InterpolatePlayer(&predicted_players[j].interp, state, &interp_params, ent.origin);
+			pmove.numphysent = oldphysent;
 			VectorCopy(ent.origin, predicted_players[j].drawn_origin);
 			predicted_players[j].msec = 0;
 			predicted_players[j].drawn = true;
 			predicted_players[j].lerping = false;
 			predicted_players[j].prediction_valid = false;
 		}
+		else if (!cl_predict_players.value || cls.mvdplayback) {
+			VectorCopy (state->origin, ent.origin);
+			VectorCopy(ent.origin, predicted_players[j].drawn_origin);
+			predicted_players[j].msec = 0;
+			predicted_players[j].drawn = true;
+			predicted_players[j].lerping = false;
+			predicted_players[j].prediction_valid = false;
+			predicted_players[j].interp.valid = false;
+		}
 		else {
 			// A stationary player still needs correction smoothing, even when
 			// velocity scaling leaves no movement to extrapolate.
 			msec = bound(0, msec, 255);
+			predicted_players[j].interp.valid = false;
 			oldphysent = pmove.numphysent;
 			CL_SetSolidPlayers(j);
 			CL_PredictRemotePlayer(j, state, msec, ent.origin);
@@ -3162,7 +3359,17 @@ void CL_SetUpPlayerPrediction(qbool dopred)
 		// note that the local player is special, since he moves locally we use his last predicted postition
 		if (j == cl.playernum) 
 		{
-			VectorCopy(cl.frames[cls.netchan.outgoing_sequence & UPDATE_MASK].playerstate[cl.playernum].origin, pplayer->origin);
+			// outgoing_sequence is the oldest ring slot, not a predicted frame.
+			// The second pass runs after CL_PredictMove has filled through -1.
+			// Use its raw result so view smoothing does not move collision boxes.
+			if (dopred && cl.validsequence && !cl_nopred.value && !cls.mvdplayback && state->pm_type != PM_LOCK &&
+				cl.validsequence + 1 < cls.netchan.outgoing_sequence &&
+				cls.netchan.outgoing_sequence - cl.validsequence < UPDATE_BACKUP - 1) {
+				VectorCopy(cl.frames[(cls.netchan.outgoing_sequence - 1) & UPDATE_MASK].playerstate[cl.playernum].origin, pplayer->origin);
+			}
+			else {
+				VectorCopy(state->origin, pplayer->origin);
+			}
 		} 
 		else 
 		{
@@ -3205,7 +3412,7 @@ void CL_SetUpPlayerPrediction(qbool dopred)
 // Builds all the pmove physents for the current frame.
 // Note that CL_SetUpPlayerPrediction() must be called first!
 // pmove must be setup with world and solid entity hulls before calling (via CL_PredictMove)
-void CL_SetSolidPlayers (int playernum)
+static void CL_SetSolidPlayersEx(int playernum, qbool include_self)
 {
 	int j;
 	struct predicted_player *pplayer;
@@ -3230,7 +3437,7 @@ void CL_SetSolidPlayers (int playernum)
 			continue;	// not present this frame
 
 		// the player object never gets added
-		if (j == playernum)
+		if (j == playernum || (!include_self && j == cl.playernum))
 			continue;
 
 		if (!(pplayer->flags & PF_SOLID))
@@ -3243,6 +3450,11 @@ void CL_SetSolidPlayers (int playernum)
 		pmove.numphysent++;
 		pent++;
 	}
+}
+
+void CL_SetSolidPlayers(int playernum)
+{
+	CL_SetSolidPlayersEx(playernum, true);
 }
 
 // Builds the visedicts array for cl.time
