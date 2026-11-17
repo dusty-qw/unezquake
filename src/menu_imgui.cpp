@@ -831,6 +831,18 @@ float ContentRight()
 	return ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x;
 }
 
+bool TableRowSelectable(const char *label, bool selected, ImGuiSelectableFlags flags = 0)
+{
+	// Selectable expands by half ItemSpacing. Match that expansion to the cell
+	// padding so its hit box and highlight cover the entire row.
+	const ImGuiStyle &style = ImGui::GetStyle();
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(style.ItemSpacing.x, style.CellPadding.y * 2));
+	bool pressed = ImGui::Selectable(label, selected, flags | ImGuiSelectableFlags_SpanAllColumns,
+		ImVec2(0, ImGui::GetFrameHeight()));
+	ImGui::PopStyleVar();
+	return pressed;
+}
+
 void BrowserHeader(const char *title, const char *subtitle)
 {
 	float start_y = ImGui::GetCursorPosY();
@@ -1391,7 +1403,7 @@ void DrawServers()
 
 	ImGui::BeginChild("##serverlist", ImVec2(details_w > 0 ? avail_w - details_w - S(16) : 0, table_h), ImGuiChildFlags_None, ImGuiWindowFlags_NoBackground);
 	ImGuiTableFlags flags = ImGuiTableFlags_Sortable | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY | ImGuiTableFlags_Resizable
-		| ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_Hideable;
+		| ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_Hideable | ImGuiTableFlags_PadOuterX;
 	if (ImGui::BeginTable("##servertable", 6, flags)) {
 		ImGui::TableSetupScrollFreeze(0, 1);
 		ImGui::TableSetupColumn("Ping", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_DefaultSort, S(56), COL_PING);
@@ -1448,8 +1460,7 @@ void DrawServers()
 				ImGui::PushID(s.address);
 
 				ImGui::TableSetColumnIndex(COL_PING);
-				ImGui::AlignTextToFramePadding();
-				if (ImGui::Selectable("##row", is_selected, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick, ImVec2(0, S(26)))) {
+				if (TableRowSelectable("##row", is_selected, ImGuiSelectableFlags_AllowDoubleClick)) {
 					selected_server = s.address;
 					if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
 						MUI_Browser_Join(s.address);
@@ -1465,6 +1476,7 @@ void DrawServers()
 					ImGui::EndPopup();
 				}
 				ImGui::SameLine(0, 0);
+				ImGui::AlignTextToFramePadding();
 				if (s.ping < 0) {
 					TextDim("--");
 				}
@@ -1617,7 +1629,8 @@ void DrawDemos()
 		ImGui::InputTextWithHint("##demosearch", "Filter demos...", demo_search, sizeof(demo_search));
 		ImGui::Spacing();
 
-		ImGuiTableFlags flags = ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY | ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_SizingStretchProp;
+		ImGuiTableFlags flags = ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY | ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_SizingStretchProp
+			| ImGuiTableFlags_PadOuterX;
 		if (ImGui::BeginTable("##demotable", 3, flags)) {
 			ImGui::TableSetupScrollFreeze(0, 1);
 			ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch, 4.0f);
@@ -1636,11 +1649,10 @@ void DrawDemos()
 				ImGui::PushID(f.name);
 				char label[256];
 				snprintf(label, sizeof(label), f.is_dir ? "%s/" : "%s", f.name);
-				ImGui::AlignTextToFramePadding();
 				if (f.is_dir) {
 					ImGui::PushStyleColor(ImGuiCol_Text, COLOR_ACCENT_HOVER);
 				}
-				if (ImGui::Selectable(label, false, ImGuiSelectableFlags_SpanAllColumns, ImVec2(0, S(24)))) {
+				if (TableRowSelectable(label, false)) {
 					if (f.is_dir) {
 						enter_dir = f.name;
 					}
@@ -2056,7 +2068,7 @@ int DrawSettingsList(int page, const char *filter, bool show_page_name)
 		}
 
 		if (!table_open) {
-			table_open = ImGui::BeginTable("##settings", 3, ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_RowBg);
+			table_open = ImGui::BeginTable("##settings", 3, ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_RowBg | ImGuiTableFlags_PadOuterX);
 			if (!table_open) {
 				continue;
 			}
@@ -2126,10 +2138,18 @@ void DrawSettings()
 		FontSize fs(FONT_LARGE);
 		for (int i = 0; i < pages; i++) {
 			bool selected = i == settings_page && !settings_search[0];
-			if (ImGui::Selectable(MUI_Settings_PageName(i), selected, 0, ImVec2(0, S(36)))) {
+			const char *label = MUI_Settings_PageName(i);
+			ImVec2 text_pos = ImGui::GetCursorScreenPos();
+			ImGui::PushID(i);
+			if (ImGui::Selectable("##category", selected, 0, ImVec2(0, S(36)))) {
 				settings_page = i;
 				settings_search[0] = '\0';
 			}
+			// Inset the label while keeping the whole category row clickable.
+			text_pos.x += ImGui::GetStyle().FramePadding.x;
+			text_pos.y += (S(36) - ImGui::GetTextLineHeight()) * 0.5f;
+			ImGui::GetWindowDrawList()->AddText(text_pos, ImGui::GetColorU32(ImGuiCol_Text), label);
+			ImGui::PopID();
 		}
 	}
 
