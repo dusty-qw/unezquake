@@ -2866,7 +2866,7 @@ qbool TP_IsItemVisible(item_vis_t *visitem)
 	VectorNegate (visitem->dir, v);
 	VectorNormalizeFast (v);
 	VectorMA (visitem->entorg, visitem->radius, v, end);
-	trace = PM_TraceLine (visitem->vieworg, end);
+	trace = PM_TraceLineForVisibility(visitem->vieworg, end);
 	if ((int)trace.fraction == 1)
 		return true;
 
@@ -2874,7 +2874,7 @@ qbool TP_IsItemVisible(item_vis_t *visitem)
 	VectorSubtract (visitem->vieworg, end, v);
 	VectorNormalizeFast (v);
 	VectorMA (end, visitem->radius, v, end);
-	trace = PM_TraceLine (visitem->vieworg, end);
+	trace = PM_TraceLineForVisibility(visitem->vieworg, end);
 	if ((int)trace.fraction == 1)
 		return true;
 
@@ -2882,7 +2882,7 @@ qbool TP_IsItemVisible(item_vis_t *visitem)
 	VectorSubtract(visitem->vieworg, end, v);
 	VectorNormalizeFast(v);
 	VectorMA(end, visitem->radius, v, end);
-	trace = PM_TraceLine(visitem->vieworg, end);
+	trace = PM_TraceLineForVisibility(visitem->vieworg, end);
 	if ((int)trace.fraction == 1)
 		return true;
 
@@ -2890,7 +2890,7 @@ qbool TP_IsItemVisible(item_vis_t *visitem)
 	VectorSubtract(visitem->vieworg, end, v);
 	VectorNormalizeFast(v);
 	VectorMA (end, visitem->radius, v, end);
-	trace = PM_TraceLine(visitem->vieworg, end);
+	trace = PM_TraceLineForVisibility(visitem->vieworg, end);
 	if ((int)trace.fraction == 1)
 		return true;
 
@@ -2899,7 +2899,7 @@ qbool TP_IsItemVisible(item_vis_t *visitem)
 	VectorSubtract(visitem->vieworg, end, v);
 	VectorNormalizeFast(v);
 	VectorMA(end, visitem->radius, v, end);
-	trace = PM_TraceLine(visitem->vieworg, end);
+	trace = PM_TraceLineForVisibility(visitem->vieworg, end);
 	if ((int)trace.fraction == 1)
 		return true;
 
