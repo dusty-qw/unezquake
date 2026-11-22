@@ -52,6 +52,7 @@ $Id: cl_parse.c,v 1.135 2007-10-28 19:56:44 qqshka Exp $
 #include "demo_spawnwarn.h"
 #include "central.h"
 #include <stdio.h>
+#include "r_part_script.h"
 
 int CL_LoginImageId(const char* name);
 
@@ -4049,6 +4050,7 @@ void CL_MuzzleFlash (void)
 	entity_state_t *ent;
 	player_state_t *state;
 	vec3_t none = {0,0,0};
+	qbool scripted;
 
 	i = cls.fteprotocolextensions2 & FTE_PEXT2_REPLACEMENTDELTAS
 		? MSG_RD_ReadEntityRef() : MSG_ReadShort();
@@ -4083,6 +4085,8 @@ void CL_MuzzleFlash (void)
 
 			if (ent->number == i) {
 				mod = cl.model_precache[ent->modelindex];
+				AngleVectors(ent->angles, forward, NULL, NULL);
+				scripted = PScript_RunParticleEffectState(ent->origin, forward, 1, PScript_EffectType(PSCRIPT_TE_MUZZLEFLASH), NULL);
 
 				// Special muzzleflashes for some enemies.
 				if (mod->modhint == MOD_SOLDIER) {
@@ -4095,7 +4099,9 @@ void CL_MuzzleFlash (void)
 						if (!ISPAUSED && amf_coronas.integer) {
 							R_CoronasEntityNew(C_SMALLFLASH, &cl_entities[ent->number]);
 						}
-						DrawMuzzleflash(org, ent->angles, none);
+						if (!scripted) {
+							DrawMuzzleflash(org, ent->angles, none);
+						}
 					}
 				}
 				else if (mod->modhint == MOD_ENFORCER) {
@@ -4107,7 +4113,9 @@ void CL_MuzzleFlash (void)
 						if (amf_coronas.integer) {
 							R_CoronasEntityNew(C_SMALLFLASH, &cl_entities[ent->number]);
 						}
-						DrawMuzzleflash(org, ent->angles, none);
+						if (!scripted) {
+							DrawMuzzleflash(org, ent->angles, none);
+						}
 					}
 				}
 				else if (mod->modhint == MOD_OGRE) {
@@ -4119,12 +4127,18 @@ void CL_MuzzleFlash (void)
 						if (amf_coronas.integer) {
 							R_CoronasEntityNew(C_SMALLFLASH, &cl_entities[ent->number]);
 						}
-						DrawMuzzleflash(org, ent->angles, none);
+						if (!scripted) {
+							DrawMuzzleflash(org, ent->angles, none);
+						}
 					}
 				}
 				else {
-					AngleVectors(ent->angles, forward, NULL, NULL);
 					VectorMA(ent->origin, 18, forward, org);
+				}
+
+				// A scripted flash replaces the light; the effect may bring its own.
+				if (scripted) {
+					break;
 				}
 
 				dl = CL_AllocDlight(-i);
@@ -4150,7 +4164,6 @@ void CL_MuzzleFlash (void)
 	if (cl_muzzleflash.value == 2 && i - 1 == cl.viewplayernum)
 		return;
 
-	dl = CL_AllocDlight(-i);
 	state = &cl.frames[cls.mvdplayback ? (cl.oldparsecount & UPDATE_MASK) : cl.parsecountmod].playerstate[i - 1];
 
 	if ((i - 1) == cl.viewplayernum)
@@ -4165,22 +4178,29 @@ void CL_MuzzleFlash (void)
 	}
 
 	AngleVectors(angles, forward, right, up);
+	// Like the amf flash, the scripted one is not drawn in a first-person view of the shooter.
+	scripted = ((i - 1) != cl.viewplayernum || cameratype != C_NORMAL) && PScript_RunParticleEffectState(org, forward, 1, PScript_EffectType(PSCRIPT_TE_MUZZLEFLASH), NULL);
 	VectorMA(org, 22, forward, org);
 	VectorMA(org, 10, right, org);
 	VectorMA(org, 12, up, org);
-	VectorCopy(org, dl->origin);
 
-	dl->radius = 200 + (rand()&31);
-	dl->minlight = 32;
-	dl->die = cl.time + 0.1;
-	dl->type = lt_muzzleflash;
+	if (!scripted) {
+		dl = CL_AllocDlight(-i);
+		VectorCopy(org, dl->origin);
+		dl->radius = 200 + (rand() & 31);
+		dl->minlight = 32;
+		dl->die = cl.time + 0.1;
+		dl->type = lt_muzzleflash;
+	}
 
 	if (amf_part_muzzleflash.integer) {
 		if (((i - 1) != cl.viewplayernum) || (cameratype != C_NORMAL)) {
 			if (amf_coronas.integer) {
-				R_CoronasNew(C_SMALLFLASH, dl->origin);
+				R_CoronasNew(C_SMALLFLASH, org);
 			}
-			DrawMuzzleflash(org, angles, state->velocity);
+			if (!scripted) {
+				DrawMuzzleflash(org, angles, state->velocity);
+			}
 		}
 	}
 }

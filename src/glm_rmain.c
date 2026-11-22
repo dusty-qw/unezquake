@@ -140,6 +140,7 @@ void GLM_RenderView(void)
 	R_TraceLeaveNamedRegion();
 
 	renderer.Draw3DSprites();
+	GLM_DrawSceneTris();
 
 	GLM_DrawWorldModelBatch(alpha_surfaces);
 

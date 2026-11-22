@@ -32,6 +32,7 @@ typedef enum {
 	r_program_brushmodel_alphatested,
 	r_program_simple,
 	r_program_simple3d,
+	r_program_scenetris,
 
 	r_program_count
 } r_program_id;
@@ -148,6 +149,7 @@ typedef enum {
 	r_program_uniform_aliasmodel_instanceOffset,
 	r_program_uniform_brushmodel_instanceOffset,
 	r_program_uniform_brushmodel_alphatested_instanceOffset,
+	r_program_uniform_scenetris_materialtex,
 	r_program_uniform_count
 } r_program_uniform_id;
 

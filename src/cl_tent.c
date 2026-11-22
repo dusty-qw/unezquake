@@ -29,6 +29,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "qmb_particles.h"
 #include "cl_tent.h"
 #include "ezcsqc.h"
+#include "r_part_script.h"
 
 extern cvar_t gl_no24bit;
 extern vec3_t player_mins, player_maxs;
@@ -55,7 +56,7 @@ typedef struct predicted_te_explosion_s {
 
 static predicted_te_explosion_t cl_predicted_te_explosions[MAX_PREDEXPLOSIONS];
 
-static void CL_Parse_TE_EXPLOSION(vec3_t pos, qbool nq_particles);
+static dlight_t *CL_Parse_TE_EXPLOSION(vec3_t pos, qbool nq_particles, qbool sprite, pscript_effect_t effect);
 
 static model_t	*cl_explo_mod, *cl_bolt1_mod, *cl_bolt2_mod, *cl_bolt3_mod, *cl_beam_mod;
 
@@ -394,6 +395,26 @@ static void CL_DrawRailTrail(vec3_t start, vec3_t end, int color)
 	}
 }
 
+/*
+ * Draws a temp entity's rail-style trail with its scripted effect when one is
+ * loaded, else in the r_instagibtrail style with the given palette color.
+ * r_instagibtrail 0 hides the scripted trail too.
+ */
+static void CL_DrawRailTrailEffect(vec3_t start, vec3_t end, pscript_effect_t effect, int color)
+{
+	if (!r_instagibtrail.integer) {
+		return;
+	}
+	if (!PScript_ParticleTrail(start, end, PScript_EffectType(effect), 1, 0, NULL)) {
+		CL_DrawRailTrail(start, end, color);
+	}
+}
+
+void CL_TE_RailTrail(vec3_t start, vec3_t end)
+{
+	CL_DrawRailTrailEffect(start, end, PSCRIPT_TE_RAILTRAIL, 208);
+}
+
 /* FTE QW rail trails carry only two positions and use the standard blue color. */
 static void CL_ParseRailTrail(vec3_t end)
 {
@@ -409,7 +430,7 @@ static void CL_ParseRailTrail(vec3_t end)
 	if (msg_badread || CL_Demo_SkipMessage(true)) {
 		return;
 	}
-	CL_DrawRailTrail(start, end, 208);
+	CL_TE_RailTrail(start, end);
 }
 
 /* RD lightning and FTE beams use entity references; legacy lightning keeps aliases. */
@@ -447,11 +468,34 @@ static void CL_ParseBeam(int type, vec3_t end)
 	CL_CreateBeam(type, ent, start, end);
 }
 
+// Runs the scripted impact effect once per beam message. A slot taken over
+// from another entity or from an ended beam starts its states over.
+static void CL_SetBeam(beam_t *b, int ent, model_t *m, pscript_effect_t effect, pscript_effect_t impact, vec3_t start, vec3_t end)
+{
+	int type = PScript_EffectType(impact);
+
+	if (b->entity != ent || !b->model || b->endtime < cl.time) {
+		PScript_DelinkTrailstate(&b->trail);
+		PScript_DelinkTrailstate(&b->impact);
+	}
+	b->entity = ent;
+	b->model = m;
+	b->effect = effect;
+	b->impact_effect = impact;
+	b->endtime = cl.time + 0.2;
+	VectorCopy(start, b->start);
+	VectorCopy(end, b->end);
+
+	PScript_MatchTrailstate(&b->impact, &b->impacttype, type);
+	PScript_RunParticleEffectState(end, vec3_origin, 1, type, &b->impact);
+}
+
 void CL_CreateBeam(int type, int ent, vec3_t start, vec3_t end)
 {
 	int i;
 	beam_t *b;
 	struct model_s *m;
+	pscript_effect_t effect, impact;
 
 	if (CL_Demo_SkipMessage(true))
 		return;
@@ -465,7 +509,7 @@ void CL_CreateBeam(int type, int ent, vec3_t start, vec3_t end)
 		int colors[8] = { 6, 208, 180, 35, 224, 133, 192, 6 };
 
 		// -512..-257 additionally encode a player number in the upper bits.
-		CL_DrawRailTrail(start, end, colors[ent & 7]);
+		CL_DrawRailTrailEffect(start, end, PSCRIPT_TE_RAILTRAIL, colors[ent & 7]);
 		return;
 	}
 
@@ -475,21 +519,29 @@ void CL_CreateBeam(int type, int ent, vec3_t start, vec3_t end)
 			if (!cl_bolt1_mod)
 				cl_bolt1_mod = Mod_CustomModel(custom_model_bolt, true);
 			m = cl_bolt1_mod;
+			effect = PSCRIPT_TE_LIGHTNING1;
+			impact = PSCRIPT_TE_LIGHTNING1_END;
 			break;
 		case 2:
 			if (!cl_bolt2_mod)
 				cl_bolt2_mod = Mod_CustomModel(custom_model_bolt2, true);
 			m = cl_bolt2_mod;
+			effect = PSCRIPT_TE_LIGHTNING2;
+			impact = PSCRIPT_TE_LIGHTNING2_END;
 			break;
 		case 3:
 			if (!cl_bolt3_mod)
 				cl_bolt3_mod = Mod_CustomModel(custom_model_bolt3, true);
 			m = cl_bolt3_mod;
+			effect = PSCRIPT_TE_LIGHTNING3;
+			impact = PSCRIPT_TE_LIGHTNING3_END;
 			break;
 		case 4: default:
 			if (!cl_beam_mod)
 				cl_beam_mod = Mod_CustomModel(custom_model_beam, true);
 			m = cl_beam_mod;
+			effect = PSCRIPT_TE_BEAM;
+			impact = PSCRIPT_TE_BEAM_END;
 			break;
 	}
 	
@@ -503,10 +555,7 @@ void CL_CreateBeam(int type, int ent, vec3_t start, vec3_t end)
 	{
 		if (b->entity == ent) 
 		{
-			b->model = m;
-			b->endtime = cl.time + 0.2;
-			VectorCopy(start, b->start);
-			VectorCopy(end, b->end);
+			CL_SetBeam(b, ent, m, effect, impact, start, end);
 			return;
 		}
 	}
@@ -516,11 +565,7 @@ void CL_CreateBeam(int type, int ent, vec3_t start, vec3_t end)
 	{
 		if (!b->model || b->endtime < cl.time) 
 		{
-			b->entity = ent;
-			b->model = m;
-			b->endtime = cl.time + 0.2;
-			VectorCopy(start, b->start);
-			VectorCopy(end, b->end);
+			CL_SetBeam(b, ent, m, effect, impact, start, end);
 			return;
 		}
 	}
@@ -558,47 +603,70 @@ void CL_ExplosionSprite(vec3_t pos)
 	ex->model = cl_explo_mod;
 }
 
-static void CL_Parse_TE_WIZSPIKE(vec3_t pos)
+/* dir may be NULL. Returns true when the effect ran, so the caller skips its own particles. */
+static qbool CL_TE_Effect(pscript_effect_t effect, vec3_t pos, vec3_t dir, float count)
 {
-	if (amf_part_sparks.value && !Rulesets_RestrictParticles())
+	return PScript_RunParticleEffectState(pos, dir, count, PScript_EffectType(effect), NULL);
+}
+
+/* Falls back to a gunshot of ten, then to the sets' point effect. */
+static qbool CL_TE_SpikeEffect(pscript_effect_t effect, vec3_t pos)
+{
+	return CL_TE_Effect(effect, pos, NULL, 1) || CL_TE_Effect(PSCRIPT_TE_GUNSHOT, pos, NULL, 10) || PScript_RunParticleEffect(pos, vec3_origin, 0, 10);
+}
+
+/* Falls back to two plain impacts, then to a gunshot of twenty, then to the sets' point effect. */
+static qbool CL_TE_SuperSpikeEffect(pscript_effect_t effect, pscript_effect_t plain, vec3_t pos)
+{
+	return CL_TE_Effect(effect, pos, NULL, 1) || CL_TE_Effect(plain, pos, NULL, 2) || CL_TE_Effect(PSCRIPT_TE_GUNSHOT, pos, NULL, 20) || PScript_RunParticleEffect(pos, vec3_origin, 0, 20);
+}
+
+/* Wizard spike impacts; scripted tells that a scripted effect drew the particles. */
+static void CL_Parse_TE_WIZSPIKE(vec3_t pos, qbool scripted)
+{
+	if (!scripted)
 	{
-		byte col[3] = {0, 124, 0};
-		SparkGen(pos, col, 20, 90, 1);
-	}
-	else
-	{
-		R_RunParticleEffect(pos, vec3_origin, 20, 30);
+		if (amf_part_sparks.value && !Rulesets_RestrictParticles())
+		{
+			byte col[3] = {0, 124, 0};
+			SparkGen(pos, col, 20, 90, 1);
+		}
+		else
+		{
+			R_RunParticleEffect(pos, vec3_origin, 20, 30);
+		}
 	}
 	S_StartSound(-1, 0, cl_sfx_wizhit, pos, 1, 1);
 }
 
-// FIXME: D-Kure: This seems to be unused
-#if 0
-static void CL_Parse_TE_KNIGHTSPIKE(vec3_t pos)
+/* Knight spike impacts; scripted tells that a scripted effect drew the particles. */
+static void CL_TE_KnightSpike(vec3_t pos, qbool scripted)
 {
-	if (amf_part_sparks.value && !Rulesets_RestrictParticles())
-	{
-		byte col[3] = {255, 77, 0};
-		SparkGen(pos, col, 20, 150, 1);
+	if (!scripted) {
+		if (amf_part_sparks.value && !Rulesets_RestrictParticles()) {
+			byte col[3] = { 255, 77, 0 };
+			SparkGen(pos, col, 20, 150, 1);
+		}
+		else {
+			R_RunParticleEffect(pos, vec3_origin, 226, 20);
+		}
 	}
-	else
-	{
-		R_RunParticleEffect(pos, vec3_origin, 226, 20);
-	}
-
 	S_StartSound(-1, 0, cl_sfx_knighthit, pos, 1, 1);
 }
-#endif
 
-static void CL_Parse_TE_SPIKE(vec3_t pos)
+/* Spike and bullet impacts; scripted tells that a scripted effect drew the particles. */
+static void CL_Parse_TE_SPIKE(vec3_t pos, qbool scripted)
 {
 	int rnd;
 
-	if (amf_part_spikes.value && !Rulesets_RestrictParticles() && !gl_no24bit.integer)
-		VXNailhit(pos, 10 * amf_part_spikes.value);
-	else
+	if (!scripted)
 	{
-		R_RunParticleEffect(pos, vec3_origin, 0, 10);
+		if (amf_part_spikes.value && !Rulesets_RestrictParticles() && !gl_no24bit.integer)
+			VXNailhit(pos, 10 * amf_part_spikes.value);
+		else
+		{
+			R_RunParticleEffect(pos, vec3_origin, 0, 10);
+		}
 	}
 
 	if ( rand() % 5 ) 
@@ -617,15 +685,19 @@ static void CL_Parse_TE_SPIKE(vec3_t pos)
 	}
 }
 
-static void CL_Parse_TE_SUPERSPIKE(vec3_t pos)
+/* Super spike and bullet impacts; scripted tells that a scripted effect drew the particles. */
+static void CL_Parse_TE_SUPERSPIKE(vec3_t pos, qbool scripted)
 {
 	int rnd;
 
-	if (amf_part_spikes.value && !Rulesets_RestrictParticles() && !gl_no24bit.integer)
-		VXNailhit(pos, 20 * amf_part_spikes.value);
-	else
+	if (!scripted)
 	{
-		R_RunParticleEffect(pos, vec3_origin, 0, 20);
+		if (amf_part_spikes.value && !Rulesets_RestrictParticles() && !gl_no24bit.integer)
+			VXNailhit(pos, 20 * amf_part_spikes.value);
+		else
+		{
+			R_RunParticleEffect(pos, vec3_origin, 0, 20);
+		}
 	}
 
 	if (rand() % 5) 
@@ -644,16 +716,30 @@ static void CL_Parse_TE_SUPERSPIKE(vec3_t pos)
 	}
 }
 
-static void CL_Parse_TE_EXPLOSION(vec3_t pos, qbool nq_particles)
+/*
+ * A scripted explosion replaces every r_explosiontype style but 10, which hides
+ * it too. sprite draws the QuakeWorld sprite over a scripted explosion unless
+ * the sets or r_explosiontype 9 turn it off. Returns the light it spawned, if
+ * any, so variants can adjust it.
+ */
+static dlight_t *CL_Parse_TE_EXPLOSION(vec3_t pos, qbool nq_particles, qbool sprite, pscript_effect_t effect)
 {
-	dlight_t *dl;
+	dlight_t *dl = NULL;
 	extern cvar_t gl_part_explosions;
 
 	if (cls.state != ca_active) {
-		return;
+		return NULL;
 	}
 
-	if (r_explosiontype.value == 2) {
+	if (r_explosiontype.value == 10) {
+		/* Explosions turned off */
+	}
+	else if (CL_TE_Effect(effect, pos, NULL, 1) || (effect != PSCRIPT_TE_EXPLOSION && CL_TE_Effect(PSCRIPT_TE_EXPLOSION, pos, NULL, 1)) || PScript_RunParticleEffect(pos, NULL, 107, 1024)) {
+		if (sprite && r_explosiontype.value != 9 && PScript_ExplosionSprite()) {
+			CL_ExplosionSprite(pos);
+		}
+	}
+	else if (r_explosiontype.value == 2) {
 		if (amf_part_teleport.value) {
 			VXTeleport(pos);
 		}
@@ -695,9 +781,6 @@ static void CL_Parse_TE_EXPLOSION(vec3_t pos, qbool nq_particles)
 	else if (r_explosiontype.value == 8 && qmb_initialized) {
 		FuelRodExplosion(pos);
 	}
-	else if (r_explosiontype.value == 10) {
-		/* Explosions turned off */
-	}
 	else {
 		// sprite and particles
 		if (amf_part_explosion.value)
@@ -734,6 +817,8 @@ static void CL_Parse_TE_EXPLOSION(vec3_t pos, qbool nq_particles)
 	}
 
 	S_StartSound(-1, 0, cl_sfx_r_exp3, pos, 1, 1);
+
+	return dl;
 }
 
 static void CL_RecordPredictedRocketExplosion(vec3_t pos)
@@ -813,16 +898,18 @@ void CL_PredictRocketExplosion(vec3_t te_origin, vec3_t kick_origin, double pred
 
 	CL_RecordPredictedRocketExplosionKick(kick_origin, prediction_time);
 	CL_RecordPredictedRocketExplosion(te_origin);
-	CL_Parse_TE_EXPLOSION(te_origin, false);
+	CL_Parse_TE_EXPLOSION(te_origin, false, !cls.nqdemoplayback, PSCRIPT_TE_EXPLOSION);
 }
 
 static void CL_Parse_TE_TAREXPLOSION(vec3_t pos)
 {
-	if (amf_part_blobexplosion.value) {
-		VXBlobExplosion(pos);
-	}
-	else {
-		R_BlobExplosion(pos); // Blob explosion
+	if (!CL_TE_Effect(PSCRIPT_TE_TAREXPLOSION, pos, NULL, 1)) {
+		if (amf_part_blobexplosion.value) {
+			VXBlobExplosion(pos);
+		}
+		else {
+			R_BlobExplosion(pos); // Blob explosion
+		}
 	}
 	
 	if (amf_coronas.integer) {
@@ -836,11 +923,13 @@ static void CL_Parse_TE_TELEPORT(vec3_t pos)
 {
 	if (r_telesplash.value)
 	{
-		if (amf_part_teleport.value) {
-			VXTeleport(pos);
-		}
-		else {
-			R_TeleportSplash(pos); // Teleport splash
+		if (!CL_TE_Effect(PSCRIPT_TE_TELEPORT, pos, NULL, 1)) {
+			if (amf_part_teleport.value) {
+				VXTeleport(pos);
+			}
+			else {
+				R_TeleportSplash(pos); // Teleport splash
+			}
 		}
 		if (amf_coronas_tele.integer) {
 			R_CoronasNew(C_BLUEFLASH, pos);
@@ -855,6 +944,14 @@ static void CL_TE_GunshotEffect(vec3_t pos, int count)
 	}
 	else {
 		R_RunParticleEffect(pos, vec3_origin, 256 /* magic! */, 20 * count);
+	}
+}
+
+void CL_TE_Gunshot(vec3_t pos, int count)
+{
+	// Only QuakeWorld's counted gunshot falls back to TE_QWGUNSHOT; a NetQuake one is TE_GUNSHOT.
+	if (!CL_TE_Effect(cls.nqdemoplayback ? PSCRIPT_TE_GUNSHOT : PSCRIPT_TE_QWGUNSHOT, pos, NULL, count) && !PScript_RunParticleEffect(pos, vec3_origin, 0, 20 * count)) {
+		CL_TE_GunshotEffect(pos, count);
 	}
 }
 
@@ -873,17 +970,46 @@ static void CL_Parse_TE_GUNSHOT(vec3_t pos)
 	pos[1] = MSG_ReadCoord();
 	pos[2] = MSG_ReadCoord();
 
-	if (CL_Demo_SkipMessage(true)) {
+	if (msg_badread || CL_Demo_SkipMessage(true)) {
 		return;
 	}
-	
-	CL_TE_GunshotEffect(pos, count);
+
+	CL_TE_Gunshot(pos, count);
+}
+
+/* The light and sound of a colored explosion. */
+static void CL_TE_Explosion2Flash(vec3_t pos)
+{
+	dlight_t *dl = CL_AllocDlight(0);
+
+	VectorCopy(pos, dl->origin);
+	dl->radius = 350;
+	dl->die = cl.time + 0.5;
+	dl->decay = 300;
+	S_StartSound(-1, 0, cl_sfx_r_exp3, pos, 1, 1);
+}
+
+// Runs the scripted effect of a colored explosion; returns false when none ran.
+static qbool CL_TE_Explosion2Effect(vec3_t pos, int color_start, int color_length)
+{
+	// A config may define an effect per palette range; TE_EXPLOSION2 is tinted with the range instead.
+	// The check skips the name lookup while no event effect can run.
+	return (PScript_DynamicActive() && PScript_RunParticleEffectState(pos, NULL, 1, PScript_FindParticleType(va("TE_EXPLOSION2_%i_%i", color_start, color_length)), NULL)) ||
+		PScript_RunParticleEffectTinted(pos, NULL, 1, PScript_EffectType(PSCRIPT_TE_EXPLOSION2), color_start, color_length) ||
+		CL_TE_Effect(PSCRIPT_TE_EXPLOSION, pos, NULL, 1);
+}
+
+void CL_TE_Explosion2(vec3_t pos, int color_start, int color_length)
+{
+	if (!CL_TE_Explosion2Effect(pos, color_start, color_length)) {
+		Classic_ParticleExplosion2(pos, color_start, color_length);
+	}
+	CL_TE_Explosion2Flash(pos);
 }
 
 static void CL_Parse_TE_EXPLOSION2(vec3_t pos)
 {
 	int color_start, color_length;
-	dlight_t *dl;
 
 	pos[0] = MSG_ReadCoord();
 	pos[1] = MSG_ReadCoord();
@@ -898,38 +1024,45 @@ static void CL_Parse_TE_EXPLOSION2(vec3_t pos)
 		return;
 	}
 
-	Classic_ParticleExplosion2(pos, color_start, color_length);
-	dl = CL_AllocDlight(0);
-	VectorCopy(pos, dl->origin);
-	dl->radius = 350;
-	dl->die = cl.time + 0.5;
-	dl->decay = 300;
-	S_StartSound(-1, 0, cl_sfx_r_exp3, pos, 1, 1);
+	CL_TE_Explosion2(pos, color_start, color_length);
+}
+
+void CL_TE_Blood(vec3_t pos, int count)
+{
+	if (CL_TE_Effect(PSCRIPT_TE_QWBLOOD, pos, NULL, count) || PScript_RunParticleEffect(pos, vec3_origin, 73, 20 * count)) {
+		return;
+	}
+
+	if (amf_part_blood.value) {
+		VXBlood(pos, 5 * count * amf_part_blood.value);
+	}
+	else {
+		extern cvar_t gl_part_blood;
+
+		R_RunParticleEffect(pos, vec3_origin, gl_part_blood.value ? 73 : r_sgbloodColor.integer, 20 * count);
+	}
 }
 
 static void CL_Parse_TE_BLOOD(vec3_t pos)
 {
 	int count;
-	dlight_t *dl;
-	
+
 	if (cls.nqdemoplayback) {
-		// NQ_TE_EXPLOSION2
+		// NQ_TE_EXPLOSION2: without a scripted effect it shows no particles.
+		int color_start, color_length;
+
 		pos[0] = MSG_ReadCoord();
 		pos[1] = MSG_ReadCoord();
 		pos[2] = MSG_ReadCoord();
-		MSG_ReadByte(); // colorStart
-		MSG_ReadByte(); // colorLength
+		color_start = MSG_ReadByte();
+		color_length = MSG_ReadByte();
 
 		if (CL_Demo_SkipMessage(true)) {
 			return;
 		}
 
-		dl = CL_AllocDlight(0);
-		VectorCopy(pos, dl->origin);
-		dl->radius = 350;
-		dl->die = cl.time + 0.5;
-		dl->decay = 300;
-		S_StartSound(-1, 0, cl_sfx_r_exp3, pos, 1, 1);
+		CL_TE_Explosion2Effect(pos, color_start, color_length);
+		CL_TE_Explosion2Flash(pos);
 		return;
 	}
 
@@ -938,17 +1071,19 @@ static void CL_Parse_TE_BLOOD(vec3_t pos)
 	pos[1] = MSG_ReadCoord();
 	pos[2] = MSG_ReadCoord();
 
-	if (CL_Demo_SkipMessage(true)) {
+	if (msg_badread || CL_Demo_SkipMessage(true)) {
 		return;
 	}
 
-	if (amf_part_blood.value) {
-		VXBlood(pos, 5 * count * amf_part_blood.value);
-	}
-	else {
-        extern cvar_t gl_part_blood;
+	CL_TE_Blood(pos, count);
+}
 
-		R_RunParticleEffect(pos, vec3_origin, gl_part_blood.value ? 73 : r_sgbloodColor.integer, 20 * count);
+static void CL_TE_LightningBlood(vec3_t pos)
+{
+	extern cvar_t gl_part_blood;
+
+	if (!CL_TE_Effect(PSCRIPT_TE_LIGHTNINGBLOOD, pos, NULL, 1) && !PScript_RunParticleEffect(pos, vec3_origin, 225, 50)) {
+		R_RunParticleEffect(pos, vec3_origin, gl_part_blood.value ? 225 : r_lgbloodColor.integer, 50); // 225 default
 	}
 }
 
@@ -959,8 +1094,6 @@ static void CL_Parse_TE_LIGHTNINGBLOOD(vec3_t pos)
 		CL_ParseBeam(4, pos);
 	}
 	else {
-		extern cvar_t gl_part_blood;
-
 		pos[0] = MSG_ReadCoord();
 		pos[1] = MSG_ReadCoord();
 		pos[2] = MSG_ReadCoord();
@@ -969,7 +1102,346 @@ static void CL_Parse_TE_LIGHTNINGBLOOD(vec3_t pos)
 			return;
 		}
 
-		R_RunParticleEffect(pos, vec3_origin, gl_part_blood.value ? 225 : r_lgbloodColor.integer, 50); // 225 default
+		CL_TE_LightningBlood(pos);
+	}
+}
+
+static void CL_ReadVector(vec3_t v)
+{
+	v[0] = MSG_ReadCoord();
+	v[1] = MSG_ReadCoord();
+	v[2] = MSG_ReadCoord();
+}
+
+/*
+ * Servers send light colors with full intensity at 255. Custom lights here
+ * reach it at 128, the cap dlightColorEx applies to user colors.
+ */
+static void CL_SetServerDlightColor(dlight_t *dl, const byte *color)
+{
+	dl->type = lt_custom;
+	dl->color[0] = color[0] / 2;
+	dl->color[1] = color[1] / 2;
+	dl->color[2] = color[2] / 2;
+}
+
+/*
+ * DarkPlaces blood, sparks, flame jets, smoke and plasma hits. Only flame
+ * jets have a fallback; without a scripted effect the rest draw nothing and
+ * return false.
+ */
+qbool CL_TE_DirectedEffect(int type, vec3_t pos, vec3_t vel, int count)
+{
+	pscript_effect_t effect;
+
+	switch (type) {
+		case TEDP_BLOOD: effect = PSCRIPT_TE_BLOOD; break;
+		case TEDP_SPARK: effect = PSCRIPT_TE_SPARK; break;
+		case TEDP_FLAMEJET: effect = PSCRIPT_TE_FLAMEJET; break;
+		case TEDP_SMOKE: effect = PSCRIPT_TE_TEI_SMOKE; break;
+		default: effect = PSCRIPT_TE_TEI_PLASMAHIT; break;
+	}
+
+	if (CL_TE_Effect(effect, pos, vel, count)) {
+		return true;
+	}
+	if (type != TEDP_FLAMEJET) {
+		return false;
+	}
+	if (!PScript_RunParticleEffect(pos, vel, 232, count)) {
+		R_RunParticleEffect(pos, vel, 232, count);
+	}
+	return true;
+}
+
+static void CL_Parse_TEDP_DirectedEffect(int type, vec3_t pos)
+{
+	vec3_t vel;
+	qbool packed = (type == TEDP_BLOOD || type == TEDP_SPARK);
+	int i, count;
+
+	CL_ReadVector(pos);
+	for (i = 0; i < 3; i++) {
+		vel[i] = packed ? MSG_ReadChar() : MSG_ReadCoord();
+	}
+	count = MSG_ReadByte();
+
+	if (msg_badread || CL_Demo_SkipMessage(true)) {
+		return;
+	}
+
+	CL_TE_DirectedEffect(type, pos, vel, count);
+}
+
+/*
+ * DarkPlaces blood showers, particle cubes, rain and snow fill a box. They
+ * exist only as scripted effects; without one they draw nothing and return
+ * false.
+ */
+qbool CL_TE_ParticleBox(int type, vec3_t mins, vec3_t maxs, vec3_t dir, int count, int color, qbool gravity)
+{
+	switch (type) {
+		case TEDP_BLOODSHOWER:
+			return PScript_RunParticleCube(PScript_FindParticleType("te_bloodshower"), mins, maxs, dir, count, 0, false);
+
+		case TEDP_PARTICLECUBE:
+			return PScript_RunParticleCube(P_INVALID, mins, maxs, dir, count, color, gravity);
+
+		case TEDP_PARTICLERAIN:
+			return PScript_RunParticleWeather(mins, maxs, dir, count, color, "rain");
+
+		default:
+			return PScript_RunParticleWeather(mins, maxs, dir, count, color, "snow");
+	}
+}
+
+static void CL_Parse_TEDP_ParticleBox(int type, vec3_t mins)
+{
+	vec3_t maxs, dir;
+	int count, color = 0;
+	qbool gravity = false;
+
+	CL_ReadVector(mins);
+	CL_ReadVector(maxs);
+
+	// DarkPlaces writes the counts as unsigned shorts.
+	if (type == TEDP_BLOODSHOWER) {
+		// The explosion speed becomes a downward velocity.
+		VectorSet(dir, 0, 0, -MSG_ReadCoord());
+		count = (unsigned short)MSG_ReadShort();
+	}
+	else {
+		CL_ReadVector(dir);
+		count = (unsigned short)MSG_ReadShort();
+		color = MSG_ReadByte();
+
+		if (type == TEDP_PARTICLECUBE) {
+			gravity = (MSG_ReadByte() != 0);
+			MSG_ReadCoord(); // velocity jitter, ignored
+		}
+	}
+
+	if (msg_badread || CL_Demo_SkipMessage(true)) {
+		return;
+	}
+
+	CL_TE_ParticleBox(type, mins, maxs, dir, count, color, gravity);
+}
+
+void CL_TE_ExplosionRGB(vec3_t pos, const byte *color)
+{
+	dlight_t *dl;
+
+	// Only the QuakeWorld and quad explosions draw the sprite.
+	dl = CL_Parse_TE_EXPLOSION(pos, false, false, PSCRIPT_TE_EXPLOSION);
+	if (dl) {
+		CL_SetServerDlightColor(dl, color);
+	}
+}
+
+static void CL_Parse_TEDP_EXPLOSIONRGB(vec3_t pos)
+{
+	byte color[3];
+
+	CL_ReadVector(pos);
+	color[0] = MSG_ReadByte();
+	color[1] = MSG_ReadByte();
+	color[2] = MSG_ReadByte();
+
+	if (msg_badread || CL_Demo_SkipMessage(true)) {
+		return;
+	}
+
+	CL_TE_ExplosionRGB(pos, color);
+}
+
+void CL_TE_CustomFlash(vec3_t pos, float radius, float lifetime, const byte *color)
+{
+	dlight_t *dl;
+
+	// The radius fades out over the lifetime, so it must be positive.
+	if (!(lifetime > 0)) {
+		return;
+	}
+
+	dl = CL_AllocDlight(0);
+	VectorCopy(pos, dl->origin);
+	dl->radius = radius;
+	dl->die = cl.time + lifetime;
+	dl->decay = radius / lifetime; // the lifetime byte encodes at least 1/256 s
+	CL_SetServerDlightColor(dl, color);
+}
+
+static void CL_Parse_TEDP_CUSTOMFLASH(vec3_t pos)
+{
+	byte color[3];
+	float radius, lifetime;
+
+	CL_ReadVector(pos);
+	radius = MSG_ReadByte() * 8;
+	lifetime = (MSG_ReadByte() + 1) / 256.0f;
+	color[0] = MSG_ReadByte();
+	color[1] = MSG_ReadByte();
+	color[2] = MSG_ReadByte();
+
+	if (msg_badread || CL_Demo_SkipMessage(true)) {
+		return;
+	}
+
+	CL_TE_CustomFlash(pos, radius, lifetime, color);
+}
+
+/* Nexuiz's nex beam. Without a scripted effect it is drawn like a rail trail, in white. */
+void CL_TE_TeiG3(vec3_t start, vec3_t end)
+{
+	CL_DrawRailTrailEffect(start, end, PSCRIPT_TE_TEI_G3, 15);
+}
+
+static void CL_Parse_TEDP_TEI_G3(vec3_t end)
+{
+	vec3_t start;
+	int i;
+
+	CL_ReadVector(start);
+	CL_ReadVector(end);
+
+	// The beam angles are ignored.
+	for (i = 0; i < 3; i++) {
+		MSG_ReadCoord();
+	}
+
+	if (msg_badread || CL_Demo_SkipMessage(true)) {
+		return;
+	}
+	CL_TE_TeiG3(start, end);
+}
+
+static void CL_TE_SmallFlash(vec3_t pos)
+{
+	dlight_t *dl = CL_AllocDlight(0);
+
+	VectorCopy(pos, dl->origin);
+	dl->radius = 200;
+	dl->die = cl.time + 0.2;
+	dl->decay = 1000;
+	dl->type = lt_white;
+}
+
+/* Tei's big explosion lights a larger area for longer than a rocket's. */
+static void CL_TE_BigExplosion(vec3_t pos)
+{
+	dlight_t *dl = CL_Parse_TE_EXPLOSION(pos, false, false, PSCRIPT_TE_TEI_BIGEXPLOSION);
+
+	if (dl) {
+		dl->radius = 500 * bound(0, r_explosionlight.value, 1);
+		dl->die = cl.time + 1;
+		dl->decay = 500;
+	}
+}
+
+qbool CL_TempEntityEffect(int type, vec3_t pos)
+{
+	switch (type) {
+		// Spike hitting wall.
+		case TE_WIZSPIKE:
+			CL_Parse_TE_WIZSPIKE(pos, CL_TE_Effect(PSCRIPT_TE_WIZSPIKE, pos, NULL, 1) || PScript_RunParticleEffect(pos, vec3_origin, 20, 30));
+			return true;
+
+		// Spike hitting wall.
+		case TE_KNIGHTSPIKE:
+			CL_TE_KnightSpike(pos, CL_TE_Effect(PSCRIPT_TE_KNIGHTSPIKE, pos, NULL, 1) || PScript_RunParticleEffect(pos, vec3_origin, 226, 20));
+			return true;
+
+		// Spike hitting wall.
+		case TE_SPIKE:
+			CL_Parse_TE_SPIKE(pos, CL_TE_SpikeEffect(PSCRIPT_TE_SPIKE, pos));
+			return true;
+
+		case TE_BULLET:
+			CL_Parse_TE_SPIKE(pos, CL_TE_SpikeEffect(PSCRIPT_TE_BULLET, pos));
+			return true;
+
+		// Super spike hitting wall.
+		case TE_SUPERSPIKE:
+			CL_Parse_TE_SUPERSPIKE(pos, CL_TE_SuperSpikeEffect(PSCRIPT_TE_SUPERSPIKE, PSCRIPT_TE_SPIKE, pos));
+			return true;
+
+		case TEQW_SUPERBULLET:
+			CL_Parse_TE_SUPERSPIKE(pos, CL_TE_SuperSpikeEffect(PSCRIPT_TE_SUPERBULLET, PSCRIPT_TE_BULLET, pos));
+			return true;
+
+		// Rocket explosion.
+		case TE_EXPLOSION:
+			// NetQuake's is the NQ-style explosion, whose sprite the QC spawns.
+			CL_Parse_TE_EXPLOSION(pos, false, !cls.nqdemoplayback, PSCRIPT_TE_EXPLOSION);
+			return true;
+
+		case TEQW_NQEXPLOSION:
+			CL_Parse_TE_EXPLOSION(pos, true, false, PSCRIPT_TE_EXPLOSION);
+			return true;
+
+		case TEQW_NQGUNSHOT:
+			if (!CL_TE_Effect(PSCRIPT_TE_GUNSHOT, pos, NULL, 1) && !PScript_RunParticleEffect(pos, vec3_origin, 0, 20)) {
+				CL_TE_GunshotEffect(pos, 1);
+			}
+			return true;
+
+		// Tarbaby explosion
+		case TE_TAREXPLOSION:
+			CL_Parse_TE_TAREXPLOSION(pos);
+			return true;
+
+		case TE_LAVASPLASH:
+			if (!CL_TE_Effect(PSCRIPT_TE_LAVASPLASH, pos, NULL, 1)) {
+				R_LavaSplash(pos);
+			}
+			return true;
+
+		case TE_TELEPORT:
+			CL_Parse_TE_TELEPORT(pos);
+			return true;
+
+		// Without scripted particles, quad damage hits draw like normal ones.
+		case TEDP_GUNSHOTQUAD:
+			if (!CL_TE_Effect(PSCRIPT_TE_GUNSHOTQUAD, pos, NULL, 1) && !CL_TE_Effect(PSCRIPT_TE_GUNSHOT, pos, NULL, 1) && !PScript_RunParticleEffect(pos, vec3_origin, 0, 20)) {
+				CL_TE_GunshotEffect(pos, 1);
+			}
+			return true;
+
+		case TEDP_SPIKEQUAD:
+			CL_Parse_TE_SPIKE(pos, CL_TE_Effect(PSCRIPT_TE_SPIKEQUAD, pos, NULL, 1) || CL_TE_SpikeEffect(PSCRIPT_TE_SPIKE, pos));
+			return true;
+
+		case TEDP_SUPERSPIKEQUAD:
+			CL_Parse_TE_SUPERSPIKE(pos, CL_TE_Effect(PSCRIPT_TE_SUPERSPIKEQUAD, pos, NULL, 1) || CL_TE_SuperSpikeEffect(PSCRIPT_TE_SUPERSPIKE, PSCRIPT_TE_SPIKE, pos));
+			return true;
+
+		case TEDP_EXPLOSIONQUAD:
+			CL_Parse_TE_EXPLOSION(pos, false, true, PSCRIPT_TE_EXPLOSIONQUAD);
+			return true;
+
+		case TEDP_SMALLFLASH:
+			// The flash has no particles for a scripted effect to replace, so its light stays.
+			CL_TE_Effect(PSCRIPT_TE_SMALLFLASH, pos, NULL, 1);
+			CL_TE_SmallFlash(pos);
+			return true;
+
+		case TEDP_PLASMABURN:
+			if (!CL_TE_Effect(PSCRIPT_TE_PLASMABURN, pos, NULL, 1) && !PScript_RunParticleEffect(pos, vec3_origin, 15, 50)) {
+				R_RunParticleEffect(pos, vec3_origin, 15, 50);
+			}
+			return true;
+
+		case TEDP_TEI_BIGEXPLOSION:
+			CL_TE_BigExplosion(pos);
+			return true;
+
+		case TE_LIGHTNINGBLOOD:
+			CL_TE_LightningBlood(pos);
+			return true;
+
+		default:
+			return false;
 	}
 }
 
@@ -1043,6 +1515,38 @@ void CL_ParseTEnt (void)
 			CL_Parse_TE_LIGHTNINGBLOOD(pos);
 			parsed = true;
 			break;
+
+		case TEDP_BLOOD:
+		case TEDP_SPARK:
+		case TEDP_FLAMEJET:
+		case TEDP_SMOKE:
+		case TEDP_TEI_PLASMAHIT:
+			CL_Parse_TEDP_DirectedEffect(type, pos);
+			parsed = true;
+			break;
+
+		case TEDP_BLOODSHOWER:
+		case TEDP_PARTICLECUBE:
+		case TEDP_PARTICLERAIN:
+		case TEDP_PARTICLESNOW:
+			CL_Parse_TEDP_ParticleBox(type, pos);
+			parsed = true;
+			break;
+
+		case TEDP_EXPLOSIONRGB:
+			CL_Parse_TEDP_EXPLOSIONRGB(pos);
+			parsed = true;
+			break;
+
+		case TEDP_CUSTOMFLASH:
+			CL_Parse_TEDP_CUSTOMFLASH(pos);
+			parsed = true;
+			break;
+
+		case TEDP_TEI_G3:
+			CL_Parse_TEDP_TEI_G3(pos);
+			parsed = true;
+			break;
 	}
 
 	if (!parsed)
@@ -1069,60 +1573,9 @@ void CL_ParseTEnt (void)
 			return;
 		}
 		
-		switch (type) 
-		{
-			// Spike hitting wall.
-			case TE_WIZSPIKE: 
-				CL_Parse_TE_WIZSPIKE(pos);
-				break;
-
-			// Spike hitting wall.
-			case TE_KNIGHTSPIKE: 
-				CL_Parse_TE_WIZSPIKE(pos);
-				break;
-			
-			// Spike hitting wall.
-			case TE_SPIKE: 
-			case TE_BULLET:
-				CL_Parse_TE_SPIKE(pos);
-				break;
-
-			// Super spike hitting wall.
-			case TE_SUPERSPIKE:		
-			case TEQW_SUPERBULLET:
-				CL_Parse_TE_SUPERSPIKE(pos);
-				break;
-
-			// Rocket explosion.
-			case TE_EXPLOSION:
-				if (!CL_MatchPredictedRocketExplosion(pos)) {
-					CL_Parse_TE_EXPLOSION(pos, false);
-				}
-				break;
-
-			case TEQW_NQEXPLOSION:
-				CL_Parse_TE_EXPLOSION(pos, true);
-				break;
-
-			case TEQW_NQGUNSHOT:
-				CL_TE_GunshotEffect(pos, 1);
-				break;
-
-			// Tarbaby explosion
-			case TE_TAREXPLOSION:
-				CL_Parse_TE_TAREXPLOSION(pos);
-				break;
-
-			case TE_LAVASPLASH:	
-				R_LavaSplash(pos);
-				break;
-
-			case TE_TELEPORT:
-				CL_Parse_TE_TELEPORT(pos);
-				break;
-
-			default:
-				Host_Error("CL_ParseTEnt: unknown type %d", type);
+		// A predicted rocket impact already presented this server explosion.
+		if (!(type == TE_EXPLOSION && CL_MatchPredictedRocketExplosion(pos)) && !CL_TempEntityEffect(type, pos)) {
+			Host_Error("CL_ParseTEnt: unknown type %d", type);
 		}
 	}
 	else if (CL_Demo_SkipMessage(true)) {
@@ -1150,6 +1603,27 @@ static float fakeshaft_policy (void)
 	}
 }
 
+// Runs the beam's scripted trail once per host frame. Returns false when it
+// has none, so the caller draws the beam.
+static qbool CL_ScriptedBeam(beam_t *b)
+{
+	int type;
+
+	if (!PScript_Active()) {
+		return false;
+	}
+	type = PScript_EffectType(b->effect);
+	if (type == P_INVALID) {
+		return false;
+	}
+	if (PScript_EmitterDue(&b->trailframe)) {
+		PScript_MatchTrailstate(&b->trail, &b->trailtype, type);
+		// Capped so that a hitch does not emit a burst.
+		PScript_ParticleTrail(b->start, b->end, type, min(pscript_frametime, 0.1), b->entity, &b->trail);
+	}
+	return true;
+}
+
 static void CL_UpdateBeams(void)
 {
 	int i;
@@ -1162,6 +1636,7 @@ static void CL_UpdateBeams(void)
 	float lg_size = bound(3, amf_lightning_size.value, 30);
 	int beamstodraw, j, k;
 	qbool sparks = false;
+	qbool scripted, scripted_impact;
 	vec3_t beamstart[MAX_LIGHTNINGBEAMS], beamend[MAX_LIGHTNINGBEAMS];
 	vec3_t furthest_sparks;
 	beamstodraw = bound(1, amf_lightning.value, MAX_LIGHTNINGBEAMS);	
@@ -1241,6 +1716,11 @@ static void CL_UpdateBeams(void)
 			}
 		}
 
+		// The scripted beam stands in for the beam model and the VX beams,
+		// and a scripted effect where it hits for the sparks; coronas stay.
+		scripted = CL_ScriptedBeam(b);
+		scripted_impact = PScript_Active() && PScript_EffectType(b->impact_effect) != P_INVALID;
+
 		// Calculate pitch and yaw.
 		VectorSubtract (b->end, b->start, dist);
 
@@ -1272,7 +1752,7 @@ static void CL_UpdateBeams(void)
 		VectorScale (dist, 30, dist);
 
 		for ( ; d > 0; d -= 30) {
-			if (!amf_lightning.value || Rulesets_RestrictParticles()) {
+			if (!scripted && (!amf_lightning.value || Rulesets_RestrictParticles())) {
 				VectorCopy (org, ent.origin);
 				ent.model = b->model;
 				ent.angles[0] = pitch;
@@ -1284,7 +1764,7 @@ static void CL_UpdateBeams(void)
 
 				CL_AddEntity (&ent);
 			}
-			else if (!ISPAUSED) {
+			else if (!scripted && !ISPAUSED) {
 				//VULT - Some people might like their lightning beams thicker
 				for (k = 0; k < beamstodraw; k++) {
 					VectorAdd(org, dist, beamend[k]);
@@ -1311,7 +1791,7 @@ static void CL_UpdateBeams(void)
 			VectorAdd (org, dist, org);
 
 			// LIGHTNING SPARKS
-			if (amf_lightning_sparks.value && !Rulesets_RestrictParticles() && !ISPAUSED && !gl_no24bit.integer) {
+			if (amf_lightning_sparks.value && !Rulesets_RestrictParticles() && !ISPAUSED && !gl_no24bit.integer && !scripted_impact) {
 				trace_t	trace;
 				trace = PM_TraceLine (org, b->end);
 				if (trace.fraction < 1) {
