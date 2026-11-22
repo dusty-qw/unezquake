@@ -255,6 +255,24 @@ qbool Has_Both_RL_and_LG(int flags)
 	return (flags & IT_ROCKET_LAUNCHER) && (flags & IT_LIGHTNING);
 }
 
+static void SCR_HudDrawTeamInfoFlag(int items, float x, int y, float scale, int flag_style, qbool proportional)
+{
+	extern mpic_t *sb_items[32];
+
+	if (!(items & (IT_KEY1 | IT_KEY2))) {
+		return;
+	}
+
+	switch (flag_style) {
+		case 1:
+			Draw_SPic(x, y, sb_items[(items & IT_KEY1) ? 0 : 1], scale / 2);
+			break;
+		case 2:
+			Draw_SString(x, y, (items & IT_KEY1) ? "&cf00B" : "&c00fR", scale, proportional);
+			break;
+	}
+}
+
 static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, float x, int y, int maxname, int maxloc, qbool width_only, float scale, const char* layout, int weapon_style, int show_ammo, int show_countdown, int armor_style, int powerup_style, int flag_style, int low_health, qbool proportional)
 {
 	extern cvar_t tp_name_rlg;
@@ -521,12 +539,12 @@ static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, float x, int y, int max
 								if (isRespawning)
 								{
 									snprintf(tmp, sizeof(tmp), "&cfa0%d ", ti_cl->timetospawn);
+									Draw_SStringAligned(x, y, tmp, scale * 0.75, 1.0, proportional, text_align_right, x + 3 * font_width);
 								}
-								else
-								{
-									snprintf(tmp, sizeof(tmp), "%s", " ");
+								else if (!isDeadCA && (ti_cl->items & (IT_KEY1 | IT_KEY2))) {
+									// Share the countdown slot with the living flag carrier.
+									SCR_HudDrawTeamInfoFlag(ti_cl->items, x + font_width, y, scale, flag_style, proportional);
 								}
-								Draw_SStringAligned(x, y, tmp, scale * 0.75, 1.0, proportional, text_align_right, x + 3 * font_width);
 							}
 							x += 3 * font_width;
 							break;
@@ -605,25 +623,8 @@ static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, float x, int y, int max
 						break;
 
 					case 'c':
-						switch (flag_style) {
-							case 1:
-								if (!width_only) {
-									if (ti_cl->items & IT_KEY1) {
-										Draw_SPic(x, y, sb_items[0], scale / 2);
-									} else if (ti_cl->items & IT_KEY2) {
-										Draw_SPic(x, y, sb_items[1], scale / 2);
-									}
-								}
-								break;
-							case 2:
-								if (!width_only) {
-									if (ti_cl->items & IT_KEY1) {
-										Draw_SString(x, y, "&cf00B", scale, proportional);
-									} else if (ti_cl->items & IT_KEY2) {
-										Draw_SString(x, y, "&c00fR", scale, proportional);
-									}
-								}
-								break;
+						if (!width_only) {
+							SCR_HudDrawTeamInfoFlag(ti_cl->items, x, y, scale, flag_style, proportional);
 						}
 						x += font_width;
 						break;

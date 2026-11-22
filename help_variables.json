@@ -13390,7 +13390,7 @@
       ]
     },
     "hud_teaminfo_show_countdown": {
-      "desc": "Shows respawn time instead of powerups during wipeout mode.",
+      "desc": "Shows respawn time instead of powerups during wipeout mode, or a flag indicator for a living flag carrier.",
       "group-id": "19",
       "remarks": "If disabled, countdown can still be displayed by adding %r to /hud_teaminfo_layout",
       "type": "boolean",
@@ -20442,7 +20442,7 @@
     },
     "scr_teaminfo_show_countdown": {
       "default": "1",
-      "desc": "Shows respawn time instead of powerups during wipeout mode.",
+      "desc": "Shows respawn time instead of powerups during wipeout mode, or a flag indicator for a living flag carrier.",
       "group-id": "40",
       "remarks": "If disabled, countdown can still be displayed by adding %r to /scr_teaminfo_order",
       "type": "boolean",
