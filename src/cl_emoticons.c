@@ -129,7 +129,7 @@ static void CL_EmoticonsLoadPack(void)
 	int length;
 	size_t i;
 
-	bytes = (char *) FS_LoadHeapFile(json_path, &length);
+	bytes = (char *) FS_LoadGameHeapFile(json_path, &length);
 	if (!bytes) {
 		return;
 	}

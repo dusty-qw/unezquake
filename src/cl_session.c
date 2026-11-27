@@ -114,9 +114,16 @@ static void Session_LocalInfo(void)
 
 static void Session_LocalDropFile(const char *path)
 {
-	Cbuf_AddText(!strncmp(path, "qw://", 5) ? "qwurl " : "playdemo ");
-	Cbuf_AddText(path);
-	Cbuf_AddText("\n");
+	char command[1024];
+
+	if (!strncmp(path, "qw://", 5)) {
+		Cbuf_AddText("qwurl ");
+		Cbuf_AddText(path);
+		Cbuf_AddText("\n");
+	}
+	else if (COM_FormatPlayDemoCommand(command, sizeof(command), path)) {
+		Cbuf_AddText(command);
+	}
 }
 
 int CL_SessionCount(void)

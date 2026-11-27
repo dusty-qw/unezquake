@@ -26,9 +26,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "pmove.h"
 #endif
 
+#ifndef SERVERONLY
 #include "qsound.h"
 #include "cl_tent.h"
 #include "keys.h"
+#endif
 
 movevars_t      movevars;
 playermove_t    pmove;
@@ -56,6 +58,7 @@ int pmove_nopred_weapon;
 
 #define MAX_JUMPFIX_DOTPRODUCT -0.1
 
+#ifndef SERVERONLY
 static int PM_KTXLandingDamageVelocity(void)
 {
 	return !strcmp(host_mapname.string, "q1dm17") ? -1000 : -650;
@@ -73,6 +76,7 @@ void PM_SoundEffect(sfx_t *sample, int chan)
 	s_event->next = p_event_sound;
 	p_event_sound = s_event;
 }
+#endif
 
 // Add an entity to touch list, discarding duplicates
 static void PM_AddTouchedEnt (int num)
@@ -737,8 +741,10 @@ static void PM_CheckJump (void)
 	if (pmove.jump_held && !pmove.jump_msec)
 		return; // don't pogo stick
 
+#ifndef SERVERONLY
 	if (cl_predict_sound.integer)
 		PM_SoundEffect(cl_sfx_jump, 4);
+#endif
 
 	if (!movevars.pground) {
 		// check for jump bug
@@ -914,8 +920,10 @@ static void PM_SpectatorMove(void)
 int PM_PlayerMove(void)
 {
 	int blocked = 0;
+#ifndef SERVERONLY
 	int initial_waterlevel;
 	float ktx_landing_velocity = 0;
+#endif
 
 #ifndef SERVERONLY
 #ifdef EXPERIMENTAL_SHOW_ACCELERATION
@@ -945,8 +953,10 @@ int PM_PlayerMove(void)
 
 	// set onground, watertype, and waterlevel
 	PM_CategorizePosition();
+#ifndef SERVERONLY
 	initial_waterlevel = pmove.waterlevel;
 	ktx_landing_velocity = pmove.velocity[2];
+#endif
 
 	if (pmove.waterlevel == 2 && pmove.pm_type != PM_FLY)
 		PM_CheckWaterJump();
@@ -980,6 +990,7 @@ int PM_PlayerMove(void)
 	// set onground, watertype, and waterlevel for final spot
 	PM_CategorizePosition();
 
+#ifndef SERVERONLY
 	if (cl_predict_sound.integer && initial_waterlevel && !pmove.waterlevel) {
 		PM_SoundEffect(cl_sfx_outwater, 4);
 	}
@@ -992,6 +1003,7 @@ int PM_PlayerMove(void)
 			PM_SoundEffect(cl_sfx_land, 2);
 		}
 	}
+#endif
 
 	if (!movevars.pground) {
 		// this is to make sure landing sound is not played twice

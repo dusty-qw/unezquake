@@ -647,6 +647,8 @@ void Host_Init (int argc, char **argv, int default_memsize)
 	vfsfile_t *vf;
 	cvar_t *v;
 	char cfg[MAX_PATH] = {0};
+	char startup_command[1024];
+	qbool have_startup_command;
 	int i;
 	char *cfg_name;
 
@@ -655,6 +657,8 @@ void Host_Init (int argc, char **argv, int default_memsize)
 
 	COM_InitArgv (argc, argv);
 	COM_StoreOriginalCmdline(argc, argv);
+	// Resolve a demo in the launch directory before CL_Init changes to com_basedir.
+	have_startup_command = COM_CheckArgsForPlayableFiles(startup_command, sizeof(startup_command));
 
 	if (SDL_Init(0) != 0)
 	{
@@ -763,7 +767,7 @@ void Host_Init (int argc, char **argv, int default_memsize)
 	Com_Printf("\n");
 	Com_Printf("Type /help to access the manual.\nUse /describe for help on commands.\n\n", VersionString());
 
-	if (CL_SessionNumber() == 1 && (vf = FS_OpenVFS("autoexec.cfg", "rb", FS_ANY))) {
+	if (CL_SessionNumber() == 1 && (vf = FS_OpenGameConfig("autoexec.cfg", NULL))) {
 		Cbuf_AddText ("exec autoexec.cfg\n\n");
 		VFS_CLOSE(vf);
 	}
@@ -773,17 +777,11 @@ void Host_Init (int argc, char **argv, int default_memsize)
 
 	Sys_CheckQWProtocolHandler();
 
-	// Check if a qtv/demo file is specified as the first argument, in that case play that
-	// otherwise, do some more checks of what to show at startup.
-	{
-		char cmd[1024] = {0};
-
-		if (COM_CheckArgsForPlayableFiles(cmd, sizeof(cmd))) {
-			Cbuf_AddText(cmd);
-		}
-		else if (CL_SessionNumber() == 1) {
-			Startup_Place();
-		}
+	if (have_startup_command) {
+		Cbuf_AddText(startup_command);
+	}
+	else if (CL_SessionNumber() == 1) {
+		Startup_Place();
 	}
 
 	// Trigger changes config has made to defaults

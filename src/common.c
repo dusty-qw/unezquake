@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "common.h"
+#include <sys/stat.h>
 
 #ifdef _WIN32
 #include <direct.h>
@@ -61,9 +62,6 @@ const char* Cmd_CommandLineParamName(cmdline_param_id id)
 	return commandline_parameters[id].name;
 }
 
-void Draw_BeginDisc (void);
-void Draw_EndDisc (void);
-
 #define MAX_NUM_ARGVS	50
 /* Reserve worker IPC arguments separately from the user's launch arguments. */
 
@@ -103,6 +101,31 @@ void COM_StoreOriginalCmdline (int argc, char **argv)
 }
 
 //============================================================================
+
+qbool COM_IsAbsolutePath(const char *path)
+{
+	if (path[0] == '/') {
+		return true;
+	}
+#ifdef _WIN32
+	return path[0] == '\\'
+		|| (path[0] && path[1] == ':' && (path[2] == '/' || path[2] == '\\'));
+#else
+	return false;
+#endif
+}
+
+qbool COM_IsExplicitOSPath(const char *path)
+{
+	if (COM_IsAbsolutePath(path) || !strncmp(path, "./", 2) || !strncmp(path, "../", 3)) {
+		return true;
+	}
+#ifdef _WIN32
+	return (path[0] && path[1] == ':') || !strncmp(path, ".\\", 2) || !strncmp(path, "..\\", 3);
+#else
+	return false;
+#endif
+}
 
 const char *COM_SkipPath (const char *pathname)
 {
@@ -1544,6 +1567,7 @@ void Com_EndRedirect (void) {
 unsigned Print_flags[16];
 int Print_current = 0;
 
+#ifndef SERVERONLY
 /* FIXME: Please make us thread safe! */
 void Com_Printf (char *fmt, ...) 
 {
@@ -1588,6 +1612,8 @@ void Com_DPrintf (char *fmt, ...)
 
 	Com_Printf ("%s", msg);
 }
+
+#endif
 
 void Com_Printf_State(int state, const char *fmt, ...)
 {
@@ -1655,6 +1681,7 @@ void Com_PrintVerticalBar(int width)
 	Com_Printf("\x82");
 }
 
+#ifndef SERVERONLY
 void COM_ParseIPCData(const char *buf, unsigned int bufsize)
 {
 	if (Rulesets_RestrictIPC()) {
@@ -1674,6 +1701,56 @@ void COM_ParseIPCData(const char *buf, unsigned int bufsize)
 			Cbuf_AddText(buf);
 		}
 	}
+}
+
+qbool COM_FormatPlayDemoCommand(char *command, size_t size, const char *path)
+{
+	int length;
+
+	// The command parser has no escaping for quotes or line breaks in this argument.
+	if (!*path || strpbrk(path, "\"\r\n")) {
+		return false;
+	}
+
+	length = snprintf(command, size, "playdemo \"%s\"\n", path);
+	return length >= 0 && (size_t)length < size;
+}
+
+static qbool COM_FormatStartupDemoCommand(char *command, size_t size, const char *path)
+{
+	char absolute[MAX_OSPATH];
+	struct stat st;
+#ifdef _WIN32
+	if (Sys_fullpath(absolute, path, sizeof(absolute)) &&
+	    stat(absolute, &st) == 0 && (st.st_mode & S_IFMT) == S_IFREG) {
+		path = absolute;
+	}
+#else
+	if (path[0] != '/') {
+		char cwd[MAX_OSPATH];
+		const char *dir = NULL;
+		int length;
+
+#ifdef __APPLE__
+		// App Sandbox changes cwd before main; the shell preserves the launch directory in PWD.
+		if (getenv("APP_SANDBOX_CONTAINER_ID")) {
+			dir = getenv("PWD");
+		}
+#endif
+		if (!dir || dir[0] != '/') {
+			dir = Sys_getcwd(cwd, sizeof(cwd));
+		}
+		if (dir) {
+			// Preserve the demo extension when the final component is a symlink.
+			length = snprintf(absolute, sizeof(absolute), "%s/%s", dir, path);
+			if (length >= 0 && (size_t)length < sizeof(absolute) &&
+			    stat(absolute, &st) == 0 && S_ISREG(st.st_mode)) {
+				path = absolute;
+			}
+		}
+	}
+#endif
+	return COM_FormatPlayDemoCommand(command, size, path);
 }
 
 //
@@ -1700,7 +1777,7 @@ qbool COM_CheckArgsForPlayableFiles(char *commandbuf_out, unsigned int commandbu
 			}
 			else if (CL_IsDemoExtension(infile))
 			{
-				snprintf(commandbuf_out, commandbuf_size, "playdemo \"%s\"\n", infile);
+				return COM_FormatStartupDemoCommand(commandbuf_out, commandbuf_size, infile);
 			}
 			else if (!strncasecmp(infile, "qw://", sizeof("qw://") - 1))
 			{
@@ -1718,6 +1795,7 @@ qbool COM_CheckArgsForPlayableFiles(char *commandbuf_out, unsigned int commandbu
     return false;
 }
 
+#endif
 //============================================================================
 
 static char q_normalize_chartbl[256];

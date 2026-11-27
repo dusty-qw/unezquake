@@ -97,13 +97,12 @@ qbool VersionCheck_GetLatest(char dest[VERSION_MAX_LEN]);
 #else
 #define SERVER_NAME         "MVDSV"
 #endif
+#define SERVER_VERSION      VERSION_NUMBER
+#define SERVER_FULLNAME     "unezQuake Server"
+#define SERVER_HOME_URL     "https://ezquake.com"
 
 // MVDSV compatibility
 #define	QW_VERSION			"2.40"
-#define SERVER_VERSION      "0.34-beta"
-#define SERVER_VERSION_NUM  0.33
-#define SERVER_FULLNAME     "MVDSV: MultiView Demo SerVer"
-#define SERVER_HOME_URL     "https://mvdsv.deurk.net"
 #define BUILD_DATE          __DATE__ ", " __TIME__
 #define GIT_COMMIT          ""
 

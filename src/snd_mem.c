@@ -37,14 +37,14 @@ static unsigned char *S_LoadSoundFileData(char *path, int *filesize)
 	if (builtin) {
 		// Built-in assets are stored as const executable data. The old WAV
 		// loader can byte-swap/bias samples in-place, so hand sound loading a
-		// temporary writable copy just like FS_LoadTempFile would.
+		// temporary writable copy just like FS_LoadGameTempFile would.
 		copy = Hunk_TempAlloc(*filesize + 1);
 		memcpy(copy, builtin, *filesize);
 		copy[*filesize] = 0;
 		return copy;
 	}
 
-	return FS_LoadTempFile(path, filesize);
+	return FS_LoadGameTempFile(path, filesize);
 }
 
 #define LINEARUPSCALE(in, inrate, insamps, out, outrate, outlshift, outrshift) \

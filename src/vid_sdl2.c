@@ -1241,10 +1241,11 @@ static void HandleEvents(void)
 		case SDL_MOUSEMOTION: case SDL_MOUSEBUTTONDOWN: case SDL_MOUSEBUTTONUP: case SDL_MOUSEWHEEL:
 			HandleInputEvent(event);
 			break;
-		case SDL_DROPFILE:
+		case SDL_DROPFILE: {
 			CL_SessionDropFile(event.drop.file);
 			SDL_free(event.drop.file);
 			break;
+		}
 		}
 	}
 

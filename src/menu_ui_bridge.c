@@ -194,7 +194,7 @@ void MUI_SetClipboard(const char *text)
 
 void *MUI_LoadFile(const char *path, int *size)
 {
-	vfsfile_t *f = FS_OpenVFS(path, "rb", FS_ANY);
+	vfsfile_t *f = FS_OpenVFS(path, "rb", COM_IsExplicitOSPath(path) ? FS_NONE_OS : FS_GAME);
 	vfserrno_t err;
 	byte *data;
 	int length;

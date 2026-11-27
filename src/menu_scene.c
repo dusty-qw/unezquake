@@ -105,7 +105,7 @@ static void OnChange_menu_background_map(cvar_t *var, char *string, qbool *cance
 
 static qbool MenuScene_FileExists(const char *path)
 {
-	vfsfile_t *f = FS_OpenVFS(path, "rb", FS_ANY);
+	vfsfile_t *f = FS_OpenVFS(path, "rb", FS_GAME);
 
 	if (f) {
 		VFS_CLOSE(f);
