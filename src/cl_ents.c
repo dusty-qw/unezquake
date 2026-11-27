@@ -3394,22 +3394,8 @@ void CL_SetUpPlayerPrediction(qbool dopred)
 #ifdef EXPERIMENTAL_SHOW_ACCELERATION
 		flag_player_pmove = (j == cl.playernum);
 #endif
-		// note that the local player is special, since he moves locally we use his last predicted postition
-		if (j == cl.playernum) 
-		{
-			// outgoing_sequence is the oldest ring slot, not a predicted frame.
-			// The second pass runs after CL_PredictMove has filled through -1.
-			// Use its raw result so view smoothing does not move collision boxes.
-			if (dopred && cl.validsequence && !cl_nopred.value && !cls.mvdplayback && state->pm_type != PM_LOCK &&
-				cl.validsequence + 1 < cls.netchan.outgoing_sequence &&
-				cls.netchan.outgoing_sequence - cl.validsequence < UPDATE_BACKUP - 1) {
-				VectorCopy(cl.frames[(cls.netchan.outgoing_sequence - 1) & UPDATE_MASK].playerstate[cl.playernum].origin, pplayer->origin);
-			}
-			else {
-				VectorCopy(state->origin, pplayer->origin);
-			}
-		} 
-		else 
+		// the local player moves locally, CL_SetSolidPlayers takes his box from cl.simorg
+		if (j != cl.playernum) 
 		{
 			msec = (cl_predict_half.value ? 500 : 1000) * (playertime - state->state_time);
 			
@@ -3482,7 +3468,9 @@ static void CL_SetSolidPlayersEx(int playernum, qbool include_self)
 			continue;
 
 		pent->model = 0;
-		VectorCopy(pplayer->origin, pent->origin);
+		// cl.simorg can move between physics frames (cl_independentPhysics), so take
+		// the local player's box from where he is drawn now
+		VectorCopy(j == cl.playernum ? cl.simorg : pplayer->origin, pent->origin);
 		VectorCopy(player_mins, pent->mins);
 		VectorCopy(player_maxs, pent->maxs);
 		pmove.numphysent++;
