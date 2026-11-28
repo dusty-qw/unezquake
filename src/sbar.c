@@ -1881,12 +1881,20 @@ static void Sbar_DeathmatchOverlay(int start)
 		color.c = RGBA_TO_COLOR(255, 255, 255, 255);
 		myminutes[0] = '\0';
 
-		// overwrite time column with spawn times in KTX wipeout
+		// overwrite time column with spawn times or carried flags in KTX wipeout
 		if (check_ktx_wo() && scr_scoreboard_wipeout.value && !s->spectator && (ti_cl->isdead == 1) && (ti_cl->timetospawn > 0) && (ti_cl->timetospawn < 999)){
 			color.c = RGBA_TO_COLOR(0xFF, 0xAA, 0x00, 255);
 			snprintf(myminutes, sizeof(myminutes), "%d", ti_cl->timetospawn);
 			if (!is_classic_spec)
 				Draw_SColoredStringAligned(x, y, myminutes, &color, 1, scale * 0.85, alpha, proportional, text_align_right, x + 4 * FONT_WIDTH * scale);
+		}
+		else if (check_ktx_wo() && scr_scoreboard_wipeout.value && !s->spectator && !ti_cl->isdead) {
+			if (ti_cl->items & IT_KEY1) {
+				Draw_SAlphaPic(x + 3 * FONT_WIDTH * scale, y + 1, sb_items[0], alpha, scale / 2);
+			}
+			else if (ti_cl->items & IT_KEY2) {
+				Draw_SAlphaPic(x + 3 * FONT_WIDTH * scale, y + 1, sb_items[1], alpha, scale / 2);
+			}
 		}
 
 		else if (!check_ktx_wo() || !scr_scoreboard_wipeout.value)

@@ -20131,6 +20131,7 @@
     },
     "scr_scoreboard_wipeout": {
       "default": "1",
+      "desc": "In wipeout mode, replaces time played with respawn countdowns for dead players or flag icons for living flag carriers.",
       "group-id": "47",
       "type": "boolean",
       "values": [
