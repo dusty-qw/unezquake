@@ -412,6 +412,7 @@ static byte *CL_SprayLoadNormalizedPixels(const char *filename, int *width, int 
 {
 	int source_width, source_height;
 	byte *source_pixels;
+	const char *game_relative_path = strchr(filename, '/');
 
 	*width = 0;
 	*height = 0;
@@ -420,7 +421,8 @@ static byte *CL_SprayLoadNormalizedPixels(const char *filename, int *width, int 
 	// Load the user's actual image without forcing protocol dimensions. This
 	// permits high-resolution source art while keeping network payloads
 	// small and deterministic.
-	source_pixels = R_LoadImagePixels(filename, 0, 0, TEX_ALPHA | TEX_NOSCALE | TEX_NO_TEXTUREMODE, &source_width, &source_height);
+	// Keep the game directory in cache keys, but omit it for FS_GAME lookup.
+	source_pixels = R_LoadImagePixels(game_relative_path ? game_relative_path + 1 : filename, 0, 0, TEX_ALPHA | TEX_NOSCALE | TEX_NO_TEXTUREMODE, &source_width, &source_height);
 	if (!source_pixels) {
 		if (!quiet) {
 			Com_Printf("spray: couldn't load image \"%s\"\n", filename);
