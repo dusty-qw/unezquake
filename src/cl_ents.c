@@ -35,6 +35,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PLAYER_INTERP_MAX_GAP 0.1
 #define PLAYER_INTERP_MAX_AGE 0.03
 #define PLAYER_INTERP_SNAP_DISTANCE 120.0f
+#define PLAYER_INTERP_COMMAND_REACH 8.0f
 
 /* Separate RD buffers keep legacy frame capacities and demo layouts unchanged. */
 struct cl_rd_state_s {
@@ -501,7 +502,7 @@ void TP_ParsePlayerInfo(player_state_t *, player_state_t *, player_info_t *info)
 extern cvar_t cl_predict_players, cl_solid_players, cl_rocket2grenade;
 extern cvar_t cl_predict_half, cl_predict_scale, cl_predict_lerp;
 extern cvar_t cl_predict_lerp_time;
-extern cvar_t cl_predict_interp, cl_predict_interp_shift;
+extern cvar_t cl_predict_interp;
 extern cvar_t cl_nopred;
 extern cvar_t cl_debug_remote_prediction_errors;
 extern cvar_t cl_model_bobbing;		
@@ -520,17 +521,17 @@ static float CL_PredictScaleThreshold(void)
 typedef struct {
 	qbool valid;
 	qbool low_ping;
-	int messagenum, pm_type, modelindex, mode, dead;
-	float shift_ms;
+	int messagenum, pm_type, modelindex, dead;
 	double packet_time, start, length, last_time, interval;
-	vec3_t from, to, pos, received_origin;
+	vec3_t from, to, pos, received_origin, velocity;
+	qbool ground_move, stepped;
+	int stops;
 } cl_playerinterp_t;
 
 typedef struct {
 	double time, frametime, packet_time, server_frame;
-	int mode, ping;
-	float shift_ms;
-	qbool no_pred;
+	int ping;
+	qbool enabled, no_pred;
 } cl_playerinterp_params_t;
 
 static struct predicted_player {
@@ -2592,66 +2593,277 @@ static int CL_RemotePredictionMsec(int msec)
 	return msec * steps;
 }
 
-// Remote-player glide rendering
-static void CL_PlayerInterpTarget(const player_state_t *state, float shift, vec3_t target)
+// Predict exactly msec ahead, running the milliseconds CL_PredictUsercmd drops as a
+// second step. Splitting differently would itself shift the result under friction.
+static void CL_PredictExactMsec(const player_state_t *from, player_state_t *to, usercmd_t command, int msec)
 {
-	vec3_t pos, end, up, forward;
-	trace_t tr, tu, tf, td;
-	float flat_distance, step_distance;
+	player_state_t step;
+	prediction_event_sound_t *events = p_event_sound;
 
-	VectorCopy(state->origin, target);
-	if (state->pm_type != PM_NORMAL || shift <= 0) {
-		return;
-	}
+	*to = *from;
+	while (msec > 0) {
+		// usercmd msec is a byte: 256 would run as 0.
+		int chunk = bound(1, msec, 255);
 
-	// Move horizontally first so landing does not truncate horizontal travel.
-	VectorCopy(state->origin, pos);
-	VectorCopy(pos, end);
-	end[0] += state->velocity[0] * shift;
-	end[1] += state->velocity[1] * shift;
-	tr = PM_PlayerTrace(pos, end);
-	if (tr.startsolid || tr.allsolid) {
-		return;
+		step = *to;
+		command.msec = chunk;
+		CL_PredictUsercmd(&step, to, &command, false);
+		msec -= CL_RemotePredictionMsec(chunk);
 	}
-	if (tr.fraction < 1 && state->onground) {
-		VectorCopy(pos, up);
-		up[2] += 18;
-		tu = PM_PlayerTrace(pos, up);
-		if (!tu.startsolid && !tu.allsolid) {
-			VectorCopy(end, forward);
-			forward[2] = tu.endpos[2];
-			tf = PM_PlayerTrace(tu.endpos, forward);
-			if (!tf.startsolid && !tf.allsolid) {
-				VectorCopy(tf.endpos, forward);
-				forward[2] = pos[2];
-				td = PM_PlayerTrace(tf.endpos, forward);
-				flat_distance = (tr.endpos[0] - pos[0]) * (tr.endpos[0] - pos[0]) +
-					(tr.endpos[1] - pos[1]) * (tr.endpos[1] - pos[1]);
-				step_distance = (td.endpos[0] - pos[0]) * (td.endpos[0] - pos[0]) +
-					(td.endpos[1] - pos[1]) * (td.endpos[1] - pos[1]);
-				if (!td.startsolid && !td.allsolid && td.fraction < 1 &&
-					td.plane.normal[2] >= 0.7f && step_distance > flat_distance) {
-					tr = td;
-				}
-			}
+	// This visual probe must not enqueue jump, landing or water sounds.
+	while (p_event_sound != events) {
+		prediction_event_sound_t *event = p_event_sound;
+		p_event_sound = event->next;
+		free(event);
+	}
+}
+
+// Moves the box from pos by move the way player movement does: whatever it runs into,
+// the rest of the move slides along that surface instead of being lost.
+// If first_hit is given, it gets the first trace.
+static void CL_InterpSlide(vec3_t pos, const vec3_t move, trace_t *first_hit)
+{
+	vec3_t end, left;
+	trace_t tr;
+	int i;
+
+	VectorCopy(move, left);
+	for (i = 0; i < 3; i++) {
+		VectorAdd(pos, left, end);
+		tr = PM_PlayerTrace(pos, end);
+		if (i == 0 && first_hit) {
+			*first_hit = tr;
+		}
+		if (tr.startsolid || tr.allsolid) {
+			return;
+		}
+		VectorCopy(tr.endpos, pos);
+		if (tr.fraction == 1) {
+			return;
+		}
+		VectorScale(left, 1 - tr.fraction, left);
+		VectorMA(left, -DotProduct(left, tr.plane.normal), tr.plane.normal, left);
+		if (DotProduct(left, move) <= 0) {
+			return;
 		}
 	}
-	VectorCopy(tr.endpos, pos);
-	VectorCopy(pos, end);
-	end[2] += state->velocity[2] * shift;
-	tr = PM_PlayerTrace(pos, end);
-	if (!tr.startsolid && !tr.allsolid) {
-		VectorCopy(tr.endpos, pos);
+}
+
+static float CL_InterpFlatDistance2(const vec3_t a, const vec3_t b)
+{
+	return (b[0] - a[0]) * (b[0] - a[0]) + (b[1] - a[1]) * (b[1] - a[1]);
+}
+
+// True if the player, braking toward the riser as hard as since the last update,
+// stops before reaching it: then he turns at the foot of the step, not on top of it.
+static qbool CL_InterpStopsBeforeStep(const cl_playerinterp_t *p, const player_state_t *state,
+	const trace_t *riser, float t, double dt)
+{
+	float speed, previous_speed, deceleration;
+
+	if (!p->valid || !p->ground_move || dt <= 0 || dt > 4 * p->interval ||
+		riser->fraction >= 1 || riser->startsolid || riser->allsolid || riser->e.entnum != 0 ||
+		fabs(riser->plane.normal[2]) >= 0.1f) {
+		return false;
 	}
-	VectorCopy(pos, target);
+	// only the speed into the riser: turning along the wall takes that away
+	// without much change in his overall speed
+	speed = -DotProduct(state->velocity, riser->plane.normal);
+	previous_speed = -DotProduct(p->velocity, riser->plane.normal);
+	deceleration = (previous_speed - speed) / dt;
+	if (speed <= 0 || deceleration <= 0) {
+		return false;
+	}
+	// stopping distance v^2 / 2a against the distance to the riser, plus one coordinate step
+	return speed * speed < 2 * deceleration * (speed * t * riser->fraction + 0.125f);
+}
+
+// Once the target is on a step, require two braking updates before lowering it.
+static qbool CL_InterpStepAllowed(cl_playerinterp_t *p, const player_state_t *state,
+	const trace_t *riser, float t, double dt)
+{
+	if (p->valid && VectorCompare(state->velocity, p->velocity)) {
+		return p->stops < (p->stepped ? 2 : 1);
+	}
+	if (CL_InterpStopsBeforeStep(p, state, riser, t, dt)) {
+		p->stops++;
+		return p->stops < (p->stepped ? 2 : 1);
+	}
+	p->stops = 0;
+	return true;
+}
+
+// On an unobstructed ground move, carry the last change of velocity into the
+// glide target. Limit its reach because the next command can change direction.
+// Braking into a strafe turn, ground acceleration and friction together reach
+// about 4500 u/s^2; a larger change is a push or a hit, not his own move.
+static void CL_InterpGroundAcceleration(const cl_playerinterp_t *p,
+	const player_state_t *state, float t, double dt, vec3_t target)
+{
+	const float max_acceleration = 5000.0f, max_correction = 3.0f;
+	float speed_change, scale;
+	vec3_t delta, end, start;
+	trace_t tr;
+
+	VectorCopy(state->origin, start);
+
+	if (!p->valid || !p->ground_move || dt <= 0 || dt > 4 * p->interval ||
+		VectorDistance(target, p->pos) > PLAYER_INTERP_SNAP_DISTANCE) {
+		return;
+	}
+	VectorSubtract(state->velocity, p->velocity, delta);
+	speed_change = VectorLength(delta);
+	if (speed_change == 0 || speed_change >= max_acceleration * dt) {
+		return;
+	}
+
+	// s = v*t + a*t*t/2. Only the second term is missing from target.
+	scale = min(0.5f * t * t / dt, max_correction / speed_change);
+	VectorMA(target, scale, delta, end);
+	tr = PM_PlayerTrace(start, end);
+	if (!tr.startsolid && !tr.allsolid && tr.fraction == 1) {
+		VectorCopy(end, target);
+	}
+}
+
+// Returns true when an upward step was considered and its braking history should be kept.
+static qbool CL_InterpVelocityTarget(cl_playerinterp_t *p, const player_state_t *state, float t, double dt,
+	vec3_t target, qbool *free_ground_move)
+{
+	vec3_t move, up, end, start;
+	trace_t tr, riser;
+
+	VectorCopy(state->origin, start);
+
+	*free_ground_move = false;
+	VectorCopy(state->origin, target);
+	if (state->pm_type != PM_NORMAL) {
+		return false;
+	}
+	tr = PM_PlayerTrace(start, start);
+	if (tr.startsolid || tr.allsolid) {
+		return false;
+	}
+
+	// Keep horizontal travel when the vertical part lands before the lead ends.
+	VectorScale(state->velocity, t, move);
+	move[2] = 0;
+	CL_InterpSlide(target, move, &riser);
+	VectorCopy(target, end);
+	end[2] += state->velocity[2] * t;
+	tr = PM_PlayerTrace(target, end);
+	if (!tr.startsolid && !tr.allsolid) {
+		VectorCopy(tr.endpos, target);
+	}
+	if (!state->onground || state->velocity[2] != 0) {
+		return false;
+	}
+	if (CL_InterpFlatDistance2(state->origin, target) > 0.99f * DotProduct(move, move)) {
+		*free_ground_move = riser.fraction == 1;
+		return false;
+	}
+
+	// Compare the slide with the same move started one stair height higher.
+	VectorCopy(state->origin, end);
+	end[2] += 18;
+	tr = PM_PlayerTrace(start, end);
+	if (tr.startsolid || tr.allsolid) {
+		return false;
+	}
+	VectorCopy(tr.endpos, up);
+	CL_InterpSlide(up, move, NULL);
+	VectorCopy(up, end);
+	end[2] = state->origin[2];
+	tr = PM_PlayerTrace(up, end);
+	if (tr.startsolid || tr.allsolid || tr.fraction >= 1 || tr.plane.normal[2] < 0.7f ||
+		CL_InterpFlatDistance2(state->origin, tr.endpos) <= CL_InterpFlatDistance2(state->origin, target)) {
+		return false;
+	}
+	if (tr.endpos[2] > state->origin[2]) {
+		if (CL_InterpStepAllowed(p, state, &riser, t, dt)) {
+			VectorCopy(tr.endpos, target);
+		}
+		return true;
+	}
+	VectorCopy(tr.endpos, target);
+	return false;
+}
+
+// Approximate the local collision box at the opponent's update time using the
+// same packet, rather than blocking his command against our current prediction.
+static qbool CL_InterpAddOwnBox(const player_state_t *state)
+{
+	const player_state_t *self = &cl.frames[state->messagenum & UPDATE_MASK].playerstate[cl.playernum];
+	physent_t *pent = pmove.physents + pmove.numphysent;
+	extern vec3_t player_mins, player_maxs;
+
+	if (!cl_solid_players.value || cl.spectator || pmove.numphysent == MAX_PHYSENTS ||
+		self->messagenum != state->messagenum || !(self->flags & PF_SOLID)) {
+		return false;
+	}
+	memset(pent, 0, sizeof(*pent));
+	VectorCopy(self->origin, pent->origin);
+	VectorCopy(player_mins, pent->mins);
+	VectorCopy(player_maxs, pent->maxs);
+	pmove.numphysent++;
+	return true;
+}
+
+static void CL_PlayerInterpTarget(cl_playerinterp_t *p, const player_state_t *state,
+	float t, double dt, vec3_t target)
+{
+	qbool free_ground_move;
+	vec3_t candidate, start;
+	int physents = pmove.numphysent;
+	qbool own_box;
+	player_state_t moved;
+	trace_t tr;
+
+	VectorCopy(state->origin, start);
+
+	if (!CL_InterpVelocityTarget(p, state, t, dt, target, &free_ground_move)) {
+		p->stops = 0;
+	}
+
+	VectorCopy(target, candidate);
+	if (free_ground_move) {
+		CL_InterpGroundAcceleration(p, state, t, dt, candidate);
+	}
+	if (state->pm_type != PM_NORMAL) {
+		VectorCopy(candidate, target);
+		return;
+	}
+	// If he starts inside our box, it is not where the server had it: leave it out.
+	own_box = CL_InterpAddOwnBox(state);
+	tr = PM_PlayerTrace(start, start);
+	if (own_box && tr.startsolid) {
+		pmove.numphysent = physents;
+		tr = PM_PlayerTrace(start, start);
+	}
+	if (!tr.startsolid && !tr.allsolid) {
+		CL_PredictExactMsec(state, &moved, state->command, (int)(t * 1000 + 0.5f));
+		if (VectorDistance(moved.origin, candidate) < PLAYER_INTERP_COMMAND_REACH) {
+			VectorCopy(moved.origin, candidate);
+		}
+	}
+	// A new command can change the predicted endpoint abruptly. Apply half the
+	// correction over the usual glide, provided the player hull can reach it.
+	if (!VectorCompare(target, candidate)) {
+		VectorInterpolate(target, 0.5f, candidate, candidate);
+		tr = PM_PlayerTrace(start, candidate);
+		if (!tr.startsolid && !tr.allsolid && tr.fraction == 1) {
+			VectorCopy(candidate, target);
+		}
+	}
+	pmove.numphysent = physents;
 }
 
 // Collision solids must already be installed. A zeroed state starts a new glide.
 static void CL_InterpolatePlayer(cl_playerinterp_t *p, const player_state_t *state,
 	const cl_playerinterp_params_t *params, vec3_t origin)
 {
-	qbool reset = !p->valid || params->time < p->last_time || p->mode != params->mode ||
-		p->shift_ms != params->shift_ms || p->pm_type != state->pm_type ||
+	qbool reset = !p->valid || params->time < p->last_time ||
+		p->pm_type != state->pm_type ||
 		p->modelindex != state->modelindex || p->dead != !!(state->flags & PF_DEAD);
 	qbool newmsg = reset || state->messagenum != p->messagenum;
 	vec3_t delta, target;
@@ -2687,17 +2899,23 @@ static void CL_InterpolatePlayer(cl_playerinterp_t *p, const player_state_t *sta
 		// still an estimate, not an exact hitbox clock.
 		shift = params->no_pred ? 0 : (p->low_ping ? params->server_frame : 0.02);
 		shift += 0.5 * p->interval;
-		if (params->shift_ms > 0) {
-			shift = params->shift_ms * 0.001f;
-		}
 		// The received origin is from the opponent's last move, not this
-		// server frame. Account for that age even with a manual base lead;
+		// server frame. Add that age to the automatic base lead;
 		// otherwise missing moves become a stop followed by a double step.
 		if (state->messagenum == cl.parsecount) {
 			shift += bound(0, params->packet_time - state->state_time, PLAYER_INTERP_MAX_AGE);
 		}
-		shift = params->mode == 2 ? bound(0, shift, 0.1) : 0;
-		CL_PlayerInterpTarget(state, shift, target);
+		shift = bound(0, shift, 0.1);
+		if (reset) {
+			p->valid = false;
+			p->stops = 0;
+			p->stepped = false;
+		}
+		// Velocity history uses packet time too, avoiding render-frame jitter.
+		CL_PlayerInterpTarget(p, state, shift, packet_delta, target);
+		p->ground_move = state->pm_type == PM_NORMAL && state->onground && state->velocity[2] == 0;
+		p->stepped = p->ground_move && target[2] > state->origin[2] + 1;
+		VectorCopy(state->velocity, p->velocity);
 		VectorSubtract(target, p->pos, delta);
 		reset |= DotProduct(delta, delta) >= PLAYER_INTERP_SNAP_DISTANCE * PLAYER_INTERP_SNAP_DISTANCE;
 		if (reset) {
@@ -2715,8 +2933,6 @@ static void CL_InterpolatePlayer(cl_playerinterp_t *p, const player_state_t *sta
 		p->pm_type = state->pm_type;
 		p->modelindex = state->modelindex;
 		p->dead = !!(state->flags & PF_DEAD);
-		p->mode = params->mode;
-		p->shift_ms = params->shift_ms;
 		VectorCopy(state->origin, p->received_origin);
 	}
 
@@ -2903,8 +3119,7 @@ static void CL_LinkPlayers(void)
 	interp_params.frametime = cls.frametime;
 	interp_params.packet_time = cl.parsecounttime;
 	interp_params.server_frame = 1.0 / (cl.maxfps >= 20 && cl.maxfps <= 1000 ? cl.maxfps : 77.0);
-	interp_params.mode = cl_predict_interp.integer;
-	interp_params.shift_ms = cl_predict_interp_shift.value;
+	interp_params.enabled = cl_predict_interp.integer != 0;
 	interp_params.ping = cl.players[cl.playernum].ping;
 	interp_params.no_pred = Q_atoi(Info_ValueForKey(cl.serverinfo, "sv_antilag_no_pred")) != 0;
 
@@ -3103,11 +3318,11 @@ static void CL_LinkPlayers(void)
 				msec = (int)(msec * scale);
 			}
 		}
-		if ((interp_params.mode == 1 || interp_params.mode == 2) && cl_predict_players.value &&
+		if (interp_params.enabled && cl_predict_players.value &&
 			!cls.mvdplayback && !ISPAUSED && j != cl.playernum) {
 			oldphysent = pmove.numphysent;
-			// Our box is at "now", while the opponent's update is older. It
-			// must not block either the glide target or its visual correction.
+			// Exclude our current box. The command probe temporarily adds
+			// our position from the same packet as the opponent instead.
 			CL_SetSolidPlayersEx(j, false);
 			CL_InterpolatePlayer(&predicted_players[j].interp, state, &interp_params, ent.origin);
 			pmove.numphysent = oldphysent;

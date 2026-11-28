@@ -2456,32 +2456,10 @@
     },
     "_cl_predict_interp": {
       "default": "0",
-      "desc": "Experimental glide rendering for other players. Requires cl_predict_players 1. Applies to live play and QWD playback; MVD/QTV interpolation is unchanged.",
+      "desc": "Draws other players gliding smoothly towards a predicted position on each server update, instead of jumping to a new prediction every update.",
       "group-id": "21",
-      "type": "integer",
-      "remarks": "Replaces cl_predict_lerp, cl_predict_half and cl_predict_scale for drawn opponents. Movement collision prediction still uses normal prediction. During packet loss, models wait at their last target. The automatic target lead estimates MVDSV timing.",
-      "values": [
-        {
-          "description": "Normal command prediction (default)",
-          "name": "0"
-        },
-        {
-          "description": "Glide to received positions (delays opponent models)",
-          "name": "1"
-        },
-        {
-          "description": "Glide to collision-clipped velocity estimates",
-          "name": "2"
-        }
-      ]
-    },
-    "_cl_predict_interp_shift": {
-      "default": "0",
-      "desc": "Base target lead in milliseconds for _cl_predict_interp 2. Zero estimates it from update timing, server FPS and scoreboard ping, honoring sv_antilag_no_pred. A positive value overrides the base lead. The received state's age (up to 30 ms) is added in either case; total lead is capped at 100 ms.",
-      "group-id": "21",
-      "type": "float",
-      "min-value": 0,
-      "max-value": 100
+      "type": "boolean",
+      "remarks": "Needs cl_predict_players 1. Overrides cl_predict_lerp and cl_predict_scale. Only affects other players, not your own movement. Movement collision prediction still uses normal prediction."
     },
     "cl_predict_lerp": {
       "default": "1",
